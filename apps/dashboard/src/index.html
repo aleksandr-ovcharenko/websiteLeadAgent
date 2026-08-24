@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Leads Dashboard</title>
+    <style>
+      body { font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 16px; }
+      .row { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
+      label { display: flex; flex-direction: column; font-size: 12px; gap: 4px; }
+      input { padding: 8px; min-width: 160px; }
+      button { padding: 9px 12px; cursor: pointer; }
+      table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+      th, td { border-bottom: 1px solid #eee; padding: 10px; vertical-align: top; }
+      th { text-align: left; background: #fafafa; position: sticky; top: 0; }
+      tr:hover { background: #fcfcff; }
+      .grid { display: grid; grid-template-columns: 1fr 420px; gap: 16px; align-items: start; }
+      .card { border: 1px solid #eee; border-radius: 8px; padding: 12px; }
+      img { width: 100%; border-radius: 8px; border: 1px solid #eee; }
+      .btn { padding: 8px 10px; border: 1px solid #e5e5e5; background: #fff; border-radius: 6px; cursor: pointer; }
+      .btn.active { background: #111; color: #fff; border-color: #111; }
+      .muted { color: #666; font-size: 12px; }
+      .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono"; font-size: 12px; }
+      @media (max-width: 1100px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+  </head>
+  <body>
+    <h1>Leads Dashboard</h1>
+
+    <div class="card">
+      <div class="row">
+        <label>minLeadScore
+          <input id="minLead" type="number" value="0" min="0" max="100" />
+        </label>
+        <label>minBusinessScore
+          <input id="minBiz" type="number" value="0" min="0" max="100" />
+        </label>
+        <label>maxWebsiteQuality
+          <input id="maxWeb" type="number" value="100" min="0" max="100" />
+        </label>
+        <label>limit
+          <input id="limit" type="number" value="50" min="1" max="200" />
+        </label>
+        <button id="reload">Обновить</button>
+        <span class="muted" id="status"></span>
+      </div>
+    </div>
+
+    <div class="grid" style="margin-top: 12px;">
+      <div class="card">
+        <table>
+          <thead>
+            <tr>
+              <th>Компания</th>
+              <th>Scores</th>
+              <th>Контакты</th>
+              <th>Lighthouse</th>
+              <th>Сайт</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; gap:12px; align-items:center;">
+          <div>
+            <div><b id="selName">Выбери лид</b></div>
+            <div class="muted mono" id="selId"></div>
+          </div>
+          <a id="selUrl" target="_blank" rel="noreferrer" class="mono"></a>
+        </div>
+
+        <div class="row" style="margin-top: 12px; align-items:center;">
+          <button class="btn" id="btnDesktop">desktop</button>
+          <button class="btn" id="btnDesktopFull">desktop-full</button>
+          <button class="btn" id="btnMobile">mobile</button>
+          <button class="btn" id="btnMobileFull">mobile-full</button>
+        </div>
+
+        <div class="row" style="margin-top: 10px; align-items:center;">
+          <a class="mono" id="linkCrawl" target="_blank" rel="noreferrer">crawl.json</a>
+          <a class="mono" id="linkLh" target="_blank" rel="noreferrer">lighthouse.json</a>
+        </div>
+
+        <div style="margin-top: 12px;">
+          <img id="preview" alt="desktop preview" />
+          <div class="muted" style="margin-top: 8px;">
+            Preview: <span class="mono" id="previewPath">data/audit/&lt;leadId&gt;/desktop.png</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const qs = (id) => document.getElementById(id);
+
+      function fmt(v) {
+        if (v === null || v === undefined) return '';
+        return String(v);
+      }
+
+      function setSelected(lead) {
+        qs('selName').textContent = lead.companyName || '(без названия)';
+        qs('selId').textContent = lead.id;
+
+        const urlEl = qs('selUrl');
+        urlEl.textContent = lead.website || '';
+        urlEl.href = lead.website || '#';
+
+        const linkCrawl = qs('linkCrawl');
+        linkCrawl.href = lead.id ? `/audit/${lead.id}/crawl.json` : '#';
+
+        const linkLh = qs('linkLh');
+        linkLh.href = '#';
+        if (lead && lead.lighthouseReport && lead.lighthouseReport.reportPath) {
+          // reportPath is like data/lighthouse/<leadId>.json (file on disk). We don't serve it yet.
+          linkLh.textContent = lead.lighthouseReport.reportPath;
+        } else {
+          linkLh.textContent = 'lighthouse.json';
+        }
+
+        setPreview(lead, 'desktop.png');
+      }
+
+      function setActiveBtn(kind) {
+        const map = {
+          'desktop.png': 'btnDesktop',
+          'desktop-full.png': 'btnDesktopFull',
+          'mobile.png': 'btnMobile',
+          'mobile-full.png': 'btnMobileFull'
+        };
+        for (const id of Object.values(map)) {
+          qs(id).classList.remove('active');
+        }
+        const btnId = map[kind];
+        if (btnId) qs(btnId).classList.add('active');
+      }
+
+      function setPreview(lead, file) {
+        const img = qs('preview');
+        const p = qs('previewPath');
+        img.src = lead && lead.id ? `/audit/${lead.id}/${file}` : '';
+        p.textContent = lead && lead.id ? `data/audit/${lead.id}/${file}` : '';
+        setActiveBtn(file);
+      }
+
+      async function load() {
+        qs('status').textContent = 'loading...';
+
+        const minLead = qs('minLead').value;
+        const minBiz = qs('minBiz').value;
+        const maxWeb = qs('maxWeb').value;
+        const limit = qs('limit').value;
+
+        const url = `/api/leads?minLead=${encodeURIComponent(minLead)}&minBiz=${encodeURIComponent(minBiz)}&maxWeb=${encodeURIComponent(maxWeb)}&limit=${encodeURIComponent(limit)}`;
+        const r = await fetch(url);
+        const data = await r.json();
+
+        const tbody = qs('tbody');
+        tbody.innerHTML = '';
+
+        for (const lead of data.items || []) {
+          const tr = document.createElement('tr');
+
+          tr.innerHTML = `
+            <td>
+              <div><b>${fmt(lead.companyName)}</b></div>
+              <div class="muted">${fmt(lead.address)}</div>
+              <div class="mono muted">${fmt(lead.websiteDomain)}</div>
+            </td>
+            <td class="mono">
+              lead: <b>${fmt(lead.leadScore)}</b><br/>
+              biz: ${fmt(lead.businessScore)}<br/>
+              web: ${fmt(lead.websiteQualityScore)}
+            </td>
+            <td class="mono">
+              ${lead.phone ? lead.phone : ''}
+            </td>
+            <td class="mono">
+              perf: ${lead.lighthouseReport ? fmt(lead.lighthouseReport.performance) : ''}<br/>
+              seo: ${lead.lighthouseReport ? fmt(lead.lighthouseReport.seo) : ''}<br/>
+              acc: ${lead.lighthouseReport ? fmt(lead.lighthouseReport.accessibility) : ''}<br/>
+              bp: ${lead.lighthouseReport ? fmt(lead.lighthouseReport.bestPractices) : ''}
+            </td>
+            <td>
+              ${lead.website ? `<a href="${lead.website}" target="_blank" rel="noreferrer">open</a>` : ''}
+              <div class="muted mono">preview</div>
+            </td>
+          `;
+
+          tr.style.cursor = 'pointer';
+          tr.addEventListener('click', () => setSelected(lead));
+
+          tbody.appendChild(tr);
+        }
+
+        qs('status').textContent = `items: ${(data.items || []).length}`;
+
+        if ((data.items || []).length > 0) {
+          setSelected(data.items[0]);
+        }
+      }
+
+      function wirePreviewButtons() {
+        const getSelectedLeadId = () => qs('selId').textContent;
+        const makeLead = () => ({ id: getSelectedLeadId() });
+
+        qs('btnDesktop').addEventListener('click', () => setPreview(makeLead(), 'desktop.png'));
+        qs('btnDesktopFull').addEventListener('click', () => setPreview(makeLead(), 'desktop-full.png'));
+        qs('btnMobile').addEventListener('click', () => setPreview(makeLead(), 'mobile.png'));
+        qs('btnMobileFull').addEventListener('click', () => setPreview(makeLead(), 'mobile-full.png'));
+      }
+
+      qs('reload').addEventListener('click', () => load().catch(console.error));
+      wirePreviewButtons();
+      load().catch((e) => {
+        qs('status').textContent = 'error';
+        console.error(e);
+      });
+    </script>
+  </body>
+</html>

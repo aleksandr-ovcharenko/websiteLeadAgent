@@ -1,7 +1,6 @@
 generator client {
   provider = "prisma-client-js"
 }
-
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -73,10 +72,18 @@ model Lead {
   scoreStatus      LeadScoreStatus      @default(PENDING)
   generationStatus LeadGenerationStatus @default(PENDING)
 
+  leadScore     Int?
+  businessScore Int?
+  websiteQualityScore Int?
+  scoreDetails  Json?
+  scoredAt      DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   queries LeadQuery[]
+
+  lighthouseReport LighthouseReport?
 
   @@unique([source, sourceId])
   @@index([city])
@@ -93,4 +100,27 @@ model LeadQuery {
 
   @@unique([leadId, query])
   @@index([query])
+}
+
+model LighthouseReport {
+  id        String   @id @default(cuid())
+  leadId    String   @unique
+
+  reportPath String
+
+  performance     Int
+  accessibility   Int
+  seo             Int
+  bestPractices   Int
+
+  lcp   Float?
+  cls   Float?
+  inp   Float?
+  fcp   Float?
+  tbt   Float?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
 }

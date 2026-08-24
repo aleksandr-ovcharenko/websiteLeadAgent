@@ -17,6 +17,7 @@ export interface Collect2gisLeadsResult {
   collected: number;
   created: number;
   duplicates: number;
+  leadIds: string[];
 }
 
 const SOURCE: LeadSource = 'dgis';
@@ -30,6 +31,7 @@ export async function collect2gisLeads(input: Collect2gisLeadsInput): Promise<Co
   let collected = 0;
   let created = 0;
   let duplicates = 0;
+  const leadIds: string[] = [];
 
   for (let page = 1; page <= maxPages && collected < limit; page++) {
     const items = await fetch2gisItems({ apiKey, city, query, page, pageSize });
@@ -51,7 +53,6 @@ export async function collect2gisLeads(input: Collect2gisLeadsInput): Promise<Co
         },
         select: { id: true }
       });
-
       const lead = await prisma.lead.upsert({
         where: {
           source_sourceId: {
@@ -67,6 +68,8 @@ export async function collect2gisLeads(input: Collect2gisLeadsInput): Promise<Co
         },
         select: { id: true }
       });
+
+      leadIds.push(lead.id);
 
       if (existing) duplicates++;
       else created++;
@@ -89,5 +92,5 @@ export async function collect2gisLeads(input: Collect2gisLeadsInput): Promise<Co
     logger.info({ runId, query, page, pageSize, received: items.length, collected }, 'collector.page');
   }
 
-  return { collected, created, duplicates };
+  return { collected, created, duplicates, leadIds };
 }

@@ -4,6 +4,7 @@ import pino from 'pino';
 import { z } from 'zod';
 import { PrismaClient } from '@prisma/client';
 import { collect2gisLeads } from '../collector/collect2gisLeads.js';
+import { enrichLeads } from '../enrichment/enrichLeads.js';
 import { exportLeads } from '../export/exportLeads.js';
 
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
@@ -64,6 +65,8 @@ async function main() {
       limit,
       apiKey: process.env.DGIS_API_KEY
     });
+
+    await enrichLeads({ prisma, logger, runId, leadIds: result.leadIds });
 
     await exportLeads({ prisma, outDir: 'output' });
 

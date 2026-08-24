@@ -1,12 +1,14 @@
 services:
   db:
-    image: postgres:16
+    image: postgres:14
+    security_opt:
+      - seccomp=unconfined
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: minsk_lead_agent
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
 

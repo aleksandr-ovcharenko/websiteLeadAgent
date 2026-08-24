@@ -7,6 +7,11 @@
   ],
   "scripts": {
     "leads": "tsx apps/collector/src/cli/leads.ts",
+    "audit": "tsx apps/auditor/src/cli/audit.ts",
+    "lighthouse": "tsx apps/auditor/src/cli/lighthouse.ts",
+    "score": "tsx apps/auditor/src/cli/score.ts",
+    "export:scored": "tsx apps/collector/src/cli/exportScored.ts",
+    "dashboard": "tsx apps/dashboard/src/server.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
@@ -21,9 +26,15 @@
     "vitest": "^2.0.0"
   },
   "dependencies": {
+    "@playwright/test": "^1.46.0",
     "@prisma/client": "^5.22.0",
+    "@types/express": "^5.0.6",
+    "chrome-launcher": "^1.1.2",
     "dotenv": "^16.4.5",
+    "express": "^4.22.2",
+    "lighthouse": "^11.7.1",
     "pino": "^9.3.2",
+    "playwright": "^1.46.0",
     "zod": "^3.23.8"
   }
 }
