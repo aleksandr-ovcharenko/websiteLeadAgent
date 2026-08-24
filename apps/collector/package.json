@@ -1,0 +1,11 @@
+{
+  "name": "@apps/collector",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@prisma/client": "^5.22.0",
+    "dotenv": "^16.4.5",
+    "pino": "^9.3.2",
+    "zod": "^3.23.8"
+  }
+}

@@ -1,0 +1,96 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum LeadSource {
+  dgis
+}
+
+enum LeadWebsiteStatus {
+  UNKNOWN
+  FOUND
+  NOT_FOUND
+}
+
+enum LeadEnrichmentStatus {
+  PENDING
+  SKIPPED
+  SUCCESS
+  FAILED
+}
+
+enum LeadAuditStatus {
+  PENDING
+  SKIPPED
+  SUCCESS
+  FAILED
+}
+
+enum LeadScoreStatus {
+  PENDING
+  SKIPPED
+  SUCCESS
+  FAILED
+}
+
+enum LeadGenerationStatus {
+  PENDING
+  SKIPPED
+  SUCCESS
+  FAILED
+}
+
+model Lead {
+  id        String   @id @default(cuid())
+
+  source    LeadSource
+  sourceId  String
+
+  companyName String
+
+  city      String
+  address   String?
+
+  categories String[]
+
+  latitude  Float?
+  longitude Float?
+
+  website   String?
+  websiteDomain String?
+  websiteStatus LeadWebsiteStatus @default(UNKNOWN)
+
+  phone     String?
+  sourceUrl String?
+
+  enrichmentStatus LeadEnrichmentStatus @default(PENDING)
+  auditStatus      LeadAuditStatus      @default(PENDING)
+  scoreStatus      LeadScoreStatus      @default(PENDING)
+  generationStatus LeadGenerationStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  queries LeadQuery[]
+
+  @@unique([source, sourceId])
+  @@index([city])
+  @@index([websiteDomain])
+}
+
+model LeadQuery {
+  id        String   @id @default(cuid())
+  leadId    String
+  query     String
+  createdAt DateTime @default(now())
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+
+  @@unique([leadId, query])
+  @@index([query])
+}
