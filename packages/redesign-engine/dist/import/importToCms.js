@@ -1,7 +1,7 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import { PrismaClient } from '@prisma/client';
-import { LocalFilesystemMediaStorage } from '../../media-storage/dist/index.js';
+import { LocalFilesystemMediaStorage } from '../../../media-storage/dist/index.js';
 function slugify(input) {
     return input
         .toLowerCase()
@@ -17,25 +17,36 @@ function randomId() {
 export async function importToCms(options, prisma = new PrismaClient()) {
     await mkdir(options.artifactDir, { recursive: true });
     await writeFile(join(options.artifactDir, 'content.json'), JSON.stringify(options.content, null, 2));
-    const mediaDir = join(options.artifactDir, 'media');
-    const storage = new LocalFilesystemMediaStorage({ baseDir: mediaDir, baseUrl: options.storageBaseUrl });
+    let storage;
     // Create site
     const site = await prisma.site.create({
         data: {
             leadId: options.leadId,
             name: options.siteName,
             slug: options.siteSlug,
-            previewSlug: options.previewSlug,
+            previewToken: options.previewSlug,
             templateId: options.templateId,
             status: 'DRAFT'
         }
     });
     const siteId = site.id;
+    const mediaDir = join('data/generated/sites', siteId, 'media');
+    await mkdir(mediaDir, { recursive: true });
+    storage = new LocalFilesystemMediaStorage({ baseDir: mediaDir, baseUrl: `/site-media/${siteId}` });
+    const usedSlugs = new Set();
+    function uniqueSlug(base) {
+        let s = base || 'untitled';
+        let i = 0;
+        while (usedSlugs.has(s))
+            s = `${base || 'untitled'}-${++i}`;
+        usedSlugs.add(s);
+        return s;
+    }
     // Settings
     await prisma.siteSettings.create({
         data: {
             siteId,
-            companyName: options.content.branding?.companyName ?? options.content.company?.name,
+            companyName: options.content.branding?.companyName ?? options.content.company?.name ?? options.siteName,
             phone: options.content.company?.phone,
             email: options.content.company?.email,
             address: options.content.company?.address,
@@ -50,10 +61,11 @@ export async function importToCms(options, prisma = new PrismaClient()) {
     // Download media
     const mediaMap = new Map();
     for (const m of options.content.media || []) {
-        if (!m.sourceUrl)
+        const sourceUrl = m.sourceUrl;
+        if (!sourceUrl)
             continue;
         try {
-            const resp = await fetch(m.sourceUrl);
+            const resp = await fetch(sourceUrl);
             if (!resp.ok)
                 continue;
             const buf = Buffer.from(await resp.arrayBuffer());
@@ -67,19 +79,19 @@ export async function importToCms(options, prisma = new PrismaClient()) {
                     mimeType: mime,
                     size: result.size,
                     storagePath: result.storagePath,
-                    sourceUrl: m.sourceUrl,
+                    sourceUrl,
                     alt: m.alt
                 }
             });
-            mediaMap.set(m.sourceUrl, dbMedia);
+            mediaMap.set(sourceUrl, dbMedia);
         }
         catch (err) {
-            console.warn('media import failed', m.sourceUrl, err);
+            console.warn('media import failed', sourceUrl, err);
         }
     }
     function mapBlocks(blocks) {
         return blocks.map((b) => {
-            if (b.imageId && b.imageId.startsWith('http')) {
+            if (b.imageId && typeof b.imageId === 'string' && b.imageId.startsWith('http')) {
                 const dbm = mediaMap.get(b.imageId);
                 return { ...b, imageId: dbm?.id };
             }
@@ -93,7 +105,7 @@ export async function importToCms(options, prisma = new PrismaClient()) {
             data: {
                 siteId,
                 title: p.title,
-                slug: p.slug,
+                slug: uniqueSlug(p.slug),
                 isHomepage: p.isHomepage,
                 blocks: mapBlocks(p.blocks),
                 seoTitle: p.seoTitle,
@@ -107,12 +119,13 @@ export async function importToCms(options, prisma = new PrismaClient()) {
     }
     // Services
     for (const s of options.content.services || []) {
-        const image = s.image ? mediaMap.get(s.image.sourceUrl) : undefined;
+        const imgUrl = s.image?.sourceUrl;
+        const image = imgUrl ? mediaMap.get(imgUrl) : undefined;
         await prisma.service.create({
             data: {
                 siteId,
                 title: s.title,
-                slug: s.slug,
+                slug: uniqueSlug(s.slug),
                 shortDescription: s.shortDescription,
                 blocks: mapBlocks(s.blocks),
                 imageId: image?.id,
@@ -127,12 +140,13 @@ export async function importToCms(options, prisma = new PrismaClient()) {
     }
     // Projects
     for (const p of options.content.projects || []) {
-        const cover = p.coverImage ? mediaMap.get(p.coverImage.sourceUrl) : undefined;
+        const coverUrl = p.coverImage?.sourceUrl;
+        const cover = coverUrl ? mediaMap.get(coverUrl) : undefined;
         const project = await prisma.project.create({
             data: {
                 siteId,
                 title: p.title,
-                slug: p.slug,
+                slug: uniqueSlug(p.slug),
                 excerpt: p.excerpt,
                 category: p.category,
                 location: p.location,
@@ -148,7 +162,10 @@ export async function importToCms(options, prisma = new PrismaClient()) {
             }
         });
         for (const img of p.gallery || []) {
-            const dbm = mediaMap.get(img.sourceUrl);
+            const imgUrl = img.sourceUrl;
+            if (!imgUrl)
+                continue;
+            const dbm = mediaMap.get(imgUrl);
             if (dbm) {
                 await prisma.projectMedia.create({
                     data: {
@@ -162,12 +179,13 @@ export async function importToCms(options, prisma = new PrismaClient()) {
     }
     // News
     for (const n of options.content.news || []) {
-        const cover = n.coverImage ? mediaMap.get(n.coverImage.sourceUrl) : undefined;
+        const coverUrl = n.coverImage?.sourceUrl;
+        const cover = coverUrl ? mediaMap.get(coverUrl) : undefined;
         await prisma.newsPost.create({
             data: {
                 siteId,
                 title: n.title,
-                slug: n.slug,
+                slug: uniqueSlug(n.slug),
                 excerpt: n.excerpt,
                 blocks: mapBlocks(n.blocks),
                 coverImageId: cover?.id,
@@ -196,7 +214,7 @@ export async function importToCms(options, prisma = new PrismaClient()) {
             data: {
                 siteId,
                 title: 'Услуги',
-                slug: 'services',
+                slug: uniqueSlug('services'),
                 isHomepage: false,
                 blocks: [{ type: 'services' }],
                 status: 'PUBLISHED',
@@ -213,7 +231,7 @@ export async function importToCms(options, prisma = new PrismaClient()) {
             data: {
                 siteId,
                 title: 'Объекты',
-                slug: 'projects',
+                slug: uniqueSlug('projects'),
                 isHomepage: false,
                 blocks: [{ type: 'projects' }],
                 status: 'PUBLISHED',
@@ -230,7 +248,7 @@ export async function importToCms(options, prisma = new PrismaClient()) {
             data: {
                 siteId,
                 title: 'Новости',
-                slug: 'news',
+                slug: uniqueSlug('news'),
                 isHomepage: false,
                 blocks: [{ type: 'news' }],
                 status: 'PUBLISHED',
@@ -247,7 +265,7 @@ export async function importToCms(options, prisma = new PrismaClient()) {
             data: {
                 siteId,
                 title: 'Контакты',
-                slug: 'contacts',
+                slug: uniqueSlug('contacts'),
                 isHomepage: false,
                 blocks: [{ type: 'contacts' }],
                 status: 'PUBLISHED',

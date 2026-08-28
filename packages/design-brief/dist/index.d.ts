@@ -197,5 +197,3 @@ export declare const designSystemSchema: z.ZodObject<{
 }>;
 export type DesignBrief = z.infer<typeof designBriefSchema>;
 export type DesignSystem = z.infer<typeof designSystemSchema>;
-export { garantkDesignSystem } from './garantkDesignSystem.js';
-export declare const garantkBrief: DesignBrief;

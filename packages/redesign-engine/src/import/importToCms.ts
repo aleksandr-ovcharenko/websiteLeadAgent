@@ -66,7 +66,7 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   await prisma.siteSettings.create({
     data: {
       siteId,
-      companyName: options.content.branding?.companyName ?? options.content.company?.name,
+      companyName: options.content.branding?.companyName ?? options.content.company?.name ?? options.siteName,
       phone: options.content.company?.phone,
       email: options.content.company?.email,
       address: options.content.company?.address,

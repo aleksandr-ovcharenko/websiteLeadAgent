@@ -49,44 +49,4 @@ export const designSystemSchema = z.object({
 export type DesignBrief = z.infer<typeof designBriefSchema>;
 export type DesignSystem = z.infer<typeof designSystemSchema>;
 
-export { garantkDesignSystem } from './garantkDesignSystem.js';
-
-export const garantkBrief: DesignBrief = {
-  client: 'garantk.by',
-  companyName: 'ООО «ГАРАНТ КАЧЕСТВА»',
-  website: 'https://garantk.by/',
-  industry: 'commercial / industrial construction',
-  qualities: [
-    { name: 'premium' },
-    { name: 'architectural' },
-    { name: 'modern' },
-    { name: 'trustworthy' },
-    { name: 'established' },
-    { name: 'professional' },
-    { name: 'restrained' },
-    { name: 'visually strong' },
-  ],
-  visualPriorities: [
-    { rank: 1, label: 'real company projects' },
-    { rank: 2, label: 'strong architectural photography' },
-    { rank: 3, label: 'typography' },
-    { rank: 4, label: 'clear services' },
-    { rank: 5, label: 'company credibility' },
-    { rank: 6, label: 'clear CTA/contact' },
-    { rank: 7, label: 'mobile quality' },
-  ],
-  avoid: [
-    { label: 'generic Bootstrap appearance' },
-    { label: 'generic AI landing-page appearance' },
-    { label: 'SaaS dashboard aesthetics' },
-    { label: 'excessive gradients' },
-    { label: 'excessive rounded cards' },
-    { label: 'random icons everywhere' },
-    { label: 'fake statistics' },
-    { label: 'fake customer logos' },
-    { label: 'stock construction photos when real project photos exist' },
-    { label: 'huge amounts of text on homepage' },
-  ],
-  targetAudience: 'commercial construction clients, industrial partners, government tenders, real estate developers',
-  tone: 'serious, confident, experienced',
-};
+// Add customer-agnostic brief fixtures under packages/design-brief/fixtures if needed.

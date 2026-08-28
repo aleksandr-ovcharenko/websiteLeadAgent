@@ -1,4 +1,4 @@
-import { extractedContentSchema } from '../../content-schema/dist/index.js';
+import { extractedContentSchema } from '../../../content-schema/dist/index.js';
 function toSlug(title) {
     return title
         .toLowerCase()

@@ -7,6 +7,7 @@ function normalizeUrl(base, href) {
             return null;
         u.hash = '';
         u.search = '';
+        u.pathname = u.pathname.replace(/\/$/, '') || '/';
         return u.toString();
     }
     catch {
@@ -34,30 +35,34 @@ const DEFAULT_KEYWORDS = [
     'reviews', 'отзывы', 'contacts', 'контакты', 'prices', 'цены', 'index', ''
 ];
 async function handleCookieConsent(page) {
-    const candidates = [
-        'accept', 'agree', 'согласен', 'ok', 'allow', 'принять', 'continue',
-        'button[aria-label*="accept" i]', 'button[aria-label*="agree" i]'
-    ];
-    for (const sel of candidates) {
+    const labels = ['accept', 'agree', 'ok', 'allow', 'принять', 'согласен', 'continue'];
+    for (const label of labels) {
         try {
-            const els = await page.locator(`text=${sel}, button:has-text("${sel}")`).all();
-            for (const el of els) {
-                if (await el.isVisible().catch(() => false)) {
-                    await el.click({ force: true }).catch(() => { });
-                    await page.waitForTimeout(200);
-                    return;
-                }
+            const el = page.getByRole('button', { name: new RegExp(label, 'i') }).first();
+            if (await el.isVisible().catch(() => false)) {
+                await el.click({ force: true }).catch(() => { });
+                await page.waitForTimeout(200);
+                return;
             }
         }
         catch { }
     }
+    try {
+        const banners = page.locator('[class*="cookie"], [class*="consent"], [id*="cookie"], [id*="consent"]').first();
+        if (await banners.isVisible().catch(() => false)) {
+            await banners.evaluate((node) => { node.style.display = 'none'; });
+        }
+    }
+    catch { }
 }
 export async function crawlSite(options) {
     const maxPages = options.maxPages ?? 15;
     const skipPaths = options.skipPaths ?? DEFAULT_SKIP;
-    const allowedKeywords = options.allowedKeywords ?? DEFAULT_KEYWORDS;
-    const timeoutMs = options.timeoutMs ?? 10000;
-    const browser = await chromium.launch({ headless: true });
+    const timeoutMs = options.timeoutMs ?? 30000;
+    const browser = await chromium.launch({
+        headless: true,
+        args: ['--ignore-certificate-errors', '--ignore-certificate-errors-spki-list', '--no-sandbox', '--disable-gpu']
+    });
     const seen = new Set();
     const queue = [{ url: options.baseUrl, depth: 0 }];
     const pages = [];
@@ -71,10 +76,11 @@ export async function crawlSite(options) {
             const page = await context.newPage();
             try {
                 await page.goto(url, { waitUntil: 'networkidle', timeout: timeoutMs }).catch(() => { });
+                await page.addInitScript({ content: 'window.__name = function __name(x){ return x; };' });
                 await handleCookieConsent(page);
                 await page.waitForTimeout(200);
                 const data = await page.evaluate(() => {
-                    const __name = (x) => x;
+                    const __name = window.__name || ((x) => x);
                     const title = document.title || '';
                     const meta = document.querySelector('meta[name="description"]')?.content ?? '';
                     const h1 = document.querySelector('h1')?.textContent?.trim() ?? '';
@@ -114,9 +120,7 @@ export async function crawlSite(options) {
                         const lower = nu.toLowerCase();
                         if (skipPaths.some((s) => lower.includes(s.toLowerCase())))
                             continue;
-                        const isRelevant = allowedKeywords.some((k) => (link.text + ' ' + lower).toLowerCase().includes(k.toLowerCase()));
-                        if (isRelevant)
-                            queue.push({ url: nu, depth: depth + 1 });
+                        queue.push({ url: nu, depth: depth + 1 });
                     }
                 }
             }

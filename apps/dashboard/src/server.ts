@@ -6,6 +6,7 @@ import fs from 'node:fs/promises';
 import type { Request, Response } from 'express';
 import { sessionMiddleware, authRouter } from './auth.js';
 import { platformRouter } from './platform.js';
+import { generateSite } from '@minsk/redesign-engine';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -144,7 +145,7 @@ app.get('/api/leads', async (req: Request, res: Response) => {
       site: {
         select: {
           id: true,
-          previewSlug: true,
+          previewToken: true,
           status: true
         }
       },
@@ -202,6 +203,18 @@ app.post('/api/leads/:leadId/redesign', async (req: Request, res: Response) => {
   });
 
   res.json({ ok: true, lead: updated });
+});
+
+app.post('/api/leads/:leadId/generate', async (req: Request, res: Response) => {
+  const leadId = String(req.params.leadId);
+  const template = typeof req.body?.template === 'string' ? req.body.template : 'construction-modern-v1';
+  const force = req.body?.force === true;
+  try {
+    const result = await generateSite({ leadId, templateId: template, force, prisma });
+    res.json({ ok: true, ...result });
+  } catch (err: any) {
+    res.status(400).json({ error: err?.message || 'generation_failed' });
+  }
 });
 
 app.post('/api/leads/:leadId/review', async (req: Request, res: Response) => {
