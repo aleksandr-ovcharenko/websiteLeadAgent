@@ -2,6 +2,10 @@ import type { Page } from 'playwright';
 
 export async function crawlPage(page: Page) {
   const result = await page.evaluate(() => {
+    // tsx/esbuild may inject __name(...) helpers into bundled output; in browser context it's undefined.
+    // Define a no-op to prevent ReferenceError.
+    const __name = (x: any) => x;
+
     const title = document.title || null;
 
     const metaDescription = document.querySelector('meta[name="description"]')?.getAttribute('content') ?? null;

@@ -1,0 +1,229 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CMS Admin</title>
+  <style>
+    body { font-family: system-ui, Roboto, Arial, sans-serif; margin: 16px; background: #f3f4f6; }
+    .wrap { max-width: 1200px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 12px; padding: 16px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+    h1, h2 { margin: 0 0 12px; }
+    label { display: block; font-size: 12px; margin-bottom: 4px; color: #4b5563; }
+    input, textarea, select { width: 100%; padding: 8px; border: 1px solid #d1d5db; border-radius: 6px; margin-bottom: 12px; font-family: inherit; }
+    button { padding: 8px 14px; border: 0; border-radius: 6px; background: #2563eb; color: #fff; cursor: pointer; }
+    button.secondary { background: #6b7280; }
+    .row { display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap; }
+    .muted { color: #6b7280; font-size: 12px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { text-align: left; border-bottom: 1px solid #e5e7eb; padding: 8px; }
+    .status { color: #16a34a; }
+    .nav { display: flex; gap: 8px; margin-bottom: 16px; }
+    .nav button { background: #e5e7eb; color: #111827; }
+    .nav button.active { background: #2563eb; color: #fff; }
+    .section { display: none; }
+    .section.active { display: block; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Universal CMS</h1>
+    <div id="sitesBar" class="card"></div>
+
+    <div class="nav">
+      <button id="tabSettings" class="active" onclick="show('settings')">Settings</button>
+      <button id="tabPages" onclick="show('pages')">Pages</button>
+      <button id="tabNews" onclick="show('news')">News</button>
+      <button id="tabProjects" onclick="show('projects')">Projects</button>
+      <button id="tabServices" onclick="show('services')">Services</button>
+      <button id="tabMenu" onclick="show('menu')">Menu</button>
+    </div>
+
+    <div id="settings" class="section active"></div>
+    <div id="pages" class="section"></div>
+    <div id="news" class="section"></div>
+    <div id="projects" class="section"></div>
+    <div id="services" class="section"></div>
+    <div id="menu" class="section"></div>
+
+    <div id="msg" class="card muted" style="display:none;"></div>
+  </div>
+
+  <script>
+    let state = { sites: [], site: null, section: 'settings' };
+
+    function el(id) { return document.getElementById(id); }
+    function api(path, opts) { return fetch(path, { ...opts, headers: { 'Content-Type': 'application/json' } }); }
+    function msg(text) { const m = el('msg'); m.style.display = 'block'; m.textContent = text; setTimeout(() => m.style.display = 'none', 3000); }
+
+    function show(name) {
+      state.section = name;
+      for (const s of ['settings','pages','news','projects','services','menu']) el(s).classList.remove('active');
+      el(name).classList.add('active');
+      for (const b of document.querySelectorAll('.nav button')) b.classList.remove('active');
+      el('tab'+name[0].toUpperCase()+name.slice(1)).classList.add('active');
+      if (state.site) renderSection(name);
+    }
+
+    async function loadSites() {
+      const r = await api('/api/cms/sites');
+      const j = await r.json();
+      state.sites = j.sites;
+      const bar = el('sitesBar');
+      bar.innerHTML = `<div class="row"><div><b>Sites</b></div>` +
+        `<select id="siteSelect" onchange="selectSite(this.value)"><option value="">Select site</option>` +
+        state.sites.map(s => `<option value="${s.id}">${s.name} (${s.previewSlug})</option>`).join('') +
+        `</select></div>`;
+    }
+
+    async function selectSite(id) {
+      if (!id) return;
+      const r = await api('/api/cms/sites/'+id);
+      const j = await r.json();
+      state.site = j;
+      renderSection(state.section);
+    }
+
+    function field(name, label, value, type='text') {
+      return `<label>${label}</label><input id="f_${name}" type="${type}" value="${value||''}" />`;
+    }
+
+    function renderSettings() {
+      const s = state.site.site.siteSettings || {};
+      el('settings').innerHTML = `<div class="card">
+        <h2>Site Settings</h2>
+        ${field('companyName','Company name', s.companyName)}
+        ${field('phone','Phone', s.phone)}
+        ${field('email','Email', s.email)}
+        ${field('address','Address', s.address)}
+        ${field('workingHours','Working hours', s.workingHours)}
+        ${field('primaryColor','Primary color', s.primaryColor)}
+        ${field('secondaryColor','Secondary color', s.secondaryColor)}
+        <button onclick="saveSettings()">Save</button>
+        <div class="muted" style="margin-top:8px;">Preview: <a href="/preview/${state.site.site.previewSlug}" target="_blank">/preview/${state.site.site.previewSlug}</a></div>
+      </div>`;
+    }
+
+    function list(title, items, createFn) {
+      return `<div class="card"><h2>${title}</h2>
+        <table><thead><tr><th>Title</th><th>Slug</th><th>Status</th></tr></thead><tbody>
+          ${items.map(i => `<tr><td>${i.title}</td><td>${i.slug}</td><td>${i.status}</td></tr>`).join('')}
+        </tbody></table>
+        ${createFn}
+      </div>`;
+    }
+
+    function renderPages() {
+      el('pages').innerHTML = list('Pages', state.site.pages,
+        `<div class="row" style="margin-top:12px;">
+          <input id="p_title" placeholder="Title" style="flex:1" />
+          <input id="p_slug" placeholder="slug" style="flex:1" />
+          <button onclick="createPage()">Add</button>
+        </div>`);
+    }
+
+    function renderNews() {
+      el('news').innerHTML = list('News', state.site.news,
+        `<div class="row" style="margin-top:12px;">
+          <input id="n_title" placeholder="Title" style="flex:1" />
+          <input id="n_excerpt" placeholder="Excerpt" style="flex:2" />
+          <button onclick="createNews()">Add</button>
+        </div>`);
+    }
+
+    function renderProjects() {
+      el('projects').innerHTML = list('Projects', state.site.projects,
+        `<div class="row" style="margin-top:12px;">
+          <input id="pr_title" placeholder="Title" style="flex:1" />
+          <input id="pr_category" placeholder="completed|in_progress" style="flex:1" />
+          <button onclick="createProject()">Add</button>
+        </div>`);
+    }
+
+    function renderServices() {
+      el('services').innerHTML = list('Services', state.site.services,
+        `<div class="row" style="margin-top:12px;">
+          <input id="s_title" placeholder="Title" style="flex:1" />
+          <input id="s_desc" placeholder="Short description" style="flex:2" />
+          <button onclick="createService()">Add</button>
+        </div>`);
+    }
+
+    function renderMenu() {
+      el('menu').innerHTML = `<div class="card"><h2>Menu</h2>
+        <table><thead><tr><th>Label</th><th>Page</th><th>URL</th></tr></thead><tbody>
+          ${state.site.menu.map(i => `<tr><td>${i.label}</td><td>${i.page?.title||'-'}</td><td>${i.url||'-'}</td></tr>`).join('')}
+        </tbody></table>
+        <div class="row" style="margin-top:12px;">
+          <input id="m_label" placeholder="Label" style="flex:1" />
+          <select id="m_page" style="flex:1"><option value="">-- page --</option>${state.site.pages.map(p=>`<option value="${p.id}">${p.title}</option>`).join('')}</select>
+          <input id="m_url" placeholder="Custom URL" style="flex:1" />
+          <button onclick="addMenu()">Add</button>
+        </div>
+      </div>`;
+    }
+
+    function renderSection(name) {
+      if (name === 'settings') renderSettings();
+      if (name === 'pages') renderPages();
+      if (name === 'news') renderNews();
+      if (name === 'projects') renderProjects();
+      if (name === 'services') renderServices();
+      if (name === 'menu') renderMenu();
+    }
+
+    async function saveSettings() {
+      const siteId = state.site.site.id;
+      const body = {
+        companyName: el('f_companyName').value,
+        phone: el('f_phone').value,
+        email: el('f_email').value,
+        address: el('f_address').value,
+        workingHours: el('f_workingHours').value,
+        primaryColor: el('f_primaryColor').value,
+        secondaryColor: el('f_secondaryColor').value
+      };
+      const r = await api('/api/cms/sites/'+siteId+'/settings', { method: 'POST', body: JSON.stringify(body) });
+      if (r.ok) msg('Settings saved');
+    }
+
+    async function createPage() {
+      const siteId = state.site.site.id;
+      const body = { title: el('p_title').value, slug: el('p_slug').value, blocks: [{type:'text', content:''}], status: 'PUBLISHED' };
+      const r = await api('/api/cms/sites/'+siteId+'/pages', { method: 'POST', body: JSON.stringify(body) });
+      if (r.ok) { msg('Page added'); selectSite(siteId); }
+    }
+
+    async function createNews() {
+      const siteId = state.site.site.id;
+      const body = { title: el('n_title').value, excerpt: el('n_excerpt').value, blocks: [{type:'text', content:''}], status: 'PUBLISHED' };
+      const r = await api('/api/cms/sites/'+siteId+'/news', { method: 'POST', body: JSON.stringify(body) });
+      if (r.ok) { msg('News added'); selectSite(siteId); }
+    }
+
+    async function createProject() {
+      const siteId = state.site.site.id;
+      const body = { title: el('pr_title').value, category: el('pr_category').value, blocks: [{type:'text', content:''}], status: 'PUBLISHED' };
+      const r = await api('/api/cms/sites/'+siteId+'/projects', { method: 'POST', body: JSON.stringify(body) });
+      if (r.ok) { msg('Project added'); selectSite(siteId); }
+    }
+
+    async function createService() {
+      const siteId = state.site.site.id;
+      const body = { title: el('s_title').value, shortDescription: el('s_desc').value, blocks: [{type:'text', content:''}], status: 'PUBLISHED' };
+      const r = await api('/api/cms/sites/'+siteId+'/services', { method: 'POST', body: JSON.stringify(body) });
+      if (r.ok) { msg('Service added'); selectSite(siteId); }
+    }
+
+    async function addMenu() {
+      const siteId = state.site.site.id;
+      const pageId = el('m_page').value;
+      const body = { label: el('m_label').value, pageId: pageId || null, url: el('m_url').value || null };
+      const r = await api('/api/cms/sites/'+siteId+'/menu', { method: 'POST', body: JSON.stringify(body) });
+      if (r.ok) { msg('Menu item added'); selectSite(siteId); }
+    }
+
+    loadSites();
+  </script>
+</body>
+</html>

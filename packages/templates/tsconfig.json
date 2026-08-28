@@ -1,0 +1,14 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist"
+  },
+  "include": ["src/**/*"],
+  "exclude": [
+    "src/construction-modern-v1/*.tsx",
+    "src/construction-modern-v1/index.css",
+    "src/construction-modern-v1/imports/**/*",
+    "src/construction-modern-v1/vite-env.d.ts"
+  ]
+}

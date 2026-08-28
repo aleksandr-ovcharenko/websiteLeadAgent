@@ -44,6 +44,61 @@ enum LeadGenerationStatus {
   FAILED
 }
 
+enum ManualReviewStatus {
+  UNREVIEWED
+  GOOD
+  BAD
+  UNSURE
+}
+
+enum VisualAnalysisStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}
+
+enum RedesignStage {
+  NOT_SELECTED
+  SELECTED_FOR_REDESIGN
+  CONTENT_EXTRACTED
+  CONTENT_TRANSFORMED
+  CMS_IMPORTED
+  SITE_RENDERED
+  AUDIT_DONE
+  DEMO_GENERATED
+  DEMO_APPROVED
+  READY_TO_CONTACT
+}
+
+enum SiteStatus {
+  DRAFT
+  ACTIVE
+  ARCHIVED
+}
+
+enum SiteBuildStatus {
+  PENDING
+  BUILDING
+  SUCCESS
+  FAILED
+}
+
+enum UserRole {
+  ADMIN
+  EDITOR
+}
+
+enum PageStatus {
+  DRAFT
+  PUBLISHED
+}
+
+enum ContentSourceType {
+  IMPORTED
+  MANUAL
+  AI_REWRITTEN
+}
+
 model Lead {
   id        String   @id @default(cuid())
 
@@ -78,12 +133,28 @@ model Lead {
   scoreDetails  Json?
   scoredAt      DateTime?
 
+  technicalQualityScore Int?
+  visualQualityScore    Int?
+  businessConfidenceScore Int?
+  leadScoreV2           Int?
+  scoreDetailsV2        Json?
+
+  manualReviewStatus ManualReviewStatus @default(UNREVIEWED)
+  manualReviewNote   String?
+  reviewedAt         DateTime?
+
+  redesignStage RedesignStage @default(NOT_SELECTED)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   queries LeadQuery[]
 
   lighthouseReport LighthouseReport?
+
+  visualAnalysis VisualAnalysis?
+  site           Site?
+  redesignRuns   RedesignRun[]
 
   @@unique([source, sourceId])
   @@index([city])
@@ -123,4 +194,314 @@ model LighthouseReport {
   updatedAt DateTime @updatedAt
 
   lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+model VisualAnalysis {
+  id        String   @id @default(cuid())
+  leadId    String   @unique
+
+  status    VisualAnalysisStatus @default(PENDING)
+
+  modernity         Int
+  visualQuality     Int
+  mobileUX          Int
+  trust             Int
+  ctaQuality        Int
+  contentStructure  Int
+  visualHierarchy   Int
+  brandConsistency  Int
+  redesignPotential Int
+
+  problems  Json
+  strengths Json
+  summary   String
+
+  model         String
+  promptVersion String
+  usage         Json?
+  errorMessage  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+}
+
+model Site {
+  id        String   @id @default(cuid())
+  leadId    String?  @unique
+  name      String
+  slug      String   @unique
+  domain    String?
+  previewToken String @unique
+  templateId String
+  templateVersion String?
+  themeConfig Json?    @default("{}")
+  status    SiteStatus @default(DRAFT)
+  settings  Json?    @default("{}")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lead       Lead?        @relation(fields: [leadId], references: [id], onDelete: SetNull)
+  siteUsers  SiteUser[]
+  siteSettings SiteSettings?
+  pages      Page[]
+  newsPosts  NewsPost[]
+  projects   Project[]
+  services   Service[]
+  media      Media[]
+  menus      Menu[]
+  menuItems  MenuItem[]
+  redesignRuns RedesignRun[]
+  builds     SiteBuild[]
+}
+
+model SiteSettings {
+  id        String   @id @default(cuid())
+  siteId    String   @unique
+  companyName String?
+  logoMediaId String?
+  faviconMediaId String?
+  phone     String?
+  email     String?
+  address   String?
+  workingHours String?
+  socialLinks Json?   @default("[]")
+  primaryColor String?
+  secondaryColor String?
+  defaultSeoTitle String?
+  defaultSeoDescription String?
+  analytics Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  logo Media? @relation("LogoMedia", fields: [logoMediaId], references: [id])
+  favicon Media? @relation("FaviconMedia", fields: [faviconMediaId], references: [id])
+}
+
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  passwordHash String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  siteUsers SiteUser[]
+}
+
+model SiteUser {
+  id        String   @id @default(cuid())
+  siteId    String
+  userId    String
+  role      UserRole @default(EDITOR)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, userId])
+}
+
+model Media {
+  id        String   @id @default(cuid())
+  siteId    String
+  filename  String
+  originalFilename String?
+  mimeType  String
+  size      Int?
+  width     Int?
+  height     Int?
+  alt       String?
+  caption   String?
+  storagePath String
+  sourceUrl String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  coverForProjects Project[] @relation("ProjectCover")
+  coverForNews NewsPost[] @relation("NewsCover")
+  imageForServices Service[] @relation("ServiceImage")
+  projectMedia ProjectMedia[]
+  logoForSites SiteSettings[] @relation("LogoMedia")
+  faviconForSites SiteSettings[] @relation("FaviconMedia")
+}
+
+model Page {
+  id        String   @id @default(cuid())
+  siteId    String
+  title     String
+  slug      String
+  status    PageStatus @default(DRAFT)
+  blocks    Json     @default("[]")
+  seoTitle  String?
+  seoDescription String?
+  publishedAt DateTime?
+  sourceUrl String?
+  sourceType ContentSourceType @default(IMPORTED)
+  isHomepage Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  menuItems MenuItem[]
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@unique([siteId, slug])
+}
+
+model NewsPost {
+  id        String   @id @default(cuid())
+  siteId    String
+  title     String
+  slug      String
+  excerpt   String?
+  blocks    Json     @default("[]")
+  coverImageId String?
+  status    PageStatus @default(DRAFT)
+  publishedAt DateTime?
+  seoTitle  String?
+  seoDescription String?
+  sourceUrl String?
+  sourceType ContentSourceType @default(IMPORTED)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  coverImage Media? @relation("NewsCover", fields: [coverImageId], references: [id])
+
+  @@unique([siteId, slug])
+}
+
+model Project {
+  id        String   @id @default(cuid())
+  siteId    String
+  title     String
+  slug      String
+  excerpt   String?
+  blocks    Json     @default("[]")
+  coverImageId String?
+  category  String?
+  location  String?
+  completionDate String?
+  status    PageStatus @default(DRAFT)
+  publishedAt DateTime?
+  seoTitle  String?
+  seoDescription String?
+  sourceUrl String?
+  sourceType ContentSourceType @default(IMPORTED)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  coverImage Media? @relation("ProjectCover", fields: [coverImageId], references: [id])
+  projectMedia ProjectMedia[]
+
+  @@unique([siteId, slug])
+}
+
+model ProjectMedia {
+  id        String   @id @default(cuid())
+  projectId String
+  mediaId   String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  media   Media   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, mediaId])
+}
+
+model Service {
+  id        String   @id @default(cuid())
+  siteId    String
+  title     String
+  slug      String
+  shortDescription String?
+  blocks    Json     @default("[]")
+  imageId   String?
+  icon      String?
+  sortOrder Int      @default(0)
+  status    PageStatus @default(DRAFT)
+  seoTitle  String?
+  seoDescription String?
+  sourceUrl String?
+  sourceType ContentSourceType @default(IMPORTED)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  image Media? @relation("ServiceImage", fields: [imageId], references: [id])
+
+  @@unique([siteId, slug])
+}
+
+model Menu {
+  id        String   @id @default(cuid())
+  siteId    String
+  name      String
+  isMain    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  items MenuItem[]
+}
+
+model MenuItem {
+  id        String   @id @default(cuid())
+  siteId    String
+  menuId    String
+  label     String
+  pageId    String?
+  url       String?
+  parentId  String?
+  sortOrder Int      @default(0)
+  visible   Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site   Site     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  menu   Menu     @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  page   Page?    @relation(fields: [pageId], references: [id], onDelete: SetNull)
+  parent MenuItem? @relation("MenuItemChildren", fields: [parentId], references: [id], onDelete: SetNull)
+  children MenuItem[] @relation("MenuItemChildren")
+}
+
+model RedesignRun {
+  id        String   @id @default(cuid())
+  leadId    String
+  siteId    String?  @unique
+  stage     RedesignStage @default(NOT_SELECTED)
+  contentJsonPath String?
+  currentCrawl Json?
+  currentScreenshots Json?
+  redesignScreenshots Json?
+  lighthouseReport Json?
+  errorMessage String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lead Lead @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  site Site? @relation(fields: [siteId], references: [id], onDelete: SetNull)
+}
+
+model SiteBuild {
+  id        String   @id @default(cuid())
+  siteId    String
+  templateId String
+  templateVersion String?
+  status    SiteBuildStatus @default(PENDING)
+  contentHash String?
+  themeHash String?
+  outputPath String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+
+  @@index([siteId])
 }

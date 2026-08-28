@@ -54,6 +54,11 @@ export async function auditLeadWebsite(input: {
     await page.screenshot({ path: join(outDir, 'mobile.png'), fullPage: false });
     await page.screenshot({ path: join(outDir, 'mobile-full.png'), fullPage: true });
 
+    await page.evaluate(() => {
+      // tsx/esbuild helper used in bundled code; define it in browser context to avoid ReferenceError.
+      (globalThis as any).__name = (x: any) => x;
+    });
+
     const crawl = await crawlPage(page);
 
     const payload = {

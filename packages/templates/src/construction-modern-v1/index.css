@@ -1,0 +1,56 @@
+@import url('https://fonts.googleapis.com/css2?family=Geologica:wght@300..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+@import 'tailwindcss';
+
+:root {
+  --bg: #F2F2F2;
+  --fg: #1C2B23;
+  --dark: #0F1F1C;
+  --brass: #13A34A;
+  --brass-light: #1DB85A;
+  --muted: #5C7268;
+  --border: #C8D5CE;
+  --card-bg: #E5EDEA;
+  --overlay: rgba(15, 31, 28, 0.55);
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+::selection {
+  background: #13A34A;
+  color: #FFFFFF;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  font-family: 'Inter', sans-serif;
+  background-color: var(--bg);
+  color: var(--fg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbar while preserving scroll */
+::-webkit-scrollbar {
+  width: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 0;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--muted);
+}
