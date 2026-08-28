@@ -53,7 +53,7 @@
     let state = { sites: [], site: null, section: 'settings' };
 
     function el(id) { return document.getElementById(id); }
-    function api(path, opts) { return fetch(path, { ...opts, headers: { 'Content-Type': 'application/json' } }); }
+    function api(path, opts) { return fetch(path, { ...opts, credentials: 'include', headers: { 'Content-Type': 'application/json' } }); }
     function msg(text) { const m = el('msg'); m.style.display = 'block'; m.textContent = text; setTimeout(() => m.style.display = 'none', 3000); }
 
     function show(name) {
@@ -67,13 +67,20 @@
 
     async function loadSites() {
       const r = await api('/api/cms/sites');
+      if (!r.ok) { msg('Unauthorized or error loading sites'); return; }
       const j = await r.json();
       state.sites = j.sites;
-      const bar = el('sitesBar');
-      bar.innerHTML = `<div class="row"><div><b>Sites</b></div>` +
-        `<select id="siteSelect" onchange="selectSite(this.value)"><option value="">Select site</option>` +
-        state.sites.map(s => `<option value="${s.id}">${s.name} (${s.previewSlug})</option>`).join('') +
-        `</select></div>`;
+      const urlParams = new URLSearchParams(window.location.search);
+      const preselected = urlParams.get('site');
+      if (preselected && state.sites.find(s => s.id === preselected)) {
+        await selectSite(preselected);
+      } else if (state.sites.length) {
+        const bar = el('sitesBar');
+        bar.innerHTML = `<div class="row"><div><b>Sites</b></div>` +
+          `<select id="siteSelect" onchange="selectSite(this.value)"><option value="">Select site</option>` +
+          state.sites.map(s => `<option value="${s.id}">${s.name} (${s.previewToken})</option>`).join('') +
+          `</select></div>`;
+      }
     }
 
     async function selectSite(id) {
@@ -100,7 +107,7 @@
         ${field('primaryColor','Primary color', s.primaryColor)}
         ${field('secondaryColor','Secondary color', s.secondaryColor)}
         <button onclick="saveSettings()">Save</button>
-        <div class="muted" style="margin-top:8px;">Preview: <a href="/preview/${state.site.site.previewSlug}" target="_blank">/preview/${state.site.site.previewSlug}</a></div>
+        <div class="muted" style="margin-top:8px;">Preview: <a href="http://localhost:3336/preview/${state.site.site.previewToken}" target="_blank">/preview/${state.site.site.previewToken}</a></div>
       </div>`;
     }
 

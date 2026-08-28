@@ -2,23 +2,45 @@ import 'dotenv/config';
 import express, { type Request, type Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import path from 'node:path';
+import { sessionMiddleware, getSessionUser, requireSiteAccess, requireSuperAdmin } from '../../dashboard/src/auth';
 
 const prisma = new PrismaClient();
 const app = express();
 const PORT = Number(process.env.CMS_PORT ?? 3335);
 
+app.use(sessionMiddleware);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+function requireAuth(req: Request, res: Response, next: any) {
+  getSessionUser(req).then((user) => {
+    if (!user) { res.status(401).send('Unauthorized'); return; }
+    (req as any).user = user;
+    next();
+  }).catch((e: any) => next(e));
+}
+
 // Admin API: sites
-app.get('/api/cms/sites', async (_req: Request, res: Response) => {
+app.get('/admin', requireAuth, async (req: Request, res: Response) => {
+  res.sendFile(path.resolve('apps/cms/src/admin.html'));
+});
+
+app.get('/api/cms/sites', requireAuth, async (req: Request, res: Response) => {
+  const user = (req as any).user;
+  if (!user) { res.status(401).json({ error: 'unauthorized' }); return; }
+  const where: any = {};
+  if (user.globalRole !== 'SUPER_ADMIN') {
+    const siteUsers = await (prisma as any).siteUser.findMany({ where: { userId: user.id }, select: { siteId: true } });
+    where.id = { in: siteUsers.map((s: any) => s.siteId) };
+  }
   const sites = await (prisma as any).site.findMany({
+    where,
     include: { lead: { select: { companyName: true, website: true } }, siteSettings: true }
   });
   res.json({ sites });
 });
 
-app.get('/api/cms/sites/:siteId', async (req: Request, res: Response) => {
+app.get('/api/cms/sites/:siteId', requireSiteAccess('siteId'), async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const site = await (prisma as any).site.findUnique({ where: { id: siteId }, include: { siteSettings: true } });
   if (!site) { res.status(404).json({ error: 'not_found' }); return; }
@@ -33,7 +55,7 @@ app.get('/api/cms/sites/:siteId', async (req: Request, res: Response) => {
   res.json({ site, pages, services, projects, news, menu, media });
 });
 
-app.post('/api/cms/sites/:siteId/settings', async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/settings', requireSiteAccess('siteId'), async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const data = req.body;
   const updated = await (prisma as any).siteSettings.update({ where: { siteId }, data });
@@ -45,7 +67,7 @@ function createSlug(title: string) {
   return title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9а-яё\-]/g, '').replace(/--+/g, '-').slice(0, 80);
 }
 
-app.post('/api/cms/sites/:siteId/pages', async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/pages', requireSiteAccess('siteId'), async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const { title, slug, blocks, status, isHomepage, seoTitle, seoDescription } = req.body;
   const s = slug || createSlug(title);
@@ -70,7 +92,7 @@ app.put('/api/cms/sites/:siteId/pages/:pageId', async (req: Request, res: Respon
   res.json({ ok: true, page });
 });
 
-app.post('/api/cms/sites/:siteId/news', async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/news', requireSiteAccess('siteId'), async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const { title, slug, excerpt, blocks, status } = req.body;
   const s = slug || createSlug(title);
@@ -80,7 +102,7 @@ app.post('/api/cms/sites/:siteId/news', async (req: Request, res: Response) => {
   res.json({ ok: true, news });
 });
 
-app.post('/api/cms/sites/:siteId/projects', async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/projects', requireSiteAccess('siteId'), async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const { title, slug, excerpt, category, location, completionDate, blocks, status } = req.body;
   const s = slug || createSlug(title);
@@ -90,7 +112,7 @@ app.post('/api/cms/sites/:siteId/projects', async (req: Request, res: Response) 
   res.json({ ok: true, project });
 });
 
-app.post('/api/cms/sites/:siteId/services', async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/services', requireSiteAccess('siteId'), async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const { title, slug, shortDescription, blocks, status } = req.body;
   const s = slug || createSlug(title);
@@ -100,7 +122,7 @@ app.post('/api/cms/sites/:siteId/services', async (req: Request, res: Response) 
   res.json({ ok: true, service });
 });
 
-app.post('/api/cms/sites/:siteId/menu', async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/menu', requireSiteAccess('siteId'), async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const { label, pageId, url, sortOrder } = req.body;
   const menu = await (prisma as any).menu.findFirst({ where: { siteId, isMain: true } });

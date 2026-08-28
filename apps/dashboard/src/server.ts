@@ -4,10 +4,13 @@ import { PrismaClient } from '@prisma/client';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { Request, Response } from 'express';
+import { sessionMiddleware, authRouter } from './auth.js';
+import { platformRouter } from './platform.js';
 
 const prisma = new PrismaClient();
 const app = express();
 
+app.use(sessionMiddleware);
 app.use(express.json());
 
 const PORT = Number(process.env.PORT ?? 3333);
@@ -256,6 +259,9 @@ app.get('/audit/:leadId/:file', async (req: Request, res: Response) => {
     res.status(404).json({ error: 'not_found' });
   }
 });
+
+app.use('/api/auth', authRouter);
+app.use(platformRouter);
 
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console

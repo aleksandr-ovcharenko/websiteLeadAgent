@@ -88,6 +88,11 @@ enum UserRole {
   EDITOR
 }
 
+enum GlobalRole {
+  SUPER_ADMIN
+  USER
+}
+
 enum PageStatus {
   DRAFT
   PUBLISHED
@@ -254,6 +259,7 @@ model Site {
   menuItems  MenuItem[]
   redesignRuns RedesignRun[]
   builds     SiteBuild[]
+  screenshot SitePreviewScreenshot?
 }
 
 model SiteSettings {
@@ -284,6 +290,7 @@ model User {
   id        String   @id @default(cuid())
   email     String   @unique
   passwordHash String
+  globalRole GlobalRole @default(USER)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -504,4 +511,18 @@ model SiteBuild {
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
   @@index([siteId])
+}
+
+model SitePreviewScreenshot {
+  id        String   @id @default(cuid())
+  siteId    String   @unique
+  storagePath String
+  url       String
+  capturedAt DateTime @default(now())
+  siteUpdatedAt DateTime
+  buildId   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
 }
