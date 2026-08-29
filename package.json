@@ -21,6 +21,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "dev": "tsx scripts/dev.ts",
+    "dev:help": "tsx scripts/dev.ts --help",
     "dev:platform": "tsx scripts/dev.ts --only=platform",
     "dev:cms": "tsx scripts/dev.ts --only=cms",
     "dev:renderer": "tsx scripts/dev.ts --only=renderer",

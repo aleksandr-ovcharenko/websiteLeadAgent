@@ -38,7 +38,9 @@ npm run db:migrate
 
 ## Local development
 
-One command starts the whole product on `http://localhost:3000`:
+### Quick start (full product)
+
+No flags are required — `npm run dev` starts the entire product on `http://localhost:3000`:
 
 ```bash
 npm install
@@ -52,25 +54,34 @@ Then open:
 - `http://localhost:3000/sites` — Generated Sites
 - `http://localhost:3000/cms?site=<siteId>` — CMS
 
-Internal ports:
+### Available flags
+
+Run `npm run dev:help` (or `npm run dev -- --help`) to see all options.
+
+| Command | What it starts |
+| --- | --- |
+| `npm run dev` | Everything: PostgreSQL (if not running), Platform API, CMS, Renderer, Platform Web, and the Gateway on `http://localhost:3000` |
+| `npm run dev -- --only=platform` | Platform API, Platform Web, and Gateway |
+| `npm run dev -- --only=cms` | CMS, auth, and Gateway |
+| `npm run dev -- --only=renderer` | Renderer and Gateway |
+| `npm run dev -- --skip=cms` | Full product except the CMS |
+| `npm run dev -- --no-infra` | Use this when PostgreSQL is already running (e.g. after `npm run infra:up`) |
+
+### Infrastructure commands
+
+```bash
+npm run infra:up    # start PostgreSQL only
+npm run infra:down  # stop PostgreSQL
+npm run infra:reset # wipe local data and recreate
+```
+
+### Internal ports
 
 - Platform API: `3333`
 - CMS: `3335`
 - Renderer: `3336`
 - Platform web: `3004`
 - Gateway: `3000`
-
-Other commands:
-
-```bash
-npm run dev -- --only=platform
-npm run dev -- --only=cms
-npm run dev -- --only=renderer
-npm run dev -- --skip=cms
-npm run infra:up
-npm run infra:down
-npm run infra:reset   # wipes local data
-```
 
 ## Collect leads (2GIS)
 
