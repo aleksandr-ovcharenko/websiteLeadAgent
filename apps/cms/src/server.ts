@@ -138,5 +138,6 @@ app.post('/api/cms/sites/:siteId/menu', requireSiteAccess('siteId'), async (req:
 });
 
 app.listen(PORT, () => {
-  console.log(`CMS running: http://localhost:${PORT}`);
+  // eslint-disable-next-line no-console
+  console.log(`[STUDIO] ready on http://localhost:${PORT}`);
 });

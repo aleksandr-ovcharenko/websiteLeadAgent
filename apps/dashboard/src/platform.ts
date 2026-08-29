@@ -1,6 +1,7 @@
 import express, { type Request, type Response } from 'express';
 import { prisma, requireSuperAdmin } from './auth.js';
 import { captureSitePreview, getScreenshotStoragePath, getScreenshotUrl } from '../../../packages/screenshot/src/index.js';
+import { getPipelineStageLabel } from '@minsk/redesign-engine';
 
 const router = express.Router();
 router.use(express.json());
@@ -46,6 +47,7 @@ async function toPlatformSite(site: any): Promise<any> {
   ]);
 
   const status = uiStatus(site);
+  const stageLabel = getPipelineStageLabel(site.lead?.redesignStage);
   const { attention, attentionAction } = computeAttention(site, screenshot);
   const image = screenshot ? screenshot.url : 'https://via.placeholder.com/800x500?text=No+preview';
 
@@ -69,7 +71,8 @@ async function toPlatformSite(site: any): Promise<any> {
     image,
     attention,
     attentionAction,
-    previewToken: site.previewToken
+    previewToken: site.previewToken,
+    stageLabel
   };
 }
 

@@ -1,4 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from "react";
+import RadarView from "./Radar";
 
 type Status =
   | "DRAFT"
@@ -26,6 +27,7 @@ interface Site {
   mediaCount: number;
   attention?: string;
   attentionAction?: "Fix" | "Retry" | "Open";
+  stageLabel: string;
   previewCaptured: string;
   previewOutdated?: boolean;
   image: string;
@@ -56,7 +58,7 @@ type SortKey = "lastUpdated" | "name" | "created";
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
-function StatusBadge({ status, sm }: { status: Status; sm?: boolean }) {
+function StatusBadge({ status, label, sm }: { status: Status; label?: string; sm?: boolean }) {
   const m = STATUS_META[status];
   return (
     <span
@@ -64,7 +66,7 @@ function StatusBadge({ status, sm }: { status: Status; sm?: boolean }) {
         sm ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]"
       } ${m.cls}`}
     >
-      {m.label}
+      {label || m.label}
     </span>
   );
 }
@@ -243,7 +245,7 @@ function DetailPanel({
             </svg>
           </button>
           <div className="absolute bottom-3 left-3">
-            <StatusBadge status={site.status} sm />
+            <StatusBadge status={site.status} label={site.stageLabel} sm />
           </div>
         </div>
 
@@ -447,7 +449,7 @@ function CMSView({ site, onBack }: { site: Site; onBack: () => void }) {
         <div className="h-4 w-px bg-stone-200" />
         <span className="text-sm font-semibold text-stone-900">{site.name}</span>
         <span className="text-[11px] font-mono text-stone-400">{site.domain}</span>
-        <StatusBadge status={site.status} sm />
+        <StatusBadge status={site.status} label={site.stageLabel} sm />
       </header>
       <main className="max-w-3xl mx-auto px-6 py-16 text-center">
         <div className="bg-white border border-stone-200 rounded-lg px-8 py-12">
@@ -469,7 +471,7 @@ function CMSView({ site, onBack }: { site: Site; onBack: () => void }) {
 
 // ── Main App ──────────────────────────────────────────────────────────────────
 
-export default function App() {
+function ForgeView() {
   const [sites, setSites] = useState<Site[]>([]);
   const [appView, setAppView] = useState<AppView>("dashboard");
   const [cmsTarget, setCMSTarget] = useState<Site | null>(null);
@@ -520,11 +522,11 @@ export default function App() {
   };
 
   function openCMS(site: Site) {
-    window.open('/cms?site=' + site.id, '_blank');
+    window.open('/studio/' + site.id, '_blank');
   }
 
   function openPreview(site: Site) {
-    window.open('/preview/' + site.previewToken, '_blank');
+    window.open('/showcase/' + site.previewToken, '_blank');
   }
 
   function archiveSite(id: string) {
@@ -578,8 +580,8 @@ export default function App() {
         {/* Page heading */}
         <div className="flex items-start justify-between mb-6">
           <div>
-            <h1 className="text-xl font-semibold text-stone-900">Sites</h1>
-            <p className="text-sm text-stone-500 mt-0.5">Manage generated customer websites</p>
+            <h1 className="text-xl font-semibold text-stone-900">Forge</h1>
+            <p className="text-sm text-stone-500 mt-0.5">Manage generated sites</p>
           </div>
           <button
             onClick={() => setShowCreate(true)}
@@ -675,7 +677,7 @@ export default function App() {
                     {site.name}
                   </button>
                   <div className="flex items-center gap-1.5 mt-1">
-                    <StatusBadge status={site.status} sm />
+                    <StatusBadge status={site.status} label={site.stageLabel} sm />
                     <span className="text-[10px] text-stone-400 truncate">{site.lastUpdated}</span>
                   </div>
                 </div>
@@ -841,7 +843,7 @@ export default function App() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-2.5"><StatusBadge status={site.status} /></td>
+                      <td className="px-4 py-2.5"><StatusBadge status={site.status} label={site.stageLabel} /></td>
                       <td className="px-4 py-2.5">
                         <span className="font-mono text-xs text-stone-500">{site.template}</span>
                       </td>
@@ -914,7 +916,7 @@ export default function App() {
                         onCMS={() => openCMS(site)}
                       />
                       <div className="absolute top-2.5 left-2.5">
-                        <StatusBadge status={site.status} sm />
+                        <StatusBadge status={site.status} label={site.stageLabel} sm />
                       </div>
                     </div>
 
@@ -976,4 +978,68 @@ export default function App() {
       </div>
     </div>
   );
+}
+
+// ── Product Router ─────────────────────────────────────────────────────────────
+
+function HubView({ onRadar, onForge }: { onRadar: () => void; onForge: () => void }) {
+  return (
+    <div className="min-h-screen bg-[#F4F4F3] font-sans flex items-center justify-center">
+      <div className="max-w-md w-full mx-auto px-6">
+        <div className="bg-white border border-stone-200 rounded-xl shadow-sm p-8">
+          <div className="flex items-center gap-2 mb-6">
+            <div className="w-5 h-5 bg-green-600 rounded-sm flex items-center justify-center">
+              <svg width="11" height="11" viewBox="0 0 11 11" fill="white">
+                <rect x="1" y="1" width="4" height="4" rx="0.5" />
+                <rect x="6" y="1" width="4" height="4" rx="0.5" />
+                <rect x="1" y="6" width="4" height="4" rx="0.5" />
+                <rect x="6" y="6" width="4" height="4" rx="0.5" />
+              </svg>
+            </div>
+            <h1 className="text-lg font-semibold text-stone-900">WebsiteLeadAgent</h1>
+          </div>
+          <p className="text-xs text-stone-500 mb-4">Choose a product area</p>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={onRadar}
+              className="text-left p-4 border border-stone-200 rounded-lg hover:border-green-600 hover:bg-green-50/30 transition-colors"
+            >
+              <div className="text-sm font-semibold text-stone-900">Radar</div>
+              <div className="text-xs text-stone-500 mt-0.5">Find and qualify leads</div>
+            </button>
+            <button
+              onClick={onForge}
+              className="text-left p-4 border border-stone-200 rounded-lg hover:border-green-600 hover:bg-green-50/30 transition-colors"
+            >
+              <div className="text-sm font-semibold text-stone-900">Forge</div>
+              <div className="text-xs text-stone-500 mt-0.5">Generated Sites</div>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export default function App({ user }: { user?: any }) {
+  const initial = () => {
+    const p = window.location.pathname.replace(/\/$/, '');
+    if (p === '/radar' || p.startsWith('/radar/') || p === '/leads' || p.startsWith('/leads/')) return 'radar';
+    if (p === '/forge' || p.startsWith('/forge/') || p === '/sites' || p.startsWith('/sites/')) return 'forge';
+    return 'hub';
+  };
+  const [view, setView] = useState(initial);
+  useEffect(() => {
+    const onPop = () => setView(initial());
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+  function navigate(v: string) {
+    window.history.pushState(null, '', '/' + v);
+    setView(v);
+  }
+  if (user?.globalRole !== 'SUPER_ADMIN' && view === 'hub') return <ForgeView />;
+  if (view === 'forge') return <ForgeView />;
+  if (view === 'radar') return <RadarView onForge={() => navigate('forge')} />;
+  return <HubView onRadar={() => navigate('radar')} onForge={() => navigate('forge')} />;
 }

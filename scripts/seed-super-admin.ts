@@ -15,13 +15,13 @@ async function main() {
 
   await prisma.site.upsert({
     where: { id: 'site_test_001' },
-    update: { name: 'ГАРАНТ КАЧЕСТВА', domain: 'garantk.by', status: 'ACTIVE' },
+    update: { name: 'Demo Site', domain: 'demo.local', status: 'ACTIVE' },
     create: {
       id: 'site_test_001',
-      name: 'ГАРАНТ КАЧЕСТВА',
-      slug: 'garantk-by',
-      domain: 'garantk.by',
-      previewToken: 'garantktest',
+      name: 'Demo Site',
+      slug: 'demo-site',
+      domain: 'demo.local',
+      previewToken: 'demotest',
       templateId: 'construction-modern-v1',
       status: 'ACTIVE'
     }

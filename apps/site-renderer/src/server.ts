@@ -23,11 +23,11 @@ function fmtRoute(segments: string[]): { route: string; subRoute: string } {
 }
 
 async function renderPreview(req: Request, res: Response) {
-  const { previewSlug } = req.params;
+  const previewToken = (req.params.previewToken || req.params.previewSlug) as string;
   const raw = (req.params[0] as string) || '';
   const { route, subRoute } = fmtRoute([raw]);
 
-  const site = await (prisma as any).site.findUnique({ where: { previewToken: previewSlug } });
+  const site = await (prisma as any).site.findUnique({ where: { previewToken } });
   if (!site) { res.status(404).send('Site not found'); return; }
 
   const settings = await (prisma as any).siteSettings.findUnique({ where: { siteId: site.id } }) ?? {};
@@ -64,6 +64,9 @@ async function renderPreview(req: Request, res: Response) {
   res.type('html').send(html);
 }
 
+// Showcase (canonical) and preview (legacy alias)
+app.get('/showcase/:previewToken', renderPreview);
+app.get('/showcase/:previewToken/*', renderPreview);
 app.get('/preview/:previewSlug', renderPreview);
 app.get('/preview/:previewSlug/*', renderPreview);
 
@@ -89,5 +92,6 @@ app.get('/site-media/:siteId/*', async (req: Request, res: Response) => {
 });
 
 app.listen(PORT, () => {
-  console.log(`Site renderer running: http://localhost:${PORT}`);
+  // eslint-disable-next-line no-console
+  console.log(`[ENGINE] ready on http://localhost:${PORT}`);
 });

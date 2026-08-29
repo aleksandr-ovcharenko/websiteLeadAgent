@@ -16,6 +16,13 @@ export function constructionModernV1(ctx: RenderContext): string {
   return html
     .replace('<title>', `<meta name="robots" content="noindex, nofollow" />\n    <title>`)
     .replace(/<title>[^<]*<\/title>/, `<title>${companyName}</title>`)
+    .replace(/{{COMPANY_NAME}}/g, companyName)
+    .replace(/{{COMPANY_NAME_LEGAL}}/g, companyName)
+    .replace(/{{DOMAIN}}/g, domain)
+    .replace(/{{EMAIL}}/g, email)
+    .replace(/{{PHONE}}/g, phone)
+    .replace(/{{ADDRESS}}/g, address)
+    // Legacy aliases for old/built HTML still containing pilot data
     .replace(/Гарант Качества/g, companyName)
     .replace(/ООО «Гарант Качества»/g, companyName)
     .replace(/garantk\.by/g, domain)

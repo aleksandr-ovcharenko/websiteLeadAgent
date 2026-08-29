@@ -25,29 +25,29 @@ const IMG = {
 
 // ─── Company data (CMS-configurable) ─────────────────────────────────────────
 const COMPANY = {
-  name: 'Гарант Качества',
-  legalName: 'ООО «Гарант Качества»',
-  unp: '190530832',
-  founded: '2004',
-  employees: '150+',
+  name: '{{COMPANY_NAME}}',
+  legalName: '{{COMPANY_NAME_LEGAL}}',
+  unp: '000000000',
+  founded: '2000',
+  employees: '50+',
   address: {
-    zip: '220020',
-    city: 'г. Минск',
-    street: 'ул. Тимирязева, 121/4',
-    room: 'ком. 312–314',
+    zip: '000000',
+    city: '{{CITY}}',
+    street: '{{ADDRESS}}',
+    room: '{{OFFICE}}',
   },
-  hours: 'Пн–Пт: 8:00–17:00',
+  hours: 'Пн–Пт: 9:00–18:00',
   contacts: {
     general: [
-      { phone: '+375 17 374-15-28', href: 'tel:+375173741528', label: 'приёмная' },
-      { phone: '+375 17 357-15-29', href: 'tel:+375173571529', label: 'факс' },
+      { phone: '{{PHONE}}', href: 'tel:{{PHONE_HREF}}', label: 'приёмная' },
+      { phone: '{{PHONE}}', href: 'tel:{{PHONE_HREF}}', label: 'факс' },
     ],
     procurement: [
-      { phone: '+375 17 374-15-41', href: 'tel:+375173741541' },
-      { phone: '+375 17 373-15-27', href: 'tel:+375173731527' },
+      { phone: '{{PHONE}}', href: 'tel:{{PHONE_HREF}}' },
+      { phone: '{{PHONE}}', href: 'tel:{{PHONE_HREF}}' },
     ],
-    email: 'garantk@tut.by',
-    tenderEmail: 'garantk@tut.by',
+    email: '{{EMAIL}}',
+    tenderEmail: '{{EMAIL}}',
   },
 }
 

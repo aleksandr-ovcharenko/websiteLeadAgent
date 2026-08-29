@@ -8,7 +8,7 @@ const prisma = new PrismaClient();
 async function main() {
   // Ensure a clean previous test site for this lead
   const existing = await (prisma as any).lead.findFirst({
-    where: { websiteDomain: 'garantk.by' },
+    where: { websiteDomain: 'example.com' },
     include: { site: true }
   });
 
@@ -20,8 +20,8 @@ async function main() {
     where: { source_sourceId: { source: 'dgis', sourceId: 'site-b-test' } },
     update: {
       companyName: 'Site B',
-      website: 'https://garantk.by/',
-      websiteDomain: 'garantk.by',
+      website: 'https://example.com/',
+      websiteDomain: 'example.com',
       manualReviewStatus: 'GOOD',
       redesignStage: 'NOT_SELECTED'
     },
@@ -30,8 +30,8 @@ async function main() {
       sourceId: 'site-b-test',
       companyName: 'Site B',
       city: 'Test City',
-      website: 'https://garantk.by/',
-      websiteDomain: 'garantk.by',
+      website: 'https://example.com/',
+      websiteDomain: 'example.com',
       manualReviewStatus: 'GOOD',
       enrichmentStatus: 'SUCCESS',
       auditStatus: 'SUCCESS',
@@ -52,12 +52,12 @@ async function main() {
 
   console.log('Site B generated:', { siteId, previewSlug });
 
-  const html = execSync(`curl -s http://localhost:3336/preview/${previewSlug}`, { encoding: 'utf8' });
+  const html = execSync(`curl -s http://localhost:3336/showcase/${previewSlug}`, { encoding: 'utf8' });
   const hasSiteB = html.includes('Site B');
-  const hasGarant = html.includes('Гарант Качества');
+  const hasOldCustomer = html.includes('Гарант Качества');
 
   console.log('Preview rendered customer name:', hasSiteB ? 'Site B' : 'NOT FOUND');
-  console.log('Still contains hardcoded Garant:', hasGarant ? 'YES' : 'NO');
+  console.log('Still contains hardcoded customer:', hasOldCustomer ? 'YES' : 'NO');
   if (!hasSiteB) process.exit(1);
 }
 

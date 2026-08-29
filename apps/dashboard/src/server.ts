@@ -282,7 +282,7 @@ app.use(platformRouter);
 
 app.listen(PORT, () => {
   // eslint-disable-next-line no-console
-  console.log(`Dashboard running: http://localhost:${PORT}`);
+  console.log(`[CORE] ready on http://localhost:${PORT}`);
 });
 
 process.on('SIGINT', async () => {

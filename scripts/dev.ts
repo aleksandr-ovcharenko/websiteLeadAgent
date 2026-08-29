@@ -28,6 +28,16 @@ const help = args.includes('--help') || args.includes('-h');
 const NODE_MAJOR = Number(process.versions.node.split('.')[0]);
 const NODE_BIN = path.dirname(process.execPath);
 
+const PRODUCT_NAMES: Record<string, string> = {
+  db: 'POSTGRES',
+  'platform-api': 'CORE',
+  cms: 'STUDIO',
+  renderer: 'ENGINE',
+  'platform-web': 'HUB',
+  gateway: 'GATE',
+  factory: 'FACTORY'
+};
+
 function checkNode() {
   if (NODE_MAJOR < 22) {
     console.error(`\nWebsiteLeadAgent requires Node.js >= 22. Current: ${process.version}`);
@@ -154,11 +164,11 @@ function isDbReachable(timeout = 1000): Promise<boolean> {
 async function startInfra() {
   if (!shouldStart('db')) return;
   if (await isDbReachable()) {
-    console.log('[db] PostgreSQL already reachable on localhost:5433, skipping docker compose');
+    console.log('[POSTGRES] already reachable on localhost:5433, skipping docker compose');
     return;
   }
-  console.log('[db] starting PostgreSQL...');
-  const up = run('db', 'docker', ['compose','up','-d','--no-recreate','db']);
+  console.log('[POSTGRES] starting PostgreSQL...');
+  const up = run('POSTGRES', 'docker', ['compose','up','-d','--no-recreate','db']);
   if ((await waitForExit(up, 60000)) !== 0) {
     throw new Error('docker compose up failed');
   }
@@ -180,14 +190,14 @@ async function startInfra() {
 }
 
 async function prepareDatabase() {
-  console.log('[db] generating prisma client...');
-  const generate = run('db', 'npx', ['prisma','generate']);
+  console.log('[POSTGRES] generating prisma client...');
+  const generate = run('POSTGRES', 'npx', ['prisma','generate']);
   if ((await waitForExit(generate, 120000)) !== 0) {
     throw new Error('prisma generate failed');
   }
 
-  console.log('[db] pushing schema...');
-  const push = run('db', 'npx', ['prisma','db','push','--accept-data-loss']);
+  console.log('[POSTGRES] pushing schema...');
+  const push = run('POSTGRES', 'npx', ['prisma','db','push','--accept-data-loss']);
   if ((await waitForExit(push, 120000)) !== 0) {
     throw new Error('prisma db push failed');
   }
@@ -211,48 +221,49 @@ async function main() {
   await buildTemplates();
 
   if (shouldStart('platform-api')) {
-    console.log('[platform-api] starting...');
-    run('platform-api', 'npx', ['tsx','apps/dashboard/src/server.ts']);
-    await waitForHealth(Number(process.env.PLATFORM_API_PORT), '/health', 'platform-api');
-    console.log('[platform-api] ready');
+    console.log('[CORE] starting...');
+    run('CORE', 'npx', ['tsx','apps/dashboard/src/server.ts']);
+    await waitForHealth(Number(process.env.PLATFORM_API_PORT), '/health', 'CORE');
+    console.log('[CORE] ready');
   }
 
   if (shouldStart('cms')) {
-    console.log('[cms] starting...');
-    run('cms', 'npx', ['tsx','apps/cms/src/server.ts']);
-    await waitForHealth(Number(process.env.CMS_PORT), '/health', 'cms');
-    console.log('[cms] ready');
+    console.log('[STUDIO] starting...');
+    run('STUDIO', 'npx', ['tsx','apps/cms/src/server.ts']);
+    await waitForHealth(Number(process.env.CMS_PORT), '/health', 'STUDIO');
+    console.log('[STUDIO] ready');
   }
 
   if (shouldStart('renderer')) {
-    console.log('[renderer] starting...');
-    run('renderer', 'npx', ['tsx','apps/site-renderer/src/server.ts']);
-    await waitForHealth(Number(process.env.RENDERER_PORT), '/health', 'renderer');
-    console.log('[renderer] ready');
+    console.log('[ENGINE] starting...');
+    run('ENGINE', 'npx', ['tsx','apps/site-renderer/src/server.ts']);
+    await waitForHealth(Number(process.env.RENDERER_PORT), '/health', 'ENGINE');
+    console.log('[ENGINE] ready');
   }
 
   if (shouldStart('platform-web')) {
-    console.log('[platform-web] starting...');
-    run('platform-web', 'npm', ['run','dev','-w','@minsk/platform']);
-    await waitForHealth(Number(process.env.PLATFORM_WEB_PORT), '/', 'platform-web');
-    console.log('[platform-web] ready');
+    console.log('[HUB] starting...');
+    run('HUB', 'npm', ['run','dev','-w','@minsk/platform']);
+    await waitForHealth(Number(process.env.PLATFORM_WEB_PORT), '/', 'HUB');
+    console.log('[HUB] ready');
   }
 
   if (shouldStart('gateway')) {
-    console.log('[gateway] starting...');
-    run('gateway', 'npx', ['tsx','apps/gateway/src/server.ts']);
-    await waitForHealth(Number(process.env.GATEWAY_PORT), '/health', 'gateway');
-    console.log('[gateway] ready');
+    console.log('[GATE] starting...');
+    run('GATE', 'npx', ['tsx','apps/gateway/src/server.ts']);
+    await waitForHealth(Number(process.env.GATEWAY_PORT), '/health', 'GATE');
+    console.log('[GATE] ready');
   }
 
-  console.log('\n---------------------------------');
+  console.log('\n----------------------------------------');
   console.log('WebsiteLeadAgent');
-  console.log(`http://localhost:${process.env.GATEWAY_PORT}`);
-  console.log('\nLeads      → /leads');
-  console.log('Sites      → /sites');
-  console.log('CMS        → /cms?site=<siteId>');
-  console.log('Preview    → /preview/<previewToken>');
-  console.log('---------------------------------');
+  console.log('');
+  console.log(`Hub       http://localhost:${process.env.GATEWAY_PORT}`);
+  console.log(`Radar     http://localhost:${process.env.GATEWAY_PORT}/radar`);
+  console.log(`Forge     http://localhost:${process.env.GATEWAY_PORT}/forge`);
+  console.log(`Studio    http://localhost:${process.env.GATEWAY_PORT}/studio/<siteId>`);
+  console.log(`Showcase  http://localhost:${process.env.GATEWAY_PORT}/showcase/<previewToken>`);
+  console.log('----------------------------------------');
   console.log('\nPress Ctrl+C to stop applications.');
   console.log('PostgreSQL container is kept running for quick restarts.');
   console.log('Run `npm run infra:down` to stop it.\n');

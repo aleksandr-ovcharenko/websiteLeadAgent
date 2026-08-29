@@ -23,7 +23,7 @@ function Root() {
     return <Login onLogin={setUser} />;
   }
 
-  return <App />;
+  return <App user={user} />;
 }
 
 ReactDOM.createRoot(document.getElementById('root')!).render(

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>CMS Admin</title>
+  <title>Studio</title>
   <style>
     body { font-family: system-ui, Roboto, Arial, sans-serif; margin: 16px; background: #f3f4f6; }
     .wrap { max-width: 1200px; margin: 0 auto; }
@@ -27,7 +27,10 @@
 </head>
 <body>
   <div class="wrap">
-    <h1>Universal CMS</h1>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <h1 style="margin:0;">Studio</h1>
+      <a href="/forge" style="font-size:12px;color:#2563eb;">← Back to Forge</a>
+    </div>
     <div id="sitesBar" class="card"></div>
 
     <div class="nav">
@@ -107,7 +110,7 @@
         ${field('primaryColor','Primary color', s.primaryColor)}
         ${field('secondaryColor','Secondary color', s.secondaryColor)}
         <button onclick="saveSettings()">Save</button>
-        <div class="muted" style="margin-top:8px;">Preview: <a href="/preview/${state.site.site.previewToken}" target="_blank">/preview/${state.site.site.previewToken}</a></div>
+        <div class="muted" style="margin-top:8px;">Showcase: <a href="/showcase/${state.site.site.previewToken}" target="_blank">/showcase/${state.site.site.previewToken}</a></div>
       </div>`;
     }
 

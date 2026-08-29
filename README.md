@@ -1,4 +1,20 @@
-# Minsk Website Lead Agent (MVP)
+# WebsiteLeadAgent (MVP)
+
+## Product terminology
+
+| Product area | What it is | Canonical URL | Legacy aliases |
+| --- | --- | --- | --- |
+| **Hub** | Product entry point for SUPER_ADMIN | `http://localhost:3000` | — |
+| **Radar** | Lead qualification and Factory start | `/radar` | `/leads` |
+| **Forge** | Generated sites dashboard | `/forge` | `/sites` |
+| **Studio** | Site CMS editor | `/studio/:siteId` | `/cms?site=:siteId` |
+| **Showcase** | Customer preview site | `/showcase/:previewToken` | `/preview/:previewToken` |
+| **Factory** | Redesign pipeline (runs inside CORE) | — | — |
+| **Gate** | Single-port reverse proxy | `http://localhost:3000` | — |
+| **CORE** | Platform API | `http://localhost:3333` | — |
+| **STUDIO** | CMS service | `http://localhost:3335` | — |
+| **ENGINE** | Site renderer | `http://localhost:3336` | — |
+| **POSTGRES** | Database | `localhost:5433` | — |
 
 ## Requirements
 
@@ -50,9 +66,10 @@ npm run dev
 
 Then open:
 
-- `http://localhost:3000/leads` — Leads
-- `http://localhost:3000/sites` — Generated Sites
-- `http://localhost:3000/cms?site=<siteId>` — CMS
+- `http://localhost:3000/radar` — Radar (lead qualification)
+- `http://localhost:3000/forge` — Forge (generated sites)
+- `http://localhost:3000/studio/<siteId>` — Studio (CMS)
+- `http://localhost:3000/showcase/<previewToken>` — Showcase (customer preview)
 
 ### Available flags
 
@@ -60,7 +77,7 @@ Run `npm run dev:help` (or `npm run dev -- --help`) to see all options.
 
 | Command | What it starts |
 | --- | --- |
-| `npm run dev` | Everything: PostgreSQL (if not running), Platform API, CMS, Renderer, Platform Web, and the Gateway on `http://localhost:3000` |
+| `npm run dev` | Everything: PostgreSQL (if not running), CORE, STUDIO, ENGINE, HUB, and GATE on `http://localhost:3000` |
 | `npm run dev -- --only=platform` | Platform API, Platform Web, and Gateway |
 | `npm run dev -- --only=cms` | CMS, auth, and Gateway |
 | `npm run dev -- --only=renderer` | Renderer and Gateway |
@@ -77,11 +94,11 @@ npm run infra:reset # wipe local data and recreate
 
 ### Internal ports
 
-- Platform API: `3333`
-- CMS: `3335`
-- Renderer: `3336`
-- Platform web: `3004`
-- Gateway: `3000`
+- CORE (Platform API): `3333`
+- STUDIO (CMS): `3335`
+- ENGINE (Renderer): `3336`
+- HUB (Platform web): `3004`
+- GATE (Gateway): `3000`
 
 ## Collect leads (2GIS)
 
