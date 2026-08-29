@@ -13,8 +13,9 @@ export function getScreenshotStoragePath(siteId: string): string {
   return path.resolve('data/generated/sites', siteId, 'screenshots', 'preview.png');
 }
 
-export function getScreenshotUrl(siteId: string, baseUrl = 'http://localhost:3333'): string {
-  return `${baseUrl}/site-screenshots/${siteId}/preview.png`;
+export function getScreenshotUrl(siteId: string, baseUrl?: string): string {
+  const gateway = `http://localhost:${process.env.GATEWAY_PORT ?? 3000}`;
+  return `${baseUrl ?? gateway}/site-screenshots/${siteId}/preview.png`;
 }
 
 export async function captureSitePreview(site: SiteLike, prisma: any): Promise<{ path: string; url: string }> {
@@ -28,7 +29,8 @@ export async function captureSitePreview(site: SiteLike, prisma: any): Promise<{
   });
 
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  const previewUrl = `http://localhost:3336/preview/${site.previewToken}`;
+  const rendererPort = process.env.RENDERER_PORT ?? 3336;
+  const previewUrl = `http://localhost:${rendererPort}/preview/${site.previewToken}`;
   await page.goto(previewUrl, { waitUntil: 'networkidle', timeout: 30000 });
   await page.screenshot({ path: storagePath, fullPage: false });
   await browser.close();

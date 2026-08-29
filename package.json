@@ -19,7 +19,14 @@
     "db:migrate": "prisma migrate dev",
     "db:studio": "prisma studio",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "dev": "tsx scripts/dev.ts",
+    "dev:platform": "tsx scripts/dev.ts --only=platform",
+    "dev:cms": "tsx scripts/dev.ts --only=cms",
+    "dev:renderer": "tsx scripts/dev.ts --only=renderer",
+    "infra:up": "docker compose up -d db",
+    "infra:down": "docker compose down",
+    "infra:reset": "docker compose down -v && docker compose up -d db && npx prisma db push --accept-data-loss"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -41,6 +48,7 @@
     "dotenv": "^16.4.5",
     "express": "^4.22.2",
     "express-session": "^1.19.0",
+    "http-proxy": "^1.18.1",
     "lighthouse": "^11.7.1",
     "pino": "^9.3.2",
     "playwright": "^1.46.0",

@@ -14,15 +14,19 @@ const app = express();
 app.use(sessionMiddleware);
 app.use(express.json());
 
-const PORT = Number(process.env.PORT ?? 3333);
+const PORT = Number(process.env.PLATFORM_API_PORT ?? process.env.PORT ?? 3333);
 
 function numParam(v: unknown, fallback: number) {
   const n = typeof v === 'string' ? Number(v) : NaN;
   return Number.isFinite(n) ? n : fallback;
 }
 
-app.get('/', async (_req: Request, res: Response) => {
-  res.type('html').sendFile(path.resolve('apps/dashboard/src/index.html'));
+app.get('/', (_req: Request, res: Response) => {
+  res.json({ service: 'platform-api', status: 'ok' });
+});
+
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({ service: 'platform-api', status: 'ok' });
 });
 
 app.get('/api/leads', async (req: Request, res: Response) => {

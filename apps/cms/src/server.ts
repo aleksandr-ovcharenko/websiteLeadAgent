@@ -12,6 +12,10 @@ app.use(sessionMiddleware);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({ service: 'cms', status: 'ok' });
+});
+
 function requireAuth(req: Request, res: Response, next: any) {
   getSessionUser(req).then((user) => {
     if (!user) { res.status(401).send('Unauthorized'); return; }

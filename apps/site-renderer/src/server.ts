@@ -7,10 +7,14 @@ import { templates } from '../../../packages/templates/dist/index.js';
 
 const prisma = new PrismaClient();
 const app = express();
-const PORT = Number(process.env.SITE_RENDERER_PORT ?? 3336);
+const PORT = Number(process.env.RENDERER_PORT ?? process.env.SITE_RENDERER_PORT ?? 3336);
 
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+app.get('/health', (_req: Request, res: Response) => {
+  res.json({ service: 'renderer', status: 'ok' });
+});
 
 function fmtRoute(segments: string[]): { route: string; subRoute: string } {
   const s = (segments[0] || '').replace(/^\//, '').replace(/\/$/, '');

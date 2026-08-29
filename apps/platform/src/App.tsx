@@ -520,11 +520,11 @@ export default function App() {
   };
 
   function openCMS(site: Site) {
-    window.open('http://localhost:3335/admin?site=' + site.id, '_blank');
+    window.open('/cms?site=' + site.id, '_blank');
   }
 
   function openPreview(site: Site) {
-    window.open('http://localhost:3336/preview/' + site.previewToken, '_blank');
+    window.open('/preview/' + site.previewToken, '_blank');
   }
 
   function archiveSite(id: string) {
