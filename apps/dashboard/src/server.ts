@@ -4,7 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { Request, Response } from 'express';
-import { sessionMiddleware, authRouter } from './auth.js';
+import { sessionMiddleware, authRouter, requireSuperAdmin } from './auth.js';
 import { platformRouter } from './platform.js';
 import { generateSite } from '@minsk/redesign-engine';
 
@@ -29,7 +29,7 @@ app.get('/health', (_req: Request, res: Response) => {
   res.json({ service: 'platform-api', status: 'ok' });
 });
 
-app.get('/api/leads', async (req: Request, res: Response) => {
+app.get('/api/leads', requireSuperAdmin, async (req: Request, res: Response) => {
   const limit = Math.min(200, Math.max(1, Math.floor(numParam(req.query.limit, 50))));
   const offset = Math.max(0, Math.floor(numParam(req.query.offset, 0)));
   const minLead = numParam(req.query.minLead, 0);
@@ -139,10 +139,12 @@ app.get('/api/leads', async (req: Request, res: Response) => {
     select: {
       id: true,
       companyName: true,
+      categories: true,
       website: true,
       websiteDomain: true,
       phone: true,
       address: true,
+      createdAt: true,
       leadScore: true,
       businessScore: true,
       websiteQualityScore: true,
@@ -153,6 +155,7 @@ app.get('/api/leads', async (req: Request, res: Response) => {
       manualReviewStatus: true,
       manualReviewNote: true,
       reviewedAt: true,
+      auditStatus: true,
       redesignStage: true,
       site: {
         select: {
@@ -196,7 +199,7 @@ app.get('/api/leads', async (req: Request, res: Response) => {
   res.json({ items: leads, meta: { limit, offset, q, sort } });
 });
 
-app.post('/api/leads/:leadId/redesign', async (req: Request, res: Response) => {
+app.post('/api/leads/:leadId/redesign', requireSuperAdmin, async (req: Request, res: Response) => {
   const leadId = String(req.params.leadId);
   const stage = typeof req.body?.stage === 'string' ? String(req.body.stage) : '';
   const stages = new Set([
@@ -217,7 +220,7 @@ app.post('/api/leads/:leadId/redesign', async (req: Request, res: Response) => {
   res.json({ ok: true, lead: updated });
 });
 
-app.post('/api/leads/:leadId/generate', async (req: Request, res: Response) => {
+app.post('/api/leads/:leadId/generate', requireSuperAdmin, async (req: Request, res: Response) => {
   const leadId = String(req.params.leadId);
   const template = typeof req.body?.template === 'string' ? req.body.template : 'construction-modern-v1';
   const force = req.body?.force === true;
@@ -229,7 +232,7 @@ app.post('/api/leads/:leadId/generate', async (req: Request, res: Response) => {
   }
 });
 
-app.post('/api/leads/:leadId/review', async (req: Request, res: Response) => {
+app.post('/api/leads/:leadId/review', requireSuperAdmin, async (req: Request, res: Response) => {
   const leadId = String(req.params.leadId);
   const status = typeof req.body?.status === 'string' ? String(req.body.status) : '';
   const note = typeof req.body?.note === 'string' ? String(req.body.note) : null;
@@ -266,7 +269,7 @@ const ALLOWED_AUDIT_FILES = new Set([
   'crawl.json'
 ]);
 
-app.get('/audit/:leadId/:file', async (req: Request, res: Response) => {
+app.get('/audit/:leadId/:file', requireSuperAdmin, async (req: Request, res: Response) => {
   const leadId = String(req.params.leadId);
   const file = String(req.params.file);
 

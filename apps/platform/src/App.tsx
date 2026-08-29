@@ -28,6 +28,7 @@ interface Site {
   attention?: string;
   attentionAction?: "Fix" | "Retry" | "Open";
   stageLabel: string;
+  previewToken: string;
   previewCaptured: string;
   previewOutdated?: boolean;
   image: string;
@@ -353,6 +354,8 @@ function CreateSiteModal({
       created: new Date().toISOString().slice(0, 10),
       lastBuild: "—",
       lastAudit: "—",
+      stageLabel: "Draft",
+      previewToken: "",
       mediaCount: 0,
       previewCaptured: "—",
       image: IMG("1551038247-3d9af20df552"),
