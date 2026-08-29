@@ -2,6 +2,8 @@ import 'dotenv/config';
 import { spawn, type ChildProcess } from 'node:child_process';
 import { setTimeout } from 'node:timers/promises';
 import { existsSync } from 'node:fs';
+import { createConnection } from 'node:net';
+import path from 'node:path';
 
 const DEFAULTS: Record<string, string> = {
   DATABASE_URL: 'postgresql://postgres:postgres@localhost:5433/minsk_lead_agent?schema=public',
@@ -22,6 +24,17 @@ const noInfra = args.includes('--no-infra');
 const only = args.find(a => a.startsWith('--only='))?.split('=')[1]?.trim() ?? 'full';
 const skip = (args.find(a => a.startsWith('--skip='))?.split('=')[1] ?? '').split(',').filter(Boolean);
 const help = args.includes('--help') || args.includes('-h');
+
+const NODE_MAJOR = Number(process.versions.node.split('.')[0]);
+const NODE_BIN = path.dirname(process.execPath);
+
+function checkNode() {
+  if (NODE_MAJOR < 22) {
+    console.error(`\nWebsiteLeadAgent requires Node.js >= 22. Current: ${process.version}`);
+    console.error('Run with: nvm use 22   (or your preferred Node 22 setup)\n');
+    process.exit(1);
+  }
+}
 
 if (help) {
   console.log(`
@@ -69,7 +82,11 @@ function log(label: string, data: Buffer | string) {
 function run(label: string, cmd: string, args: string[], opts?: { cwd?: string; env?: NodeJS.ProcessEnv }) {
   const cp = spawn(cmd, args, {
     cwd: opts?.cwd ?? process.cwd(),
-    env: { ...process.env, ...(opts?.env ?? {}) },
+    env: {
+      ...process.env,
+      ...(opts?.env ?? {}),
+      PATH: `${NODE_BIN}:${process.env.PATH}`
+    },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   pids.add(cp.pid!);
@@ -123,10 +140,25 @@ async function waitForHealth(port: number, path: string, label: string, timeout 
   throw new Error(`${label} did not become ready on port ${port}`);
 }
 
+function isDbReachable(timeout = 1000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const c = createConnection({ port: 5433, host: 'localhost' });
+    let done = false;
+    c.setTimeout(timeout);
+    c.on('connect', () => { done = true; c.end(); resolve(true); });
+    c.on('error', () => { if (!done) resolve(false); });
+    c.on('timeout', () => { if (!done) resolve(false); c.destroy(); });
+  });
+}
+
 async function startInfra() {
   if (!shouldStart('db')) return;
+  if (await isDbReachable()) {
+    console.log('[db] PostgreSQL already reachable on localhost:5433, skipping docker compose');
+    return;
+  }
   console.log('[db] starting PostgreSQL...');
-  const up = run('db', 'docker', ['compose','up','-d','db']);
+  const up = run('db', 'docker', ['compose','up','-d','--no-recreate','db']);
   if ((await waitForExit(up, 60000)) !== 0) {
     throw new Error('docker compose up failed');
   }
@@ -171,6 +203,7 @@ async function buildTemplates() {
 }
 
 async function main() {
+  if (!help) checkNode();
   console.log('WebsiteLeadAgent dev launcher\n');
 
   await startInfra();
