@@ -9,6 +9,7 @@ interface Lead {
   leadScoreV2: number | null;
   manualReviewStatus: string;
   city: string;
+  site?: { previewToken: string } | null;
 }
 
 export default function RadarView({ onForge }: { onForge: () => void }) {
@@ -142,13 +143,24 @@ export default function RadarView({ onForge }: { onForge: () => void }) {
                     </td>
                     <td className="px-4 py-2.5">
                       {l.manualReviewStatus === "GOOD" && l.website ? (
-                        <button
-                          onClick={() => generate(l)}
-                          disabled={running.has(l.id)}
-                          className="h-7 px-2.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
-                        >
-                          {running.has(l.id) ? "Factory…" : "Generate"}
-                        </button>
+                        l.site ? (
+                          <a
+                            href={`/showcase/${l.site.previewToken}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex h-7 items-center px-2.5 text-xs bg-stone-800 text-white rounded hover:bg-stone-900 transition-colors font-medium"
+                          >
+                            Open showcase
+                          </a>
+                        ) : (
+                          <button
+                            onClick={() => generate(l)}
+                            disabled={running.has(l.id)}
+                            className="h-7 px-2.5 text-xs bg-green-600 text-white rounded hover:bg-green-700 transition-colors font-medium disabled:opacity-50"
+                          >
+                            {running.has(l.id) ? "Factory…" : "Generate"}
+                          </button>
+                        )
                       ) : (
                         <span className="text-xs text-stone-400">—</span>
                       )}
