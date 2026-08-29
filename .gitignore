@@ -14,7 +14,11 @@ output
 
 # Build
 /dist
+/packages/templates/dist
 
 # IDE
 .vscode
 .idea
+
+# Extracted design reference assets
+/design-reference
