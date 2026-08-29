@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react'
 import { IconExternal, IconBell, IconChevronDown } from './icons'
 import { Screen } from './types'
 import { useStudio, formatDate } from './context'
+import { api } from './api'
 
 interface TopBarProps {
   onNavigate: (s: Screen) => void
@@ -10,7 +11,12 @@ interface TopBarProps {
 export default function TopBar({ onNavigate }: TopBarProps) {
   const { site, settings, user, role, loading, error } = useStudio()
   const [siteOpen, setSiteOpen] = useState(false)
+  const [sites, setSites] = useState<any[]>([])
   const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    api.getSites().then((data) => setSites(data.sites || [])).catch(() => setSites([]))
+  }, [])
 
   useEffect(() => {
     function handle(e: MouseEvent) { if (ref.current && !ref.current.contains(e.target as Node)) setSiteOpen(false) }
@@ -36,13 +42,33 @@ export default function TopBar({ onNavigate }: TopBarProps) {
             </div>
             <div className="text-left">
               <p className="text-[12px] font-semibold text-gray-900 leading-none">{settings?.companyName || site?.name || 'Loading…'}</p>
-              <p className="text-[10px] text-gray-400 leading-none mt-0.5">{domain}</p>
+              <p className="text-[10px] text-gray-400 leading-none mt-0.5">{site?.domain || domain}</p>
             </div>
             <IconChevronDown size={12} className="text-gray-400 ml-1" />
           </button>
 
           {siteOpen && (
             <div className="absolute top-full left-0 mt-1 w-64 bg-white border border-gray-200 rounded shadow-lg py-1 z-40">
+              {sites.length > 1 && (
+                <div className="px-3 py-2 text-[10px] font-medium text-gray-400 uppercase tracking-wider">Switch site</div>
+              )}
+              {sites.filter((s: any) => s.id !== site?.id).map((s: any) => (
+                <a
+                  key={s.id}
+                  href={`/studio/${s.id}`}
+                  onClick={(e) => { e.preventDefault(); setSiteOpen(false); window.location.href = `/studio/${s.id}` }}
+                  className="w-full px-3 py-2 flex items-center gap-2.5 hover:bg-gray-50 transition-colors text-left text-[12px] text-gray-600"
+                >
+                  <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center text-[10px] font-semibold text-emerald-700">
+                    {(s.siteSettings?.companyName || s.name || 'S').slice(0, 1).toUpperCase()}
+                  </div>
+                  <div className="text-left">
+                    <p className="text-[12px] font-medium text-gray-900 leading-none">{s.siteSettings?.companyName || s.name}</p>
+                    <p className="text-[10px] text-gray-400 leading-none mt-0.5">{s.domain}</p>
+                  </div>
+                </a>
+              ))}
+              <div className="border-t border-gray-100 my-1" />
               <button
                 onClick={() => { setSiteOpen(false); onNavigate('site-settings') }}
                 className="w-full px-3 py-2 flex items-center gap-2.5 hover:bg-gray-50 transition-colors text-left text-[12px] text-gray-600"

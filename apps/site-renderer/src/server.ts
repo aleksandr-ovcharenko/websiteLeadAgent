@@ -3,7 +3,10 @@ import express, { type Request, type Response } from 'express';
 import { PrismaClient } from '@prisma/client';
 import path from 'node:path';
 import fs from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
 import { templates } from '../../../packages/templates/dist/index.js';
+
+const REPO_ROOT = process.cwd();
 
 const prisma = new PrismaClient();
 const app = express();
@@ -17,8 +20,9 @@ app.get('/health', (_req: Request, res: Response) => {
 });
 
 function fmtRoute(segments: string[]): { route: string; subRoute: string } {
-  const s = (segments[0] || '').replace(/^\//, '').replace(/\/$/, '');
-  const sub = (segments[1] || '').replace(/^\//, '').replace(/\/$/, '');
+  const parts = (segments[0] || '').split('/').filter(Boolean);
+  const s = parts[0] || '';
+  const sub = parts.slice(1).join('/') || '';
   return { route: s, subRoute: sub };
 }
 
@@ -71,8 +75,12 @@ app.get('/preview/:previewSlug', renderPreview);
 app.get('/preview/:previewSlug/*', renderPreview);
 
 // Template static assets (hashed JS/CSS/PNG from packages/templates/dist/<template>/public)
-app.use('/template-assets/:templateId', (req: Request, res: Response, next: any) => {
-  const publicDir = path.resolve('packages/templates/dist', req.params.templateId, 'public');
+app.use('/template-assets', (req: Request, res: Response, next: any) => {
+  const segs = req.path.split('/').filter(Boolean);
+  const [templateId, ...rest] = segs;
+  if (!templateId) { res.status(404).send(); return; }
+  const publicDir = path.resolve(REPO_ROOT, 'packages/templates/dist', templateId, 'public');
+  req.url = '/' + rest.join('/');
   express.static(publicDir)(req, res, next);
 });
 
@@ -80,9 +88,9 @@ app.use('/template-assets/:templateId', (req: Request, res: Response, next: any)
 app.get('/site-media/:siteId/*', async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const file = String(req.params[0]).replace(/\.\./g, '');
-  const p = path.resolve('data/generated/sites', siteId, 'media', file);
-  const allowed = path.resolve('data/generated/sites', siteId, 'media');
-  if (!p.startsWith(allowed)) { res.status(403).send(); return; }
+  const mediaDir = path.resolve(REPO_ROOT, 'data/generated/sites', siteId, 'media');
+  const p = path.resolve(mediaDir, file);
+  if (!p.startsWith(mediaDir)) { res.status(403).send(); return; }
   try {
     await fs.access(p);
     res.sendFile(p);

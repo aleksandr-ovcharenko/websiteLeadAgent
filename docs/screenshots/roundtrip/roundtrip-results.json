@@ -1,0 +1,23 @@
+{
+  "ok": true,
+  "results": [
+    {
+      "site": "Garant Kachestva",
+      "token": "8e25ix7c",
+      "title": "Гарант Качества [QA]",
+      "header": "Г\nГАРАНТ КАЧЕСТВА [QA]\nСТРОИТЕЛЬНАЯ КОМПАНИЯ"
+    },
+    {
+      "site": "Test Builder",
+      "token": "ze6f3z0v",
+      "title": "Test Builder Local [QA]",
+      "header": "T\nTEST BUILDER LOCAL [QA]\nСТРОИТЕЛЬНАЯ КОМПАНИЯ"
+    }
+  ],
+  "logs": [
+    "HTTP 401 http://localhost:3000/api/auth/me",
+    "error: Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "HTTP 401 http://localhost:3000/api/auth/me",
+    "error: Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+}

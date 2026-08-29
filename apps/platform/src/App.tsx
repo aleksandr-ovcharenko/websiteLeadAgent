@@ -209,10 +209,14 @@ function DetailPanel({
   site,
   onClose,
   onOpenCMS,
+  onOpenPreview,
+  onOpenWebsite,
 }: {
   site: Site;
   onClose: () => void;
   onOpenCMS: () => void;
+  onOpenPreview: () => void;
+  onOpenWebsite: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -235,7 +239,7 @@ function DetailPanel({
           <SiteThumbnail
             site={site}
             className="w-full aspect-[16/10]"
-            onPreview={() => {}}
+            onPreview={onOpenPreview}
             onCMS={onOpenCMS}
           />
           <button
@@ -311,10 +315,16 @@ function DetailPanel({
             Open CMS
           </button>
           <div className="grid grid-cols-2 gap-2">
-            <button className="h-8 border border-stone-200 text-stone-700 text-xs rounded hover:bg-stone-50 transition-colors">
+            <button
+              onClick={onOpenWebsite}
+              className="h-8 border border-stone-200 text-stone-700 text-xs rounded hover:bg-stone-50 transition-colors"
+            >
               Open website
             </button>
-            <button className="h-8 border border-stone-200 text-stone-700 text-xs rounded hover:bg-stone-50 transition-colors">
+            <button
+              onClick={onOpenPreview}
+              className="h-8 border border-stone-200 text-stone-700 text-xs rounded hover:bg-stone-50 transition-colors"
+            >
               Open preview
             </button>
           </div>
@@ -530,7 +540,7 @@ function ForgeView() {
   }
 
   function openPreview(site: Site) {
-    window.open('/showcase/' + site.previewToken, '_blank');
+    window.open(`/showcase/${site.previewToken}`, '_blank');
   }
 
   function archiveSite(id: string) {
@@ -554,6 +564,8 @@ function ForgeView() {
           site={detailSite}
           onClose={() => setDetailSite(null)}
           onOpenCMS={() => openCMS(detailSite)}
+          onOpenPreview={() => openPreview(detailSite)}
+          onOpenWebsite={() => detailSite.domain && window.open(`https://${detailSite.domain}`, '_blank')}
         />
       )}
 
@@ -606,7 +618,7 @@ function ForgeView() {
             { label: "Draft", value: stats.draft },
             { label: "Needs attention", value: stats.attention, warn: stats.attention > 0 },
           ].map((item, i) => (
-            <div key={item.label} className="flex items-center gap-5">
+            <div key={item.label} className="flex items-baseline gap-2">
               {i > 0 && <div className="h-5 w-px bg-stone-100" />}
               <div className="flex items-baseline gap-2">
                 <span
@@ -670,7 +682,7 @@ function ForgeView() {
                 <SiteThumbnail
                   site={site}
                   className="w-full aspect-[16/10]"
-                  onPreview={() => {}}
+                  onPreview={() => openPreview(site)}
                   onCMS={() => openCMS(site)}
                 />
                 <div className="px-3 py-2.5">
@@ -867,7 +879,10 @@ function ForgeView() {
                           >
                             Open CMS
                           </button>
-                          <button className="h-7 px-2.5 text-xs border border-stone-200 text-stone-600 rounded hover:bg-stone-50 transition-colors">
+                          <button
+                            onClick={() => openPreview(site)}
+                            className="h-7 px-2.5 text-xs border border-stone-200 text-stone-600 rounded hover:bg-stone-50 transition-colors"
+                          >
                             Preview
                           </button>
                           <MoreMenu
@@ -959,7 +974,10 @@ function ForgeView() {
                         >
                           Open CMS
                         </button>
-                        <button className="h-7 px-2.5 text-xs border border-stone-200 text-stone-600 rounded hover:bg-stone-50 transition-colors">
+                        <button
+                          onClick={() => openPreview(site)}
+                          className="h-7 px-2.5 text-xs border border-stone-200 text-stone-600 rounded hover:bg-stone-50 transition-colors"
+                        >
                           Preview
                         </button>
                         <MoreMenu

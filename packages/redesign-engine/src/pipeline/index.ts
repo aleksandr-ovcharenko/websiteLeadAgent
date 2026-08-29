@@ -98,6 +98,8 @@ export async function generateSite(options: GenerateOptions) {
     const siteSlugBase = slugify(l.companyName || l.websiteDomain || 'site');
     const siteSlug = `${siteSlugBase}-${l.id.slice(-6)}`;
 
+    const domain = l.websiteDomain || l.website.replace(/^https?:\/\//, '').replace(/\/$/, '');
+
     const { siteId, previewSlug } = await importToCms({
       leadId: l.id,
       siteName: l.companyName || 'Generated Site',
@@ -111,21 +113,43 @@ export async function generateSite(options: GenerateOptions) {
 
     await (prisma as any).site.update({
       where: { id: siteId },
-      data: { domain: l.websiteDomain || l.website.replace(/^https?:\/\//, '').replace(/\/$/, '') }
+      data: {
+        domain,
+        status: 'ACTIVE',
+        settings: { previewUrl: `http://localhost:3000/showcase/${previewSlug}` }
+      } as any
     });
 
     await (prisma as any).siteSettings.update({
       where: { siteId },
-      data: { companyName: l.companyName || 'Generated Site' }
+      data: {
+        companyName: l.companyName || 'Generated Site',
+        phone: l.phone || content.company?.phone,
+        email: content.company?.email,
+        address: l.address || content.company?.address,
+        workingHours: content.company?.workingHours,
+        previewUrl: `http://localhost:3000/showcase/${previewSlug}`,
+        language: 'ru',
+        timezone: 'Europe/Minsk'
+      } as any
     });
 
     await (prisma as any).redesignRun.update({
       where: { id: run.id },
-      data: { siteId, stage: 'CMS_IMPORTED' }
+      data: { siteId, stage: 'SITE_RENDERED' } as any
     });
     await (prisma as any).lead.update({
       where: { id: l.id },
-      data: { redesignStage: 'CMS_IMPORTED' }
+      data: { redesignStage: 'DEMO_GENERATED' } as any
+    });
+
+    await (prisma as any).siteBuild.create({
+      data: {
+        siteId,
+        templateId,
+        status: 'SUCCESS',
+        outputPath: `data/generated/sites/${siteId}`
+      } as any
     });
 
     return { leadId: l.id, siteId, previewSlug, runId: run.id };

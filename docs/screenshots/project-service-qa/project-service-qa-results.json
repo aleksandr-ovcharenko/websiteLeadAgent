@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "projectDetailBefore": "Производственное здание",
+  "projectDetailAfter": "QA TEST Project",
+  "serviceDetailBefore": "Земляные работы",
+  "serviceDetailAfter": "QA TEST Service",
+  "projectUrl": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+  "serviceUrl": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+  "logs": [
+    "HTTP 401 http://localhost:3000/api/auth/me",
+    "error: Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "HTTP 401 http://localhost:3000/api/auth/me",
+    "error: Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+}

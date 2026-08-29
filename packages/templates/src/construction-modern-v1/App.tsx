@@ -1,19 +1,10 @@
 import { useState } from 'react'
 
 // ─── Logo assets ─────────────────────────────────────────────────────────────
-import gkLogo01 from '@/imports/01_dark_green_square_white_monogram.png'
-import gkLogo02 from '@/imports/02_bright_green_square_white_monogram.png'
-import gkLogo03 from '@/imports/03_light_square_dark_monogram_outline.png'
-import gkLogo04 from '@/imports/04_light_square_green_monogram_outline.png'
-import gkLogo05 from '@/imports/05_white_square_dark_monogram.png'
-import gkLogo06 from '@/imports/06_white_square_green_monogram.png'
-import gkLogo07 from '@/imports/07_dark_monogram_no_background.png'
-import gkLogo08 from '@/imports/08_green_monogram_no_background.png'
-import gkLogo09 from '@/imports/09_dark_green_circle_white_monogram.png'
-import gkLogo10 from '@/imports/10_bright_green_circle_white_monogram.png'
+// Customer logo is supplied by __CMS__.company.logoUrl; no hardcoded marks below.
 
-// ─── Images ─────────────────────────────────────────────────────────────────
-const IMG = {
+// ─── Images (fallbacks) ─────────────────────────────────────────────────────
+const DEFAULT_IMG = {
   hero:   'https://images.unsplash.com/photo-1766936587760-fcc13617ca3b?w=1400&h=1100&fit=crop&auto=format',
   proj1:  'https://images.unsplash.com/photo-1546414701-81cc6963c67f?w=1400&h=960&fit=crop&auto=format',
   proj2:  'https://images.unsplash.com/photo-1557761469-f29c6e201784?w=1400&h=960&fit=crop&auto=format',
@@ -23,122 +14,74 @@ const IMG = {
   news1:  'https://images.unsplash.com/photo-1623489254637-a2dd8375243d?w=600&h=400&fit=crop&auto=format',
 }
 
-// ─── Company data (CMS-configurable) ─────────────────────────────────────────
-const COMPANY = {
-  name: '{{COMPANY_NAME}}',
-  legalName: '{{COMPANY_NAME_LEGAL}}',
-  unp: '000000000',
-  founded: '2000',
-  employees: '50+',
-  address: {
-    zip: '000000',
-    city: '{{CITY}}',
-    street: '{{ADDRESS}}',
-    room: '{{OFFICE}}',
+// ─── Fallback data used when no CMS payload is provided ───────────────────────
+const DEFAULT_CMS = {
+  PREVIEW_TOKEN: '',
+  SITE_ID: '',
+  route: '',
+  subRoute: '',
+  COMPANY: {
+    name: 'Строительная компания',
+    legalName: 'ООО «Строительная компания»',
+    unp: '000000000',
+    founded: '2000',
+    employees: '50+',
+    address: { zip: '', city: '', street: '', room: '', formatted: '' },
+    hours: 'Пн–Пт: 9:00–18:00',
+    phone: '+375 00 000-00-00',
+    phoneHref: 'tel:+375000000000',
+    domain: 'example.com',
+    contacts: {
+      general: [{ phone: '+375 00 000-00-00', href: 'tel:+375000000000', label: 'офис' }],
+      procurement: [],
+      email: 'info@example.com',
+      tenderEmail: 'info@example.com',
+    },
   },
-  hours: 'Пн–Пт: 9:00–18:00',
-  contacts: {
-    general: [
-      { phone: '{{PHONE}}', href: 'tel:{{PHONE_HREF}}', label: 'приёмная' },
-      { phone: '{{PHONE}}', href: 'tel:{{PHONE_HREF}}', label: 'факс' },
-    ],
-    procurement: [
-      { phone: '{{PHONE}}', href: 'tel:{{PHONE_HREF}}' },
-      { phone: '{{PHONE}}', href: 'tel:{{PHONE_HREF}}' },
-    ],
-    email: '{{EMAIL}}',
-    tenderEmail: '{{EMAIL}}',
-  },
+  NAV_ITEMS: ['Главная', 'Услуги', 'Объекты', 'О компании', 'Новости', 'Контакты'],
+  SERVICES: [],
+  PROJECTS: [],
+  PROCESS_STEPS: [],
+  NEWS_ITEMS: [],
 }
 
-// ─── Data ────────────────────────────────────────────────────────────────────
-const NAV_ITEMS = ['Главная', 'Услуги', 'Объекты', 'О компании', 'Новости', 'Контакты']
+function getCmsData() {
+  if (typeof window === 'undefined') return DEFAULT_CMS;
+  const incoming = (window as any).__CMS__;
+  if (!incoming) return DEFAULT_CMS;
+  return { ...DEFAULT_CMS, ...incoming };
+}
 
-const SERVICES = [
-  { id: '01', title: 'Земляные работы',                      desc: 'Разработка грунта, устройство котлованов, траншей. Горизонтальные и наклонные штольни любой сложности.' },
-  { id: '02', title: 'Геодезические работы',                 desc: 'Полное инженерно-геодезическое сопровождение возводимых объектов на всех этапах строительства с оформлением отчётной документации.' },
-  { id: '03', title: 'Монтаж строительных конструкций',      desc: 'Полный спектр работ по монтажу железобетонных и бетонных конструкций: от подготовки места до проведения самих работ.' },
-  { id: '04', title: 'Общестроительные работы',              desc: 'Все виды строительных работ при капитальном ремонте и реконструкции объектов. Полный цикл от нулевого цикла до ввода в эксплуатацию.' },
-  { id: '05', title: 'Комплекс отделочных работ',            desc: 'Внутренняя и внешняя отделка: штукатурные, малярные, плиточные и облицовочные работы.' },
-  { id: '06', title: 'Благоустройство территорий',           desc: 'Полный комплекс услуг по дорожным работам, организации освещения, озеленению и мощению.' },
-  { id: '07', title: 'Испытание бетонных конструкций',       desc: 'Лабораторные испытания бетонных смесей, сборных и монолитных железобетонных конструкций.' },
-  { id: '08', title: 'Контроль качества строительства',      desc: 'Бюро контроля качества и надзора за строительными работами, контроль строительных материалов.' },
-]
+const cms = getCmsData();
+const { COMPANY, NAV_ITEMS, SERVICES, PROJECTS, PROCESS_STEPS, NEWS_ITEMS } = cms;
+const PREVIEW_TOKEN = (cms as any).PREVIEW_TOKEN || '';
+const SITE_ID = (cms as any).SITE_ID || '';
+const IMG = (cms as any).IMG || DEFAULT_IMG;
 
-const PROJECTS = [
-  {
-    title: 'Производственное здание',
-    category: 'Промышленное строительство',
-    location: 'Индустриальный парк «Великий камень»',
-    status: 'Завершён',
-    img: IMG.proj1,
-  },
-  {
-    title: 'Производственный комплекс',
-    category: 'Промышленное строительство',
-    location: 'д. Ярково, Минский район',
-    status: 'Завершён',
-    img: IMG.proj2,
-  },
-  {
-    title: 'Реконструкция многофункционального здания',
-    category: 'Реконструкция',
-    location: 'г. Минск, ул. Монтажников, 19A/1',
-    status: 'Завершён',
-    img: IMG.proj3,
-  },
-  {
-    title: 'Производственный комплекс',
-    category: 'Промышленное строительство',
-    location: 'ООО «Индастриал Девелопмент»',
-    status: 'Завершён',
-    img: IMG.proj4,
-  },
-]
+function navHref(label: string) {
+  const base = PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}` : '/';
+  const map: Record<string, string> = {
+    'Главная': base,
+    'Услуги': PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/services` : `${base}#services`,
+    'Объекты': PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/projects` : `${base}#projects`,
+    'О компании': `${base}#about`,
+    'Новости': PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/news` : `${base}#news`,
+    'Контакты': `${base}#contact`,
+  };
+  return map[label] || base;
+}
 
-const PROCESS_STEPS = [
-  {
-    n: '01',
-    label: 'Проектирование',
-    desc: 'Разрабатываем решения и проектную документацию с учётом задач объекта.',
-    linkLabel: 'Подробнее',
-    href: '/services/proektirovanie',
-  },
-  {
-    n: '02',
-    label: 'Подготовительные работы',
-    desc: 'Подготавливаем площадку и выполняем необходимые работы перед началом строительства.',
-    linkLabel: 'Подробнее',
-    href: '/services/podgotovitelnye-raboty',
-  },
-  {
-    n: '03',
-    label: 'Строительство',
-    desc: 'Выполняем комплекс общестроительных работ и координируем реализацию проекта.',
-    linkLabel: 'Подробнее',
-    href: '/services/obshchestroitelnye-raboty',
-  },
-  {
-    n: '04',
-    label: 'Монтаж',
-    desc: 'Осуществляем монтаж строительных конструкций и инженерно связанных элементов.',
-    linkLabel: 'Подробнее',
-    href: '/services/montazh-stroitelnyh-konstruktsiy',
-  },
-  {
-    n: '05',
-    label: 'Сдача объекта',
-    desc: 'Завершаем работы, проверяем результат и подготавливаем объект к передаче заказчику.',
-    linkLabel: 'Подробнее',
-    href: '/process/sdacha-obekta',
-  },
-]
+function newsHref(slug: string) {
+  return PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/news/${slug}` : '#';
+}
 
-const NEWS_ITEMS = [
-  { date: '14 авг 2025', title: 'Завершён монтаж металлоконструкций производственного корпуса в Минской области' },
-  { date: '02 июл 2025', title: 'Начаты земляные работы на новом промышленном объекте в Брестской области' },
-  { date: '18 май 2025', title: 'Компания приняла участие в строительной выставке BuildExpo 2025' },
-]
+function projectHref(slug: string) {
+  return PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/projects/${slug}` : '#';
+}
+
+function serviceHref(slug: string) {
+  return PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/services/${slug}` : '#';
+}
 
 // ─── Shared font style ───────────────────────────────────────────────────────
 const GEO: React.CSSProperties = { fontFamily: "'Geologica', sans-serif" }
@@ -163,55 +106,37 @@ function Eyebrow({ children }: { children: React.ReactNode }) {
 // On light backgrounds: 'outline' | 'outline-green' | 'white-dark' | 'white-green'
 // No container        : 'bare' (dark ГК) | 'bare-green' (green ГК)
 
-type GKVariant =
-  | 'dark'          // 01 – dark green square, white monogram
-  | 'green'         // 02 – bright green square, white monogram
-  | 'outline'       // 03 – light square, dark monogram outline
-  | 'outline-green' // 04 – light square, green monogram outline
-  | 'white-dark'    // 05 – white square, dark monogram
-  | 'white-green'   // 06 – white square, green monogram
-  | 'bare'          // 07 – dark monogram, no background
-  | 'bare-green'    // 08 – green monogram, no background
-  | 'circle-dark'   // 09 – dark green circle, white monogram
-  | 'circle-green'  // 10 – bright green circle, white monogram
-
-const GK_SRC: Record<GKVariant, string> = {
-  'dark':          gkLogo01,
-  'green':         gkLogo02,
-  'outline':       gkLogo03,
-  'outline-green': gkLogo04,
-  'white-dark':    gkLogo05,
-  'white-green':   gkLogo06,
-  'bare':          gkLogo07,
-  'bare-green':    gkLogo08,
-  'circle-dark':   gkLogo09,
-  'circle-green':  gkLogo10,
-}
-
-function GKMark({
+function BrandMark({
   size = 48,
-  variant = 'dark',
+  dark = false,
   style: extraStyle,
 }: {
   size?: number
-  variant?: GKVariant
+  dark?: boolean
   style?: React.CSSProperties
 }) {
+  const initial = (COMPANY.name || 'S').slice(0, 1).toUpperCase()
   return (
-    <img
-      src={GK_SRC[variant]}
-      alt="Гарант Качества"
-      width={size}
-      height={size}
+    <div
       style={{
         width: size,
         height: size,
-        objectFit: 'contain',
         flexShrink: 0,
-        display: 'block',
+        borderRadius: '6px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontFamily: "'Geologica', sans-serif",
+        fontWeight: 700,
+        fontSize: Math.round(size * 0.45),
+        color: dark ? 'white' : 'var(--brand)',
+        background: dark ? 'var(--brand)' : 'white',
+        border: dark ? 'none' : '1px solid var(--border)',
         ...extraStyle,
       }}
-    />
+    >
+      {initial}
+    </div>
   )
 }
 
@@ -224,14 +149,14 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
     >
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 h-16 md:h-20 flex items-center justify-between gap-6">
         {/* Brand block */}
-        <a href="#" className="flex items-center shrink-0 gap-3.5">
-          <GKMark size={44} variant="dark" />
+        <a href={PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}` : '#'} className="flex items-center shrink-0 gap-3.5">
+          <BrandMark size={44} dark />
           <div className="flex flex-col leading-none gap-1">
             <span
               className="text-[13px] font-bold tracking-[0.07em] uppercase leading-none"
               style={{ ...GEO, color: 'var(--fg)' }}
             >
-              Гарант Качества
+              {COMPANY.name}
             </span>
             <span
               className="text-[9.5px] uppercase tracking-[0.22em] font-medium leading-none"
@@ -247,7 +172,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
           {NAV_ITEMS.map(item => (
             <a
               key={item}
-              href="#"
+              href={navHref(item)}
               className="text-[12px] uppercase tracking-[0.12em] font-medium transition-colors"
               style={{ color: 'var(--fg)' }}
               onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
@@ -260,8 +185,8 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
 
         {/* Desktop right */}
         <div className="hidden md:flex items-center gap-6 shrink-0">
-          <a href="tel:+375173741528" className="text-sm font-medium" style={{ color: 'var(--fg)' }}>
-            +375 17 374-15-28
+          <a href={COMPANY.phoneHref} className="text-sm font-medium" style={{ color: 'var(--fg)' }}>
+            {COMPANY.phone}
           </a>
           <a
             href="#contact"
@@ -325,7 +250,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
           {NAV_ITEMS.map((item, i) => (
             <a
               key={item}
-              href="#"
+              href={navHref(item)}
               onClick={() => setMenuOpen(false)}
               className="py-4 text-base font-medium uppercase tracking-[0.12em] border-b"
               style={{
@@ -338,8 +263,8 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
             </a>
           ))}
           <div className="pt-7 flex flex-col gap-4">
-            <a href="tel:+375173741528" className="text-xl font-semibold" style={{ color: 'var(--brass)' }}>
-              +375 17 374-15-28
+            <a href={COMPANY.phoneHref} className="text-xl font-semibold" style={{ color: 'var(--brass)' }}>
+              {COMPANY.phone}
             </a>
             <a
               href="#contact"
@@ -411,16 +336,16 @@ function Hero() {
       >
         {/* Brand signature — mark + company identity above the headline */}
         <div className="flex items-center gap-3 mb-7 md:mb-9">
-          <GKMark size={36} variant="dark" />
+          <BrandMark size={36} dark />
           <div className="flex flex-col leading-none gap-1">
             <span
               className="text-[11px] font-bold uppercase tracking-[0.2em]"
               style={{ color: 'rgba(242,244,245,0.85)', fontFamily: "'Geologica', sans-serif" }}
             >
-              Гарант Качества
+              {COMPANY.name}
             </span>
             <span
-              className="text-[9px] uppercase tracking-[0.3em] font-medium"
+              className="text-[9px] uppercase tracking-[0.3em] font-medium leading-none"
               style={{ color: 'rgba(242,244,245,0.4)' }}
             >
               Строительная компания · Беларусь
@@ -482,7 +407,7 @@ function Hero() {
               Обсудить проект
             </a>
             <a
-              href="#projects"
+              href={navHref('Объекты')}
               className="group inline-flex items-center gap-2 text-sm font-medium pb-0.5 transition-colors"
               style={{ color: 'rgba(242,244,245,0.7)', borderBottom: '1px solid rgba(242,244,245,0.25)' }}
               onMouseEnter={e => {
@@ -514,11 +439,9 @@ function Hero() {
         className="absolute bottom-0 right-0 hidden lg:block overflow-hidden pointer-events-none"
         style={{ zIndex: 1, width: 'clamp(280px, 28vw, 420px)', aspectRatio: '1', opacity: 0.07, marginBottom: '-8%', marginRight: '-6%' }}
       >
-        <img
-          src={gkLogo08}
-          alt=""
-          aria-hidden="true"
-          className="w-full h-full object-contain"
+        <BrandMark
+          size={420}
+          style={{ width: '100%', height: '100%', opacity: 0.07, color: 'var(--brass)', background: 'transparent', border: 'none' }}
         />
       </div>
     </section>
@@ -528,6 +451,10 @@ function Hero() {
 // ─── Projects section ─────────────────────────────────────────────────────────
 function Projects() {
   const [hov, setHov] = useState<number | null>(null)
+
+  if (PROJECTS.length === 0) {
+    return null
+  }
 
   return (
     <section id="projects" style={{ background: 'var(--bg)' }}>
@@ -542,7 +469,7 @@ function Projects() {
             </h2>
           </div>
           <a
-            href="#"
+            href={navHref('Объекты')}
             className="hidden md:flex items-center gap-2 text-sm font-medium group transition-colors"
             style={{ color: 'var(--fg)' }}
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
@@ -604,7 +531,7 @@ function Projects() {
 
             {/* CTA pinned bottom */}
             <a
-              href="#"
+              href={projectHref(PROJECTS[0].slug)}
               className="relative inline-flex items-center gap-2 text-sm font-medium self-start group transition-colors"
               style={{ zIndex: 1, color: 'var(--fg)', borderBottom: '1px solid var(--border)', paddingBottom: '2px' }}
               onMouseEnter={e => {
@@ -699,7 +626,7 @@ function Projects() {
             </div>
 
             <a
-              href="#"
+              href={projectHref(PROJECTS[1].slug)}
               className="relative inline-flex items-center gap-2 text-sm font-medium self-start group transition-colors"
               style={{ zIndex: 1, color: 'var(--fg)', borderBottom: '1px solid var(--border)', paddingBottom: '2px' }}
               onMouseEnter={e => {
@@ -731,7 +658,7 @@ function Projects() {
             const num = String(idx + 1).padStart(2, '0')
             return (
               <article
-                key={project.title}
+                key={project.id || project.slug || project.title}
                 className="border-r last:border-r-0 sm:border-r"
                 style={{ borderColor: 'var(--border)' }}
                 onMouseEnter={() => setHov(idx)}
@@ -767,7 +694,9 @@ function Projects() {
                     className="text-xl font-bold mb-3 leading-snug"
                     style={{ ...GEO, color: 'var(--fg)' }}
                   >
-                    {project.title}
+                    <a href={projectHref(project.slug)} className="hover:text-[var(--brass)] transition-colors" style={{ color: 'var(--fg)' }}>
+                      {project.title}
+                    </a>
                   </h3>
                   <p className="text-sm" style={{ color: 'var(--muted)' }}>
                     {project.category} · {project.location}
@@ -788,7 +717,7 @@ function Projects() {
           Промышленное и гражданское строительство по всей Беларуси
         </p>
         <a
-          href="#"
+          href={navHref('Объекты')}
           className="inline-flex items-center gap-2 text-sm font-semibold group transition-colors"
           style={{ color: 'var(--fg)' }}
           onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
@@ -838,7 +767,7 @@ function Services() {
         {SERVICES.map((s, i) => (
           <a
             key={s.id}
-            href="#"
+            href={serviceHref(s.slug)}
             className="block border-b"
             style={{ borderColor: 'rgba(242,244,245,0.08)' }}
             onMouseEnter={() => setHov(i)}
@@ -862,7 +791,7 @@ function Services() {
                   color: hov === i ? 'var(--brass)' : 'rgba(19,163,74,0.45)',
                 }}
               >
-                {s.id}
+                {s.num}
               </span>
 
               {/* Title + description */}
@@ -986,7 +915,7 @@ function About() {
               backgroundSize: '52px 52px',
             }}
           >
-            <GKMark size={34} variant="white-dark" style={{ marginBottom: '0.75rem' }} />
+            <BrandMark size={34} style={{ marginBottom: '0.75rem' }} />
             <Eyebrow>О компании</Eyebrow>
 
             <h2
@@ -997,7 +926,7 @@ function About() {
             </h2>
 
             <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--muted)' }}>
-              ООО «ГАРАНТ КАЧЕСТВА» выполняет комплекс строительных, монтажных и инженерных работ — от подготовки и проектирования до реализации и сдачи объекта.
+              {COMPANY.legalName} выполняет комплекс строительных, монтажных и инженерных работ — от подготовки и проектирования до реализации и сдачи объекта.
             </p>
             <p className="text-sm leading-relaxed" style={{ color: 'var(--muted)' }}>
               Работы выполняются с участием собственных специалистов и строительной техники, с соблюдением требований проекта, строительных норм и задач заказчика.
@@ -1213,7 +1142,7 @@ function News() {
             </h2>
           </div>
           <a
-            href="#"
+            href={navHref('Новости')}
             className="hidden md:flex items-center gap-2 text-sm font-medium group transition-colors"
             style={{ color: 'var(--fg)' }}
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
@@ -1227,8 +1156,8 @@ function News() {
         <div className="border-t" style={{ borderColor: 'var(--border)' }}>
           {NEWS_ITEMS.map((item, i) => (
             <a
-              key={i}
-              href="#"
+              key={item.id || item.slug || i}
+              href={newsHref(item.slug)}
               className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-10 py-6 border-b -mx-6 px-6 transition-colors"
               style={{ borderColor: 'var(--border)' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-bg)')}
@@ -1254,9 +1183,237 @@ function News() {
         </div>
 
         <div className="mt-8 md:hidden">
-          <a href="#" className="text-sm font-medium transition-colors" style={{ color: 'var(--fg)' }}>
+          <a href={navHref('Новости')} className="text-sm font-medium transition-colors" style={{ color: 'var(--fg)' }}>
             Все новости →
           </a>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── News detail ──────────────────────────────────────────────────────────────
+function NewsDetail({ slug }: { slug: string }) {
+  const item = NEWS_ITEMS.find(n => n.slug === slug)
+  if (typeof document !== 'undefined' && item) {
+    document.title = `${item.title} — ${COMPANY.name}`
+  }
+  if (!item) {
+    return (
+      <section id="news" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+        <div className="max-w-[800px] mx-auto px-6 md:px-10">
+          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>Новость не найдена</h1>
+        </div>
+      </section>
+    )
+  }
+  return (
+    <section id="news" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[800px] mx-auto px-6 md:px-10">
+        <a href={PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}` : '#'} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к новостям</a>
+        <article className="mt-8">
+          {item.coverImageUrl ? (
+            <div className="mb-8 overflow-hidden" style={{ aspectRatio: '3/2' }}>
+              <img src={item.coverImageUrl} alt={item.title} className="w-full h-full object-cover" />
+            </div>
+          ) : null}
+          <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--muted)' }}>{item.date}</p>
+          <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-5" style={{ ...GEO, color: 'var(--fg)' }}>{item.title}</h1>
+          {item.excerpt ? <p className="text-lg leading-relaxed mb-8" style={{ color: 'var(--muted)' }}>{item.excerpt}</p> : null}
+          <div className="text-base leading-relaxed" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{item.content}</div>
+        </article>
+      </div>
+    </section>
+  )
+}
+
+// ─── Project list ─────────────────────────────────────────────────────────────
+function ProjectList() {
+  if (typeof document !== 'undefined') document.title = `Объекты — ${COMPANY.name}`
+  return (
+    <section id="projects" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[1280px] mx-auto px-6 md:px-10">
+        <div className="mb-12">
+          <Eyebrow>Портфолио</Eyebrow>
+          <h2 className="text-4xl md:text-5xl font-bold leading-[1.05]" style={{ ...GEO, color: 'var(--fg)' }}>
+            Реализованные<br />объекты
+          </h2>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border-t" style={{ borderColor: 'var(--border)' }}>
+          {PROJECTS.map((p) => (
+            <article
+              key={p.id || p.slug || p.title}
+              className="border-b md:border-r last:md:border-r-0"
+              style={{ borderColor: 'var(--border)' }}
+            >
+              <a href={projectHref(p.slug)} className="block transition-colors h-full" onMouseEnter={e => { e.currentTarget.style.background = 'var(--card-bg)' }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+                <div className="overflow-hidden" style={{ aspectRatio: '3/2', background: '#4a5058' }}>
+                  <img src={p.img} alt={p.title} className="w-full h-full object-cover" />
+                </div>
+                <div className="p-6">
+                  <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.25em] font-medium mb-3" style={{ color: 'var(--muted)' }}>
+                    <span>{p.category}</span>
+                    <span style={{ color: 'var(--brass)' }}>{p.status}</span>
+                  </div>
+                  <h3 className="text-xl font-bold mb-2 leading-snug" style={{ ...GEO, color: 'var(--fg)' }}>
+                    {p.title}
+                  </h3>
+                  <p className="text-sm" style={{ color: 'var(--muted)' }}>{p.excerpt || p.location}</p>
+                </div>
+              </a>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Project detail ───────────────────────────────────────────────────────────
+function ProjectDetail({ slug }: { slug: string }) {
+  const p = PROJECTS.find(x => x.slug === slug)
+  if (typeof document !== 'undefined' && p) {
+    document.title = `${p.title} — ${COMPANY.name}`
+  }
+  if (!p) {
+    return (
+      <section id="projects" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+        <div className="max-w-[900px] mx-auto px-6 md:px-10">
+          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>Объект не найден</h1>
+        </div>
+      </section>
+    )
+  }
+  return (
+    <section id="projects" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[900px] mx-auto px-6 md:px-10">
+        <a href={navHref('Объекты')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к объектам</a>
+        <article className="mt-8">
+          <div className="mb-8 overflow-hidden" style={{ aspectRatio: '3/2' }}>
+            <img src={p.img} alt={p.title} className="w-full h-full object-cover" />
+          </div>
+          <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--muted)' }}>{p.category} · {p.location} · {p.status}</p>
+          <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-5" style={{ ...GEO, color: 'var(--fg)' }}>{p.title}</h1>
+          {p.excerpt ? <p className="text-lg leading-relaxed mb-8" style={{ color: 'var(--muted)' }}>{p.excerpt}</p> : null}
+          <div className="text-base leading-relaxed mb-10" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{p.content}</div>
+          {p.gallery && p.gallery.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {p.gallery.map((src: string, i: number) => (
+                <img key={i} src={src} alt={`${p.title} ${i + 1}`} className="w-full h-48 object-cover" />
+              ))}
+            </div>
+          ) : null}
+        </article>
+      </div>
+    </section>
+  )
+}
+
+// ─── Service list ─────────────────────────────────────────────────────────────
+function ServiceList() {
+  if (typeof document !== 'undefined') document.title = `Услуги — ${COMPANY.name}`
+  return (
+    <section id="services" className="py-24 md:py-32 border-t" style={{ background: 'var(--dark)' }}>
+      <div className="max-w-[1280px] mx-auto px-6 md:px-10">
+        <div className="mb-12">
+          <Eyebrow>Специализация</Eyebrow>
+          <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'white' }}>
+            Услуги
+          </h2>
+        </div>
+
+        <div className="max-w-[1280px] mx-auto border-t" style={{ borderColor: 'rgba(242,244,245,0.08)' }}>
+          {SERVICES.map((s) => (
+            <a
+              key={s.id}
+              href={serviceHref(s.slug)}
+              className="block border-b group transition-colors"
+              style={{ borderColor: 'rgba(242,244,245,0.08)' }}
+              onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLElement).style.background = 'transparent' }}
+            >
+              <div
+                className="px-6 md:px-10 py-7 md:py-8"
+                style={{ display: 'grid', gridTemplateColumns: '3rem 1fr 2rem', gap: '1.25rem', alignItems: 'center' }}
+              >
+                <span className="text-sm font-bold tabular-nums" style={{ fontFamily: 'monospace', color: 'var(--brass)' }}>{s.num}</span>
+                <div>
+                  <h3 className="font-bold mb-1" style={{ ...GEO, color: 'white' }}>{s.title}</h3>
+                  <p className="text-sm" style={{ color: 'rgba(242,244,245,0.5)' }}>{s.desc}</p>
+                </div>
+                <span className="text-sm transition-transform group-hover:translate-x-1" style={{ color: 'var(--brass)' }}>→</span>
+              </div>
+            </a>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Service detail ───────────────────────────────────────────────────────────
+function ServiceDetail({ slug }: { slug: string }) {
+  const s = SERVICES.find(x => x.slug === slug)
+  if (typeof document !== 'undefined' && s) {
+    document.title = `${s.title} — ${COMPANY.name}`
+  }
+  if (!s) {
+    return (
+      <section id="services" className="py-24 md:py-32 border-t" style={{ background: 'var(--dark)' }}>
+        <div className="max-w-[900px] mx-auto px-6 md:px-10">
+          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'white' }}>Услуга не найдена</h1>
+        </div>
+      </section>
+    )
+  }
+  return (
+    <section id="services" className="py-24 md:py-32 border-t" style={{ background: 'var(--dark)' }}>
+      <div className="max-w-[900px] mx-auto px-6 md:px-10">
+        <a href={navHref('Услуги')} className="text-sm font-medium" style={{ color: 'rgba(242,244,245,0.5)' }}>← Назад к услугам</a>
+        <article className="mt-8">
+          {s.img ? (
+            <div className="mb-8 overflow-hidden" style={{ aspectRatio: '3/2' }}>
+              <img src={s.img} alt={s.title} className="w-full h-full object-cover" />
+            </div>
+          ) : null}
+          <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--brass)' }}>Услуга</p>
+          <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-5" style={{ ...GEO, color: 'white' }}>{s.title}</h1>
+          {s.desc ? <p className="text-lg leading-relaxed mb-8" style={{ color: 'rgba(242,244,245,0.6)' }}>{s.desc}</p> : null}
+          <div className="text-base leading-relaxed" style={{ color: 'rgba(242,244,245,0.82)', whiteSpace: 'pre-wrap' }}>{s.content}</div>
+        </article>
+      </div>
+    </section>
+  )
+}
+
+// ─── News list ─────────────────────────────────────────────────────────────────
+function NewsList() {
+  if (typeof document !== 'undefined') document.title = `Новости — ${COMPANY.name}`
+  return (
+    <section id="news" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[1280px] mx-auto px-6 md:px-10">
+        <div className="mb-12">
+          <Eyebrow>Актуальное</Eyebrow>
+          <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>
+            Новости
+          </h2>
+        </div>
+        <div className="border-t" style={{ borderColor: 'var(--border)' }}>
+          {NEWS_ITEMS.map((item) => (
+            <a
+              key={item.id || item.slug}
+              href={newsHref(item.slug)}
+              className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-10 py-6 border-b -mx-6 px-6 transition-colors"
+              style={{ borderColor: 'var(--border)' }}
+              onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-bg)')}
+              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+            >
+              <span className="text-[11px] uppercase tracking-[0.22em] shrink-0 sm:w-28" style={{ color: 'var(--muted)' }}>{item.date}</span>
+              <h3 className="flex-1 text-base md:text-lg font-medium" style={{ color: 'var(--fg)' }}>{item.title}</h3>
+              <span className="hidden sm:block text-sm" style={{ color: 'var(--muted)' }}>→</span>
+            </a>
+          ))}
         </div>
       </div>
     </section>
@@ -1280,10 +1437,10 @@ function CTA() {
 
         {/* ── Section header ── */}
         <div className="flex items-center gap-3.5 mb-10">
-          <GKMark size={44} variant="green" />
+          <BrandMark size={44} dark />
           <div>
             <p className="text-[10px] uppercase tracking-[0.28em] font-medium" style={{ color: 'rgba(242,244,245,0.4)' }}>
-              Гарант Качества · Строительная компания
+              {COMPANY.name} · Строительная компания
             </p>
           </div>
         </div>
@@ -1464,10 +1621,10 @@ function Footer() {
           {/* Brand */}
           <div className="col-span-2 md:col-span-1">
             <div className="flex flex-col gap-4 mb-6">
-              <GKMark size={52} variant="green" />
+              <BrandMark size={52} dark />
               <div className="flex flex-col leading-none gap-1.5">
                 <span className="text-[15px] font-bold tracking-[0.07em] uppercase leading-none" style={{ ...GEO, color: 'white' }}>
-                  Гарант Качества
+                  {COMPANY.name}
                 </span>
                 <span className="text-[10px] uppercase tracking-[0.22em] font-medium leading-none" style={{ color: FOOTER_MUTED }}>
                   строительная компания
@@ -1475,8 +1632,7 @@ function Footer() {
               </div>
             </div>
             <p className="text-xs leading-relaxed mb-4" style={{ color: FOOTER_MUTED }}>
-              {COMPANY.address.zip}, {COMPANY.address.city},<br />
-              {COMPANY.address.street}, {COMPANY.address.room}
+              {COMPANY.address.formatted || `${COMPANY.address.street}${COMPANY.address.room ? `, ${COMPANY.address.room}` : ''}` || ''}
             </p>
             <p className="text-xs" style={{ color: FOOTER_MUTED }}>
               {COMPANY.hours}
@@ -1488,7 +1644,7 @@ function Footer() {
             <FooterHeading>Компания</FooterHeading>
             <nav className="flex flex-col gap-3">
               {NAV_ITEMS.map(item => (
-                <FooterLink key={item} href="#">{item}</FooterLink>
+                <FooterLink key={item} href={navHref(item)}>{item}</FooterLink>
               ))}
               <FooterLink href="/vacancies">Вакансии</FooterLink>
             </nav>
@@ -1499,7 +1655,7 @@ function Footer() {
             <FooterHeading>Услуги</FooterHeading>
             <nav className="flex flex-col gap-3">
               {SERVICES.slice(0, 6).map(s => (
-                <FooterLink key={s.id} href="#">{s.title}</FooterLink>
+                <FooterLink key={s.id} href={serviceHref(s.slug)}>{s.title}</FooterLink>
               ))}
             </nav>
           </div>
@@ -1579,13 +1735,13 @@ function Footer() {
           <div className="flex items-center gap-6">
             <FooterLink href="/vacancies">Вакансии</FooterLink>
             <a
-              href="https://garantk.by"
+              href={`https://${COMPANY.domain}`}
               className="text-xs transition-colors"
               style={{ color: FOOTER_MUTED }}
               onMouseEnter={e => (e.currentTarget.style.color = FOOTER_DIM)}
               onMouseLeave={e => (e.currentTarget.style.color = FOOTER_MUTED)}
             >
-              garantk.by
+              {COMPANY.domain}
             </a>
           </div>
         </div>
@@ -1597,18 +1753,36 @@ function Footer() {
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
+  const route = (cms as any).route || ''
+  const sub = (cms as any).subRoute || ''
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", background: 'var(--bg)', color: 'var(--fg)' }}>
       <Header menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
       <main>
-        <Hero />
-        <Projects />
-        <Services />
-        <About />
-        <Process />
-        <News />
-        <CTA />
+        {route === 'news' && !sub ? (
+          <NewsList />
+        ) : route === 'news' && sub ? (
+          <NewsDetail slug={sub} />
+        ) : route === 'projects' && !sub ? (
+          <ProjectList />
+        ) : route === 'projects' && sub ? (
+          <ProjectDetail slug={sub} />
+        ) : route === 'services' && !sub ? (
+          <ServiceList />
+        ) : route === 'services' && sub ? (
+          <ServiceDetail slug={sub} />
+        ) : (
+          <>
+            <Hero />
+            <Projects />
+            <Services />
+            <About />
+            <Process />
+            <News />
+            <CTA />
+          </>
+        )}
       </main>
       <Footer />
     </div>

@@ -142,8 +142,9 @@ app.post('/api/cms/sites/:siteId/news', requireSiteAccess('siteId'), requireSite
   const { siteId } = req.params;
   const { title, slug, excerpt, blocks, status, coverImageId, seoTitle, seoDescription, publishedAt } = req.body;
   const s = slug || createSlug(title);
+  const providedDate = publishedAt ? new Date(publishedAt) : null;
   const news = await (prisma as any).newsPost.create({
-    data: { siteId, title, slug: s, excerpt, blocks: blocks ?? [], coverImageId, status: status ?? 'DRAFT', seoTitle, seoDescription, sourceType: 'MANUAL', publishedAt: status === 'PUBLISHED' ? new Date() : publishedAt ?? null }
+    data: { siteId, title, slug: s, excerpt, blocks: blocks ?? [], coverImageId: coverImageId || null, status: status ?? 'DRAFT', seoTitle, seoDescription, sourceType: 'MANUAL', publishedAt: status === 'PUBLISHED' ? (providedDate || new Date()) : providedDate }
   });
   res.json({ ok: true, news });
 });
@@ -151,8 +152,10 @@ app.post('/api/cms/sites/:siteId/news', requireSiteAccess('siteId'), requireSite
 app.put('/api/cms/sites/:siteId/news/:newsId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
   const { siteId, newsId } = req.params;
   const data: any = {};
-  ['title', 'slug', 'excerpt', 'blocks', 'status', 'coverImageId', 'seoTitle', 'seoDescription'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
-  if (data.status === 'PUBLISHED') data.publishedAt = new Date();
+  ['title', 'slug', 'excerpt', 'blocks', 'status', 'coverImageId', 'publishedAt', 'seoTitle', 'seoDescription'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
+  if (data.coverImageId === '') data.coverImageId = null;
+  if (data.publishedAt !== undefined) data.publishedAt = data.publishedAt ? new Date(data.publishedAt) : null;
+  if (data.status === 'PUBLISHED' && !data.publishedAt) data.publishedAt = new Date();
   const news = await (prisma as any).newsPost.update({ where: { id: newsId, siteId }, data });
   res.json({ ok: true, news });
 });
@@ -171,7 +174,7 @@ app.post('/api/cms/sites/:siteId/projects', requireSiteAccess('siteId'), require
   const gallery: string[] = Array.isArray(galleryImageIds) ? galleryImageIds.filter((id: any) => typeof id === 'string') : [];
   const project = await (prisma as any).project.create({
     data: {
-      siteId, title, slug: s, excerpt, category, location, completionDate, blocks: blocks ?? [], coverImageId,
+      siteId, title, slug: s, excerpt, category, location, completionDate, blocks: blocks ?? [], coverImageId: coverImageId || null,
       projectStatus: projectStatus ?? 'completed', status: status ?? 'DRAFT', seoTitle, seoDescription, sourceType: 'MANUAL',
       publishedAt: status === 'PUBLISHED' ? new Date() : null,
       projectMedia: { create: gallery.map((mediaId: string, i: number) => ({ mediaId, sortOrder: i })) }
@@ -185,6 +188,7 @@ app.put('/api/cms/sites/:siteId/projects/:projectId', requireSiteAccess('siteId'
   const { siteId, projectId } = req.params;
   const data: any = {};
   ['title', 'slug', 'excerpt', 'category', 'location', 'completionDate', 'blocks', 'status', 'coverImageId', 'projectStatus', 'seoTitle', 'seoDescription'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
+  if (data.coverImageId === '') data.coverImageId = null;
   if (data.status === 'PUBLISHED' && data.publishedAt === undefined) data.publishedAt = new Date();
   if (data.status === 'DRAFT') data.publishedAt = null;
   if (Array.isArray(req.body.galleryImageIds)) {
@@ -212,7 +216,7 @@ app.post('/api/cms/sites/:siteId/services', requireSiteAccess('siteId'), require
   const { title, slug, shortDescription, blocks, status, imageId, sortOrder, seoTitle, seoDescription } = req.body;
   const s = slug || createSlug(title);
   const service = await (prisma as any).service.create({
-    data: { siteId, title, slug: s, shortDescription, blocks: blocks ?? [], imageId, sortOrder: sortOrder ?? 0, status: status ?? 'DRAFT', seoTitle, seoDescription, sourceType: 'MANUAL', publishedAt: status === 'PUBLISHED' ? new Date() : null }
+    data: { siteId, title, slug: s, shortDescription, blocks: blocks ?? [], imageId: imageId || null, sortOrder: sortOrder ?? 0, status: status ?? 'DRAFT', seoTitle, seoDescription, sourceType: 'MANUAL', publishedAt: status === 'PUBLISHED' ? new Date() : null }
   });
   res.json({ ok: true, service });
 });
@@ -221,6 +225,7 @@ app.put('/api/cms/sites/:siteId/services/:serviceId', requireSiteAccess('siteId'
   const { siteId, serviceId } = req.params;
   const data: any = {};
   ['title', 'slug', 'shortDescription', 'blocks', 'status', 'imageId', 'sortOrder', 'icon', 'seoTitle', 'seoDescription'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
+  if (data.imageId === '') data.imageId = null;
   if (data.status === 'PUBLISHED') data.publishedAt = new Date();
   const service = await (prisma as any).service.update({ where: { id: serviceId, siteId }, data });
   res.json({ ok: true, service });

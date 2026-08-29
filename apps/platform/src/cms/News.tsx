@@ -129,6 +129,7 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
   const [coverImageId, setCoverImageId] = useState('')
   const [seoTitle, setSeoTitle] = useState('')
   const [seoDesc, setSeoDesc] = useState('')
+  const [publishedAt, setPublishedAt] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('saved')
   const [uploading, setUploading] = useState(false)
   const { toast, show } = useToast()
@@ -137,10 +138,11 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
     if (item) {
       setTitle(item.title || ''); setSlug(item.slug || ''); setExcerpt(item.excerpt || ''); setStatus(uiStatus(item.status))
       setCoverImageId(item.coverImageId || ''); setSeoTitle(item.seoTitle || ''); setSeoDesc(item.seoDescription || '')
+      setPublishedAt(item.publishedAt ? new Date(item.publishedAt).toISOString().slice(0, 10) : '')
       const text = ((item.blocks || []).map((b: any) => b.content || '').join('\n\n'))
       setContent(text)
     } else {
-      setTitle(''); setSlug(''); setExcerpt(''); setContent(''); setStatus('draft'); setCoverImageId(''); setSeoTitle(''); setSeoDesc('')
+      setTitle(''); setSlug(''); setExcerpt(''); setContent(''); setStatus('draft'); setCoverImageId(''); setSeoTitle(''); setSeoDesc(''); setPublishedAt('')
     }
     setSaveState('saved')
   }, [newsId, item])
@@ -152,7 +154,7 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
   const handleSave = async (publish = false) => {
     setSaveState('saving')
     try {
-      const payload: any = { title, slug, excerpt, blocks: blocksFromContent(content), coverImageId, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(status) }
+      const payload: any = { title, slug, excerpt, blocks: blocksFromContent(content), coverImageId, publishedAt, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(status) }
       if (isNew) { await api.createNews(siteId, payload); show(publish ? 'News published' : 'News saved') }
       else { await api.updateNews(siteId, item!.id, payload); show(publish ? 'News updated' : 'News saved') }
       await refresh(); onNavigate('news')
@@ -221,6 +223,9 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
         <aside className="w-[272px] flex-shrink-0 border-l border-gray-200 bg-white overflow-y-auto">
           <SideSection title="Publication">
             <Select label="Status" value={status} onChange={v => { setStatus(v as any); markDirty() }} options={[{ value: 'published', label: 'Published' }, { value: 'draft', label: 'Draft' }, { value: 'archived', label: 'Archived' }]} />
+            <div className="mt-3">
+              <Input label="Published" type="date" value={publishedAt} onChange={v => { setPublishedAt(v); markDirty() }} />
+            </div>
           </SideSection>
           <SideSection title="URL">
             <Input label="Slug" value={slug} onChange={v => { setSlug(v); markDirty() }} prefix="/news/" />
