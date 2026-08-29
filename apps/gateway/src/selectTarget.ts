@@ -16,19 +16,14 @@ export function selectTarget(url: string) {
     return { target: targets.platformApi, url };
   }
 
-  // Studio: canonical /studio/:siteId -> CMS /admin?site=:siteId
+  // Studio: canonical /studio/:siteId -> platform web SPA
   if (url.startsWith('/studio/')) {
-    const m = url.match(/^\/studio\/([^/?]+)(.*)$/);
-    if (m) {
-      const [, siteId, rest] = m;
-      const query = rest.replace(/^\?/, '&');
-      return { target: targets.cms, url: '/admin?site=' + encodeURIComponent(siteId) + query };
-    }
+    return { target: targets.platformWeb, url };
   }
 
-  // Legacy CMS alias
+  // Legacy CMS alias now redirects to Studio / Forge
   if (url.startsWith('/cms')) {
-    return { target: targets.cms, url: '/admin' + url.replace(/^\/cms/, '') };
+    return { target: targets.platformWeb, url: '/forge' };
   }
 
   // Showcase: canonical /showcase/:previewToken and legacy /preview/:token -> renderer

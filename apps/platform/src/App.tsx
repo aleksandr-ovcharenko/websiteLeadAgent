@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import RadarView from "./Radar";
+import Studio from "./cms/Studio";
 
 type Status =
   | "DRAFT"
@@ -1025,22 +1026,31 @@ function HubView({ onRadar, onForge }: { onRadar: () => void; onForge: () => voi
 }
 
 export default function App({ user }: { user?: any }) {
-  const initial = () => {
+  const parse = () => {
     const p = window.location.pathname.replace(/\/$/, '');
-    if (p === '/radar' || p.startsWith('/radar/') || p === '/leads' || p.startsWith('/leads/')) return 'radar';
-    if (p === '/forge' || p.startsWith('/forge/') || p === '/sites' || p.startsWith('/sites/')) return 'forge';
-    return 'hub';
+    if (p === '/radar' || p.startsWith('/radar/') || p === '/leads' || p.startsWith('/leads/')) return { view: 'radar' as const };
+    if (p === '/forge' || p.startsWith('/forge/') || p === '/sites' || p.startsWith('/sites/')) return { view: 'forge' as const };
+    if (p.startsWith('/studio/')) return { view: 'studio' as const, siteId: p.split('/')[2] };
+    return { view: 'hub' as const };
   };
-  const [view, setView] = useState(initial);
+  const initial = parse();
+  const [view, setView] = useState<string>(initial.view);
+  const [studioSiteId, setStudioSiteId] = useState<string | undefined>(initial.siteId);
   useEffect(() => {
-    const onPop = () => setView(initial());
+    const onPop = () => {
+      const v = parse();
+      setView(v.view);
+      setStudioSiteId(v.siteId);
+    };
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
-  function navigate(v: string) {
+  function navigate(v: string, siteId?: string) {
     window.history.pushState(null, '', '/' + v);
     setView(v);
+    if (siteId) setStudioSiteId(siteId);
   }
+  if (view === 'studio' && studioSiteId) return <Studio siteId={studioSiteId} user={user} />;
   if (user?.globalRole !== 'SUPER_ADMIN' && view === 'hub') return <ForgeView />;
   if (view === 'forge') return <ForgeView />;
   if (view === 'radar') return <RadarView onForge={() => navigate('forge')} />;

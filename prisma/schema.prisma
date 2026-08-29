@@ -96,6 +96,7 @@ enum GlobalRole {
 enum PageStatus {
   DRAFT
   PUBLISHED
+  ARCHIVED
 }
 
 enum ContentSourceType {
@@ -254,6 +255,7 @@ model Site {
   newsPosts  NewsPost[]
   projects   Project[]
   services   Service[]
+  vacancies  Vacancy[]
   media      Media[]
   menus      Menu[]
   menuItems  MenuItem[]
@@ -278,6 +280,10 @@ model SiteSettings {
   defaultSeoTitle String?
   defaultSeoDescription String?
   analytics Json?
+  contacts Json?   @default("{}")
+  language String?
+  timezone String?
+  previewUrl String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -392,6 +398,7 @@ model Project {
   category  String?
   location  String?
   completionDate String?
+  projectStatus String?
   status    PageStatus @default(DRAFT)
   publishedAt DateTime?
   seoTitle  String?
@@ -433,6 +440,7 @@ model Service {
   icon      String?
   sortOrder Int      @default(0)
   status    PageStatus @default(DRAFT)
+  publishedAt DateTime?
   seoTitle  String?
   seoDescription String?
   sourceUrl String?
@@ -442,6 +450,26 @@ model Service {
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
   image Media? @relation("ServiceImage", fields: [imageId], references: [id])
+
+  @@unique([siteId, slug])
+}
+
+model Vacancy {
+  id        String   @id @default(cuid())
+  siteId    String
+  title     String
+  slug      String
+  location  String?
+  description String?
+  requirements String?
+  conditions String?
+  contact   String?
+  status    PageStatus @default(DRAFT)
+  publishedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
   @@unique([siteId, slug])
 }
