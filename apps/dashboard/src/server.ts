@@ -74,14 +74,22 @@ app.get('/api/leads', async (req: Request, res: Response) => {
     }
   })();
 
-  const where: any = {
-    leadScore: { not: null, gte: minLead },
-    businessScore: { not: null, gte: minBiz },
-    websiteQualityScore: { not: null, lte: maxWeb }
-  };
+  const where: any = {};
 
-  if (Number.isFinite(minV2) || Number.isFinite(maxV2)) {
-    where.leadScoreV2 = { not: null, gte: minV2, lte: maxV2 };
+  if (Number.isFinite(minLead) && minLead > 0) {
+    where.leadScore = { gte: minLead };
+  }
+
+  if (Number.isFinite(minBiz) && minBiz > 0) {
+    where.businessScore = { gte: minBiz };
+  }
+
+  if (Number.isFinite(maxWeb) && maxWeb < 100) {
+    where.websiteQualityScore = { lte: maxWeb };
+  }
+
+  if ((Number.isFinite(minV2) && minV2 > 0) || (Number.isFinite(maxV2) && maxV2 < 100)) {
+    where.leadScoreV2 = { gte: minV2, lte: maxV2 };
   }
 
   if (aiStatus) {
