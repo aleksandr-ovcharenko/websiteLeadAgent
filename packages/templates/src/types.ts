@@ -5,6 +5,7 @@ export interface RenderContext {
   services: any[];
   projects: any[];
   news: any[];
+  vacancies: any[];
   menu: any[];
   mediaMap: Map<string, any>;
   route: string;

@@ -42,6 +42,7 @@ async function renderPreview(req: Request, res: Response) {
     include: { projectMedia: { include: { media: true } } }
   });
   const news = await (prisma as any).newsPost.findMany({ where: { siteId: site.id, status: 'PUBLISHED' } });
+  const vacancies = await (prisma as any).vacancy.findMany({ where: { siteId: site.id, status: 'PUBLISHED' } });
   const menu = await (prisma as any).menuItem.findMany({
     where: { siteId: site.id, visible: true },
     include: { page: { select: { slug: true } } },
@@ -59,6 +60,7 @@ async function renderPreview(req: Request, res: Response) {
     services,
     projects,
     news,
+    vacancies,
     menu,
     mediaMap,
     route,

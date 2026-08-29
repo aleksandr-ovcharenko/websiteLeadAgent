@@ -38,11 +38,21 @@ const DEFAULT_CMS = {
       tenderEmail: 'info@example.com',
     },
   },
-  NAV_ITEMS: ['Главная', 'Услуги', 'Объекты', 'О компании', 'Новости', 'Контакты'],
+  NAV: [
+    { id: 'nav_1', label: 'Главная', href: '/', target: 'page', showInHeader: true, showInFooter: true, showOnHomepage: false },
+    { id: 'nav_2', label: 'Услуги', href: '#services', target: 'section', showInHeader: true, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_3', label: 'Объекты', href: '#projects', target: 'section', showInHeader: true, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_4', label: 'О компании', href: '#about', target: 'section', showInHeader: true, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_5', label: 'Новости', href: '#news', target: 'section', showInHeader: true, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_6', label: 'Вакансии', href: '#vacancies', target: 'section', showInHeader: false, showInFooter: true, showOnHomepage: false },
+    { id: 'nav_7', label: 'Контакты', href: '#contact', target: 'section', showInHeader: true, showInFooter: true, showOnHomepage: false },
+  ],
+  PAGES: [],
   SERVICES: [],
   PROJECTS: [],
-  PROCESS_STEPS: [],
   NEWS_ITEMS: [],
+  VACANCIES: [],
+  PROCESS_STEPS: []
 }
 
 function getCmsData() {
@@ -53,22 +63,16 @@ function getCmsData() {
 }
 
 const cms = getCmsData();
-const { COMPANY, NAV_ITEMS, SERVICES, PROJECTS, PROCESS_STEPS, NEWS_ITEMS } = cms;
+const { COMPANY, NAV, PAGES, SERVICES, PROJECTS, NEWS_ITEMS, VACANCIES, PROCESS_STEPS } = cms;
 const PREVIEW_TOKEN = (cms as any).PREVIEW_TOKEN || '';
 const SITE_ID = (cms as any).SITE_ID || '';
 const IMG = (cms as any).IMG || DEFAULT_IMG;
 
 function navHref(label: string) {
+  const found = (NAV || []).find((n: any) => n.label === label);
+  if (found) return found.href;
   const base = PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}` : '/';
-  const map: Record<string, string> = {
-    'Главная': base,
-    'Услуги': PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/services` : `${base}#services`,
-    'Объекты': PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/projects` : `${base}#projects`,
-    'О компании': `${base}#about`,
-    'Новости': PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/news` : `${base}#news`,
-    'Контакты': `${base}#contact`,
-  };
-  return map[label] || base;
+  return base;
 }
 
 function newsHref(slug: string) {
@@ -81,6 +85,10 @@ function projectHref(slug: string) {
 
 function serviceHref(slug: string) {
   return PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/services/${slug}` : '#';
+}
+
+function vacancyHref(slug: string) {
+  return PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/vacancies/${slug}` : '#';
 }
 
 // ─── Shared font style ───────────────────────────────────────────────────────
@@ -169,16 +177,18 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
 
         {/* Desktop nav */}
         <nav className="hidden lg:flex items-center gap-7">
-          {NAV_ITEMS.map(item => (
+          {(NAV || []).filter((n: any) => n.showInHeader).map((n: any) => (
             <a
-              key={item}
-              href={navHref(item)}
+              key={n.id}
+              href={n.href}
+              target={n.external ? '_blank' : undefined}
+              rel={n.external ? 'noopener noreferrer' : undefined}
               className="text-[12px] uppercase tracking-[0.12em] font-medium transition-colors"
               style={{ color: 'var(--fg)' }}
               onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
               onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}
             >
-              {item}
+              {n.label}
             </a>
           ))}
         </nav>
@@ -189,7 +199,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
             {COMPANY.phone}
           </a>
           <a
-            href="#contact"
+            href={navHref('Контакты')}
             className="px-5 py-2.5 text-[11px] uppercase tracking-[0.15em] font-semibold border transition-all"
             style={{ borderColor: 'var(--fg)', color: 'var(--fg)' }}
             onMouseEnter={e => {
@@ -247,10 +257,12 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
         }}
       >
         <nav className="flex flex-col px-6 pt-2 pb-6">
-          {NAV_ITEMS.map((item, i) => (
+          {(NAV || []).filter((n: any) => n.showInHeader).map((n: any, i: number) => (
             <a
-              key={item}
-              href={navHref(item)}
+              key={n.id}
+              href={n.href}
+              target={n.external ? '_blank' : undefined}
+              rel={n.external ? 'noopener noreferrer' : undefined}
               onClick={() => setMenuOpen(false)}
               className="py-4 text-base font-medium uppercase tracking-[0.12em] border-b"
               style={{
@@ -259,7 +271,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
                 animationDelay: `${i * 40}ms`,
               }}
             >
-              {item}
+              {n.label}
             </a>
           ))}
           <div className="pt-7 flex flex-col gap-4">
@@ -267,7 +279,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
               {COMPANY.phone}
             </a>
             <a
-              href="#contact"
+              href={navHref('Контакты')}
               onClick={() => setMenuOpen(false)}
               className="text-center py-3.5 border text-sm uppercase tracking-wider font-medium"
               style={{ borderColor: 'var(--brass)', color: 'var(--brass)' }}
@@ -390,7 +402,7 @@ function Hero() {
 
           <div className="flex flex-wrap items-center gap-5">
             <a
-              href="#contact"
+              href={navHref('Контакты')}
               className="inline-flex items-center px-7 py-3.5 text-[11px] uppercase font-bold tracking-[0.18em] transition-all"
               style={{ background: 'var(--brass)', color: 'var(--dark)' }}
               onMouseEnter={e => {
@@ -839,7 +851,7 @@ function Services() {
           Собственные специалисты · Минск и регионы
         </p>
         <a
-          href="#contact"
+          href={navHref('Контакты')}
           className="text-sm font-medium transition-colors shrink-0"
           style={{ color: 'var(--brass)' }}
           onMouseEnter={e => (e.currentTarget.style.color = 'white')}
@@ -1420,6 +1432,85 @@ function NewsList() {
   )
 }
 
+// ─── Page view ────────────────────────────────────────────────────────────────
+function PageView({ slug }: { slug: string }) {
+  const page = PAGES.find((p: any) => p.slug === slug)
+  if (typeof document !== 'undefined' && page) {
+    document.title = `${page.title} — ${COMPANY.name}`
+  }
+  if (!page) {
+    return (
+      <section className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+        <div className="max-w-[900px] mx-auto px-6 md:px-10">
+          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>Страница не найдена</h1>
+        </div>
+      </section>
+    )
+  }
+  return (
+    <section id={slug} className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[900px] mx-auto px-6 md:px-10">
+        <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-6" style={{ ...GEO, color: 'var(--fg)' }}>{page.title}</h1>
+        <div className="text-base leading-relaxed" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{page.content}</div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Vacancy list ─────────────────────────────────────────────────────────────
+function VacancyList() {
+  if (typeof document !== 'undefined') document.title = `Вакансии — ${COMPANY.name}`
+  return (
+    <section id="vacancies" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[1280px] mx-auto px-6 md:px-10">
+        <h2 className="text-4xl md:text-5xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>Вакансии</h2>
+        {VACANCIES.length === 0 ? (
+          <p style={{ color: 'var(--muted)' }}>Нет открытых вакансий</p>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 border-t" style={{ borderColor: 'var(--border)' }}>
+            {VACANCIES.map((v: any) => (
+              <a key={v.id} href={vacancyHref(v.slug)} className="block py-6 border-b transition-colors" style={{ borderColor: 'var(--border)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-bg)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                <h3 className="text-xl font-bold mb-1" style={{ ...GEO, color: 'var(--fg)' }}>{v.title}</h3>
+                <p className="text-sm" style={{ color: 'var(--muted)' }}>{v.location}</p>
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
+  )
+}
+
+// ─── Vacancy detail ───────────────────────────────────────────────────────────
+function VacancyDetail({ slug }: { slug: string }) {
+  const v = VACANCIES.find((x: any) => x.slug === slug)
+  if (typeof document !== 'undefined' && v) {
+    document.title = `${v.title} — ${COMPANY.name}`
+  }
+  if (!v) {
+    return (
+      <section className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+        <div className="max-w-[900px] mx-auto px-6 md:px-10">
+          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>Вакансия не найдена</h1>
+        </div>
+      </section>
+    )
+  }
+  return (
+    <section id="vacancies" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[900px] mx-auto px-6 md:px-10">
+        <a href={navHref('Вакансии')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к вакансиям</a>
+        <h1 className="text-3xl md:text-4xl font-bold leading-tight mt-8 mb-5" style={{ ...GEO, color: 'var(--fg)' }}>{v.title}</h1>
+        {v.location ? <p className="text-sm uppercase tracking-widest mb-6" style={{ color: 'var(--brass)' }}>{v.location}</p> : null}
+        {v.description ? <div className="mb-6" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{v.description}</div> : null}
+        {v.requirements ? <><h3 className="font-bold mb-2" style={{ color: 'var(--fg)' }}>Требования</h3><p className="mb-6" style={{ color: 'var(--muted)' }}>{v.requirements}</p></> : null}
+        {v.conditions ? <><h3 className="font-bold mb-2" style={{ color: 'var(--fg)' }}>Условия</h3><p className="mb-6" style={{ color: 'var(--muted)' }}>{v.conditions}</p></> : null}
+        {v.contact ? <><h3 className="font-bold mb-2" style={{ color: 'var(--fg)' }}>Контакты</h3><p style={{ color: 'var(--muted)' }}>{v.contact}</p></> : null}
+      </div>
+    </section>
+  )
+}
+
 // ─── CTA section ──────────────────────────────────────────────────────────────
 function CTA() {
   return (
@@ -1643,10 +1734,9 @@ function Footer() {
           <div>
             <FooterHeading>Компания</FooterHeading>
             <nav className="flex flex-col gap-3">
-              {NAV_ITEMS.map(item => (
-                <FooterLink key={item} href={navHref(item)}>{item}</FooterLink>
+              {(NAV || []).filter((n: any) => n.showInFooter).map((n: any) => (
+                <FooterLink key={n.id} href={n.href} target={n.external ? '_blank' : undefined} rel={n.external ? 'noopener noreferrer' : undefined}>{n.label}</FooterLink>
               ))}
-              <FooterLink href="/vacancies">Вакансии</FooterLink>
             </nav>
           </div>
 
@@ -1733,7 +1823,7 @@ function Footer() {
             © {COMPANY.founded}–2025 {COMPANY.legalName}. УНП {COMPANY.unp}. Все права защищены.
           </p>
           <div className="flex items-center gap-6">
-            <FooterLink href="/vacancies">Вакансии</FooterLink>
+            <FooterLink href={navHref('Вакансии')}>Вакансии</FooterLink>
             <a
               href={`https://${COMPANY.domain}`}
               className="text-xs transition-colors"
@@ -1755,12 +1845,23 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const route = (cms as any).route || ''
   const sub = (cms as any).subRoute || ''
+  const matchedPage = route ? PAGES.find((p: any) => p.slug === route) : null
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", background: 'var(--bg)', color: 'var(--fg)' }}>
       <Header menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
       <main>
-        {route === 'news' && !sub ? (
+        {!route ? (
+          <>
+            <Hero />
+            <Projects />
+            <Services />
+            <About />
+            <Process />
+            <News />
+            <CTA />
+          </>
+        ) : route === 'news' && !sub ? (
           <NewsList />
         ) : route === 'news' && sub ? (
           <NewsDetail slug={sub} />
@@ -1772,16 +1873,14 @@ export default function App() {
           <ServiceList />
         ) : route === 'services' && sub ? (
           <ServiceDetail slug={sub} />
+        ) : route === 'vacancies' && !sub ? (
+          <VacancyList />
+        ) : route === 'vacancies' && sub ? (
+          <VacancyDetail slug={sub} />
+        ) : matchedPage ? (
+          <PageView slug={route} />
         ) : (
-          <>
-            <Hero />
-            <Projects />
-            <Services />
-            <About />
-            <Process />
-            <News />
-            <CTA />
-          </>
+          <PageView slug={route} />
         )}
       </main>
       <Footer />

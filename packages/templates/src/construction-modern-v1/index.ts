@@ -91,9 +91,50 @@ export function constructionModernV1(ctx: RenderContext): string {
   const html = readFileSync(resolve(__dirname, 'public/index.html'), 'utf-8');
   const company = buildCompany(ctx);
 
-  const navItems = ctx.menu && ctx.menu.length > 0
-    ? ctx.menu.filter((i) => i.visible !== false).map((i) => i.label).filter(Boolean)
-    : ['Главная', 'Услуги', 'Объекты', 'О компании', 'Новости', 'Контакты'];
+  const defaultNav = (ctx.menu && ctx.menu.length > 0)
+    ? ctx.menu.filter((i) => i.visible !== false)
+    : [
+        { label: 'Главная', url: '/' },
+        { label: 'Услуги', url: '/services' },
+        { label: 'Объекты', url: '/projects' },
+        { label: 'О компании', url: '/about' },
+        { label: 'Новости', url: '/news' },
+        { label: 'Вакансии', url: '/vacancies' },
+        { label: 'Контакты', url: '/contacts' },
+      ];
+
+  const token = ctx.site?.previewToken || '';
+  function resolveNavHref(item: any): string {
+    if (!item) return '#';
+    if (item.url && /^https?:\/\//.test(item.url)) return item.url;
+    const pageSlug = item.page?.slug;
+    if (pageSlug) return pageSlug === 'index' ? `/showcase/${token}/` : `/showcase/${token}/${pageSlug}`;
+    const u = (item.url || '').replace(/^\/+/, '').replace(/\/$/, '');
+    if (u) return u === 'index' ? `/showcase/${token}/` : `/showcase/${token}/${u}`;
+    if (item.pageId) {
+      const p = ctx.pages?.find((page: any) => page.id === item.pageId);
+      if (p) return p.slug === 'index' ? `/showcase/${token}/` : `/showcase/${token}/${p.slug}`;
+    }
+    return '#';
+  }
+
+  const rawNav = defaultNav.map((item: any, i: number) => ({
+    id: item.id || `nav_${i}`,
+    label: item.label || item.title || 'Item',
+    href: resolveNavHref(item),
+    external: !!item.url && /^https?:\/\//.test(item.url),
+    target: item.pageId ? 'page' : (item.url ? 'custom' : 'unknown'),
+    showInHeader: item.showInHeader !== false,
+    showInFooter: item.showInFooter !== false,
+    showOnHomepage: item.showOnHomepage !== false
+  }));
+
+  const seen = new Set<string>();
+  const nav = rawNav.filter((n) => n.href !== '#').filter((n) => {
+    if (seen.has(n.label)) return false;
+    seen.add(n.label);
+    return true;
+  });
 
   const defaultProjectImages = [
     'https://images.unsplash.com/photo-1546414701-81cc6963c67f?w=1400&h=960&fit=crop&auto=format',
@@ -111,6 +152,16 @@ export function constructionModernV1(ctx: RenderContext): string {
     desc: s.shortDescription || (Array.isArray(s.blocks) ? s.blocks.map((b: any) => b.content || b.text || '').join(' ').slice(0, 240) : ''),
     content: textFrom(s),
     img: mediaUrl(ctx, s.imageId) || defaultProjectImages[i % defaultProjectImages.length]
+  }));
+
+  const pages = (ctx.pages || []).map((p) => ({
+    id: p.id,
+    slug: p.slug,
+    title: p.title || 'Страница',
+    isHomepage: p.isHomepage || false,
+    content: textFrom(p),
+    seoTitle: p.seoTitle || '',
+    seoDescription: p.seoDescription || ''
   }));
 
   const projects = (ctx.projects || []).map((p, i) => ({
@@ -136,17 +187,30 @@ export function constructionModernV1(ctx: RenderContext): string {
     coverImageUrl: mediaUrl(ctx, n.coverImageId) || defaultNewsImage
   }));
 
+  const vacancies = (ctx.vacancies || []).map((v) => ({
+    id: v.id,
+    slug: v.slug,
+    title: v.title || 'Вакансия',
+    location: v.location || '',
+    description: v.description || '',
+    requirements: v.requirements || '',
+    conditions: v.conditions || '',
+    contact: v.contact || ''
+  }));
+
   const cmsPayload = {
     route: ctx.route,
     subRoute: ctx.subRoute,
-    PREVIEW_TOKEN: ctx.site?.previewToken || '',
+    PREVIEW_TOKEN: token,
     SITE_ID: ctx.site?.id || '',
     COMPANY: company,
-    NAV_ITEMS: navItems,
+    NAV: nav,
+    PAGES: pages,
     SERVICES: services,
     PROJECTS: projects,
-    PROCESS_STEPS: [],
-    NEWS_ITEMS: news
+    NEWS_ITEMS: news,
+    VACANCIES: vacancies,
+    PROCESS_STEPS: []
   };
 
   const scriptBlock = `<script>window.__CMS__=${JSON.stringify(cmsPayload)};window.__CMS_ROUTE__=${JSON.stringify({ route: ctx.route, subRoute: ctx.subRoute })};</script>`;
