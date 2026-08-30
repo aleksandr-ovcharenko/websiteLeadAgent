@@ -11,7 +11,7 @@ const proxy = httpProxy.createProxyServer({
 });
 
 proxy.on('error', (err: any, _req: any, res: any) => {
-  if (res && !res.headersSent) {
+  if (res && !res.headersSent && typeof res.writeHead === 'function') {
     res.writeHead(502, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'backend_unavailable', message: err?.message || 'upstream unreachable' }));
   }

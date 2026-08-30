@@ -22,3 +22,5 @@ output
 
 # Extracted design reference assets
 /design-reference
+apps/platform/dist/
+docs/screenshots/product-qa/
