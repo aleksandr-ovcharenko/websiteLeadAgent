@@ -39,13 +39,13 @@ const DEFAULT_CMS = {
     },
   },
   NAV: [
-    { id: 'nav_1', label: 'Главная', href: '/', targetType: 'HOME', target: '', showInHeader: true, showInFooter: true, showOnHomepage: false },
-    { id: 'nav_2', label: 'О компании', href: '#about', targetType: 'HOME_SECTION', target: 'ABOUT', showInHeader: true, showInFooter: true, showOnHomepage: true },
-    { id: 'nav_3', label: 'Услуги', href: '#services', targetType: 'HOME_SECTION', target: 'SERVICES', showInHeader: true, showInFooter: true, showOnHomepage: true },
-    { id: 'nav_4', label: 'Объекты', href: '#projects', targetType: 'HOME_SECTION', target: 'PROJECTS', showInHeader: true, showInFooter: true, showOnHomepage: true },
-    { id: 'nav_5', label: 'Новости', href: '#news', targetType: 'HOME_SECTION', target: 'NEWS', showInHeader: true, showInFooter: true, showOnHomepage: true },
-    { id: 'nav_6', label: 'Вакансии', href: '#vacancies', targetType: 'HOME_SECTION', target: 'VACANCIES', showInHeader: false, showInFooter: true, showOnHomepage: true },
-    { id: 'nav_7', label: 'Контакты', href: '#contacts', targetType: 'HOME_SECTION', target: 'CONTACTS', showInHeader: true, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_1', label: 'Главная', href: '/', targetType: 'HOME', target: '', sortOrder: 0, showInHeader: true, showInFooter: true, showOnHomepage: false },
+    { id: 'nav_2', label: 'О компании', href: '#about', targetType: 'HOME_SECTION', target: 'ABOUT', sortOrder: 1, showInHeader: true, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_3', label: 'Услуги', href: '#services', targetType: 'COLLECTION', target: 'SERVICES', sortOrder: 2, showInHeader: true, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_4', label: 'Объекты', href: '#projects', targetType: 'COLLECTION', target: 'PROJECTS', sortOrder: 3, showInHeader: true, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_5', label: 'Новости', href: '#news', targetType: 'COLLECTION', target: 'NEWS', sortOrder: 4, showInHeader: true, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_6', label: 'Вакансии', href: '#vacancies', targetType: 'COLLECTION', target: 'VACANCIES', sortOrder: 5, showInHeader: false, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_7', label: 'Контакты', href: '#contacts', targetType: 'HOME_SECTION', target: 'CONTACTS', sortOrder: 6, showInHeader: true, showInFooter: true, showOnHomepage: true },
   ],
   PAGES: [],
   SERVICES: [],
@@ -68,35 +68,39 @@ const PREVIEW_TOKEN = (cms as any).PREVIEW_TOKEN || '';
 const SITE_ID = (cms as any).SITE_ID || '';
 const IMG = (cms as any).IMG || DEFAULT_IMG;
 
-function navHref(label: string) {
-  const found = (NAV || []).find((n: any) => n.label === label);
-  if (found) return found.href;
-  const base = PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}` : '/';
-  return base;
+const BASE = PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}` : '';
+
+function homeHref() {
+  return `${BASE}/`;
 }
 
 function sectionHref(targetKey: string) {
   const key = targetKey.toUpperCase();
-  const found = (NAV || []).find((n: any) => n.targetType === 'HOME_SECTION' && (n.target || '').toUpperCase() === key);
+  const found = (NAV || []).find((n: any) => (n.targetType === 'HOME_SECTION' || n.targetType === 'COLLECTION') && (n.target || '').toUpperCase() === key);
   if (found) return found.href;
-  const base = PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}` : '';
-  return `${base}/#${key.toLowerCase()}`;
+  return `${BASE}/#${key.toLowerCase()}`;
 }
 
-function newsHref(slug: string) {
-  return PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/news/${slug}` : '#';
+function collectionHref(targetKey: string) {
+  const key = targetKey.toLowerCase();
+  const found = (NAV || []).find((n: any) => n.targetType === 'COLLECTION' && (n.target || '').toUpperCase() === targetKey.toUpperCase());
+  if (found && !found.showOnHomepage) return found.href;
+  return `${BASE}/${key}`;
 }
 
-function projectHref(slug: string) {
-  return PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/projects/${slug}` : '#';
+function detailHref(type: string, slug: string, returnTo?: 'home' | 'collection') {
+  const q = returnTo ? `?returnTo=${returnTo}` : '';
+  return `${BASE}/${type.toLowerCase()}/${slug}${q}`;
 }
 
-function serviceHref(slug: string) {
-  return PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/services/${slug}` : '#';
-}
+function newsHref(slug: string, returnTo?: 'home' | 'collection') { return detailHref('news', slug, returnTo); }
+function projectHref(slug: string, returnTo?: 'home' | 'collection') { return detailHref('projects', slug, returnTo); }
+function serviceHref(slug: string, returnTo?: 'home' | 'collection') { return detailHref('services', slug, returnTo); }
+function vacancyHref(slug: string, returnTo?: 'home' | 'collection') { return detailHref('vacancies', slug, returnTo); }
 
-function vacancyHref(slug: string) {
-  return PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}/vacancies/${slug}` : '#';
+function backHref(target: string, returnTo?: 'home' | 'collection' | null) {
+  if (returnTo === 'home') return sectionHref(target);
+  return collectionHref(target);
 }
 
 // ─── Shared font style ───────────────────────────────────────────────────────
@@ -165,7 +169,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
     >
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 h-16 md:h-20 flex items-center justify-between gap-6">
         {/* Brand block */}
-        <a href={PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}` : '#'} className="flex items-center shrink-0 gap-3.5">
+        <a href={homeHref()} className="flex items-center shrink-0 gap-3.5">
           <BrandMark size={44} dark />
           <div className="flex flex-col leading-none gap-1">
             <span
@@ -185,7 +189,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
 
         {/* Desktop nav */}
         <nav className="hidden lg:flex items-center gap-7">
-          {(NAV || []).filter((n: any) => n.showInHeader).map((n: any) => (
+          {(NAV || []).filter((n: any) => n.showInHeader).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any) => (
             <a
               key={n.id}
               href={n.href}
@@ -207,7 +211,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
             {COMPANY.phone}
           </a>
           <a
-            href={navHref('Контакты')}
+            href={sectionHref('CONTACTS')}
             className="px-5 py-2.5 text-[11px] uppercase tracking-[0.15em] font-semibold border transition-all"
             style={{ borderColor: 'var(--fg)', color: 'var(--fg)' }}
             onMouseEnter={e => {
@@ -265,7 +269,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
         }}
       >
         <nav className="flex flex-col px-6 pt-2 pb-6">
-          {(NAV || []).filter((n: any) => n.showInHeader).map((n: any, i: number) => (
+          {(NAV || []).filter((n: any) => n.showInHeader).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any, i: number) => (
             <a
               key={n.id}
               href={n.href}
@@ -287,7 +291,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
               {COMPANY.phone}
             </a>
             <a
-              href={navHref('Контакты')}
+              href={sectionHref('CONTACTS')}
               onClick={() => setMenuOpen(false)}
               className="text-center py-3.5 border text-sm uppercase tracking-wider font-medium"
               style={{ borderColor: 'var(--brass)', color: 'var(--brass)' }}
@@ -410,7 +414,7 @@ function Hero() {
 
           <div className="flex flex-wrap items-center gap-5">
             <a
-              href={navHref('Контакты')}
+              href={sectionHref('CONTACTS')}
               className="inline-flex items-center px-7 py-3.5 text-[11px] uppercase font-bold tracking-[0.18em] transition-all"
               style={{ background: 'var(--brass)', color: 'var(--dark)' }}
               onMouseEnter={e => {
@@ -427,7 +431,7 @@ function Hero() {
               Обсудить проект
             </a>
             <a
-              href={navHref('Объекты')}
+              href={sectionHref('PROJECTS')}
               className="group inline-flex items-center gap-2 text-sm font-medium pb-0.5 transition-colors"
               style={{ color: 'rgba(242,244,245,0.7)', borderBottom: '1px solid rgba(242,244,245,0.25)' }}
               onMouseEnter={e => {
@@ -489,7 +493,7 @@ function Projects() {
             </h2>
           </div>
           <a
-            href={navHref('Объекты')}
+            href={collectionHref('PROJECTS')}
             className="hidden md:flex items-center gap-2 text-sm font-medium group transition-colors"
             style={{ color: 'var(--fg)' }}
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
@@ -737,7 +741,7 @@ function Projects() {
           Промышленное и гражданское строительство по всей Беларуси
         </p>
         <a
-          href={navHref('Объекты')}
+          href={collectionHref('PROJECTS')}
           className="inline-flex items-center gap-2 text-sm font-semibold group transition-colors"
           style={{ color: 'var(--fg)' }}
           onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
@@ -859,7 +863,7 @@ function Services() {
           Собственные специалисты · Минск и регионы
         </p>
         <a
-          href={navHref('Контакты')}
+          href={sectionHref('CONTACTS')}
           className="text-sm font-medium transition-colors shrink-0"
           style={{ color: 'var(--brass)' }}
           onMouseEnter={e => (e.currentTarget.style.color = 'white')}
@@ -986,7 +990,7 @@ function About() {
 
             {/* CTA */}
             <a
-              href="/about"
+              href={sectionHref('ABOUT')}
               className="inline-flex items-center gap-2 text-sm font-medium mt-8 self-start group transition-colors"
               style={{ color: 'var(--fg)', borderBottom: '1px solid var(--border)', paddingBottom: '2px' }}
               onMouseEnter={e => {
@@ -1162,7 +1166,7 @@ function News() {
             </h2>
           </div>
           <a
-            href={navHref('Новости')}
+            href={collectionHref('NEWS')}
             className="hidden md:flex items-center gap-2 text-sm font-medium group transition-colors"
             style={{ color: 'var(--fg)' }}
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
@@ -1203,7 +1207,7 @@ function News() {
         </div>
 
         <div className="mt-8 md:hidden">
-          <a href={navHref('Новости')} className="text-sm font-medium transition-colors" style={{ color: 'var(--fg)' }}>
+          <a href={collectionHref('NEWS')} className="text-sm font-medium transition-colors" style={{ color: 'var(--fg)' }}>
             Все новости →
           </a>
         </div>
@@ -1214,7 +1218,8 @@ function News() {
 
 // ─── News detail ──────────────────────────────────────────────────────────────
 function NewsDetail({ slug }: { slug: string }) {
-  const item = NEWS_ITEMS.find(n => n.slug === slug)
+  const item = NEWS_ITEMS.find((x: any) => x.slug === slug)
+  const returnTo = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('returnTo') as 'home' | 'collection' | null) : null
   if (typeof document !== 'undefined' && item) {
     document.title = `${item.title} — ${COMPANY.name}`
   }
@@ -1230,7 +1235,7 @@ function NewsDetail({ slug }: { slug: string }) {
   return (
     <section id="news" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[800px] mx-auto px-6 md:px-10">
-        <a href={sectionHref('NEWS')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к новостям</a>
+        <a href={backHref('NEWS', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к новостям</a>
         <article className="mt-8">
           {item.coverImageUrl ? (
             <div className="mb-8 overflow-hidden" style={{ aspectRatio: '3/2' }}>
@@ -1248,26 +1253,39 @@ function NewsDetail({ slug }: { slug: string }) {
 }
 
 // ─── Project list ─────────────────────────────────────────────────────────────
-function ProjectList() {
-  if (typeof document !== 'undefined') document.title = `Объекты — ${COMPANY.name}`
+function ProjectList({ preview = false }: { preview?: boolean }) {
+  if (typeof document !== 'undefined' && !preview) document.title = `Объекты — ${COMPANY.name}`
+  const returnTo = preview ? 'home' : 'collection'
+  const back = sectionHref('PROJECTS')
   return (
     <section id="projects" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
-        <div className="mb-12">
-          <Eyebrow>Портфолио</Eyebrow>
-          <h2 className="text-4xl md:text-5xl font-bold leading-[1.05]" style={{ ...GEO, color: 'var(--fg)' }}>
-            Реализованные<br />объекты
-          </h2>
+        <div className="flex items-end justify-between mb-12">
+          <div>
+            <Eyebrow>Портфолио</Eyebrow>
+            <h2 className="text-4xl md:text-5xl font-bold leading-[1.05]" style={{ ...GEO, color: 'var(--fg)' }}>
+              Реализованные<br />объекты
+            </h2>
+          </div>
+          {preview ? (
+            <a href={collectionHref('PROJECTS')} className="hidden md:flex items-center gap-2 text-sm font-medium group transition-colors" style={{ color: 'var(--fg)' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}>
+              Все объекты <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+            </a>
+          ) : null}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border-t" style={{ borderColor: 'var(--border)' }}>
+        {!preview ? (
+          <a href={back} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к главной / Объекты</a>
+        ) : null}
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border-t mt-6" style={{ borderColor: 'var(--border)' }}>
           {PROJECTS.map((p) => (
             <article
               key={p.id || p.slug || p.title}
               className="border-b md:border-r last:md:border-r-0"
               style={{ borderColor: 'var(--border)' }}
             >
-              <a href={projectHref(p.slug)} className="block transition-colors h-full" onMouseEnter={e => { e.currentTarget.style.background = 'var(--card-bg)' }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
+              <a href={projectHref(p.slug, returnTo)} className="block transition-colors h-full" onMouseEnter={e => { e.currentTarget.style.background = 'var(--card-bg)' }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
                 <div className="overflow-hidden" style={{ aspectRatio: '3/2', background: '#4a5058' }}>
                   <img src={p.img} alt={p.title} className="w-full h-full object-cover" />
                 </div>
@@ -1293,6 +1311,7 @@ function ProjectList() {
 // ─── Project detail ───────────────────────────────────────────────────────────
 function ProjectDetail({ slug }: { slug: string }) {
   const p = PROJECTS.find(x => x.slug === slug)
+  const returnTo = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('returnTo') as 'home' | 'collection' | null) : null
   if (typeof document !== 'undefined' && p) {
     document.title = `${p.title} — ${COMPANY.name}`
   }
@@ -1308,7 +1327,7 @@ function ProjectDetail({ slug }: { slug: string }) {
   return (
     <section id="projects" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[900px] mx-auto px-6 md:px-10">
-        <a href={sectionHref('PROJECTS')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к объектам</a>
+        <a href={backHref('PROJECTS', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к объектам</a>
         <article className="mt-8">
           <div className="mb-8 overflow-hidden" style={{ aspectRatio: '3/2' }}>
             <img src={p.img} alt={p.title} className="w-full h-full object-cover" />
@@ -1331,23 +1350,36 @@ function ProjectDetail({ slug }: { slug: string }) {
 }
 
 // ─── Service list ─────────────────────────────────────────────────────────────
-function ServiceList() {
-  if (typeof document !== 'undefined') document.title = `Услуги — ${COMPANY.name}`
+function ServiceList({ preview = false }: { preview?: boolean }) {
+  if (typeof document !== 'undefined' && !preview) document.title = `Услуги — ${COMPANY.name}`
+  const returnTo = preview ? 'home' : 'collection'
+  const items = preview ? SERVICES.slice(0, 6) : SERVICES
   return (
     <section id="services" className="py-24 md:py-32 border-t" style={{ background: 'var(--dark)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
-        <div className="mb-12">
-          <Eyebrow>Специализация</Eyebrow>
-          <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'white' }}>
-            Услуги
-          </h2>
+        <div className="flex items-end justify-between mb-12">
+          <div>
+            <Eyebrow>Специализация</Eyebrow>
+            <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'white' }}>
+              Услуги
+            </h2>
+          </div>
+          {preview ? (
+            <a href={collectionHref('SERVICES')} className="hidden md:flex items-center gap-2 text-sm font-medium group transition-colors" style={{ color: 'var(--fg)' }} onMouseEnter={e => (e.currentTarget.style.color = 'white')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}>
+              Все услуги <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+            </a>
+          ) : null}
         </div>
 
-        <div className="max-w-[1280px] mx-auto border-t" style={{ borderColor: 'rgba(242,244,245,0.08)' }}>
-          {SERVICES.map((s) => (
+        {!preview ? (
+          <a href={sectionHref('SERVICES')} className="text-sm font-medium" style={{ color: 'rgba(242,244,245,0.5)' }}>← Назад к главной / Услуги</a>
+        ) : null}
+
+        <div className="max-w-[1280px] mx-auto border-t mt-6" style={{ borderColor: 'rgba(242,244,245,0.08)' }}>
+          {items.map((s) => (
             <a
               key={s.id}
-              href={serviceHref(s.slug)}
+              href={serviceHref(s.slug, returnTo)}
               className="block border-b group transition-colors"
               style={{ borderColor: 'rgba(242,244,245,0.08)' }}
               onMouseEnter={e => { (e.currentTarget as HTMLElement).style.background = 'rgba(255,255,255,0.04)' }}
@@ -1375,6 +1407,7 @@ function ServiceList() {
 // ─── Service detail ───────────────────────────────────────────────────────────
 function ServiceDetail({ slug }: { slug: string }) {
   const s = SERVICES.find(x => x.slug === slug)
+  const returnTo = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('returnTo') as 'home' | 'collection' | null) : null
   if (typeof document !== 'undefined' && s) {
     document.title = `${s.title} — ${COMPANY.name}`
   }
@@ -1390,7 +1423,7 @@ function ServiceDetail({ slug }: { slug: string }) {
   return (
     <section id="services" className="py-24 md:py-32 border-t" style={{ background: 'var(--dark)' }}>
       <div className="max-w-[900px] mx-auto px-6 md:px-10">
-        <a href={sectionHref('SERVICES')} className="text-sm font-medium" style={{ color: 'rgba(242,244,245,0.5)' }}>← Назад к услугам</a>
+        <a href={backHref('SERVICES', returnTo)} className="text-sm font-medium" style={{ color: 'rgba(242,244,245,0.5)' }}>← Назад к услугам</a>
         <article className="mt-8">
           {s.img ? (
             <div className="mb-8 overflow-hidden" style={{ aspectRatio: '3/2' }}>
@@ -1408,22 +1441,36 @@ function ServiceDetail({ slug }: { slug: string }) {
 }
 
 // ─── News list ─────────────────────────────────────────────────────────────────
-function NewsList() {
-  if (typeof document !== 'undefined') document.title = `Новости — ${COMPANY.name}`
+function NewsList({ preview = false }: { preview?: boolean }) {
+  if (typeof document !== 'undefined' && !preview) document.title = `Новости — ${COMPANY.name}`
+  const returnTo = preview ? 'home' : 'collection'
+  const items = preview ? NEWS_ITEMS.slice(0, 3) : NEWS_ITEMS
   return (
     <section id="news" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
-        <div className="mb-12">
-          <Eyebrow>Актуальное</Eyebrow>
-          <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>
-            Новости
-          </h2>
+        <div className="flex items-end justify-between mb-12">
+          <div>
+            <Eyebrow>Актуальное</Eyebrow>
+            <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>
+              Новости
+            </h2>
+          </div>
+          {preview ? (
+            <a href={collectionHref('NEWS')} className="hidden md:flex items-center gap-2 text-sm font-medium group transition-colors" style={{ color: 'var(--fg)' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}>
+              Все новости <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+            </a>
+          ) : null}
         </div>
-        <div className="border-t" style={{ borderColor: 'var(--border)' }}>
-          {NEWS_ITEMS.map((item) => (
+
+        {!preview ? (
+          <a href={sectionHref('NEWS')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к главной / Новости</a>
+        ) : null}
+
+        <div className="border-t mt-6" style={{ borderColor: 'var(--border)' }}>
+          {items.map((item) => (
             <a
               key={item.id || item.slug}
-              href={newsHref(item.slug)}
+              href={newsHref(item.slug, returnTo)}
               className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-10 py-6 border-b -mx-6 px-6 transition-colors"
               style={{ borderColor: 'var(--border)' }}
               onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-bg)')}
@@ -1435,6 +1482,14 @@ function NewsList() {
             </a>
           ))}
         </div>
+
+        {preview ? (
+          <div className="mt-8 md:hidden">
+            <a href={collectionHref('NEWS')} className="text-sm font-medium transition-colors" style={{ color: 'var(--fg)' }}>
+              Все новости →
+            </a>
+          </div>
+        ) : null}
       </div>
     </section>
   )
@@ -1466,18 +1521,32 @@ function PageView({ slug }: { slug: string }) {
 }
 
 // ─── Vacancy list ─────────────────────────────────────────────────────────────
-function VacancyList() {
-  if (typeof document !== 'undefined') document.title = `Вакансии — ${COMPANY.name}`
+function VacancyList({ preview = false }: { preview?: boolean }) {
+  if (typeof document !== 'undefined' && !preview) document.title = `Вакансии — ${COMPANY.name}`
+  const returnTo = preview ? 'home' : 'collection'
+  const items = preview ? VACANCIES.slice(0, 3) : VACANCIES
   return (
     <section id="vacancies" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
-        <h2 className="text-4xl md:text-5xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>Вакансии</h2>
+        <div className="flex items-end justify-between mb-10">
+          <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>Вакансии</h2>
+          {preview && VACANCIES.length > 0 ? (
+            <a href={collectionHref('VACANCIES')} className="hidden md:flex items-center gap-2 text-sm font-medium group transition-colors" style={{ color: 'var(--fg)' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}>
+              Все вакансии <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+            </a>
+          ) : null}
+        </div>
+
+        {!preview ? (
+          <a href={sectionHref('VACANCIES')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к главной / Вакансии</a>
+        ) : null}
+
         {VACANCIES.length === 0 ? (
-          <p style={{ color: 'var(--muted)' }}>Нет открытых вакансий</p>
+          <p className="mt-6" style={{ color: 'var(--muted)' }}>Нет открытых вакансий</p>
         ) : (
-          <div className="grid grid-cols-1 gap-4 border-t" style={{ borderColor: 'var(--border)' }}>
-            {VACANCIES.map((v: any) => (
-              <a key={v.id} href={vacancyHref(v.slug)} className="block py-6 border-b transition-colors" style={{ borderColor: 'var(--border)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-bg)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+          <div className="grid grid-cols-1 gap-4 border-t mt-6" style={{ borderColor: 'var(--border)' }}>
+            {items.map((v: any) => (
+              <a key={v.id} href={vacancyHref(v.slug, returnTo)} className="block py-6 border-b transition-colors" style={{ borderColor: 'var(--border)' }} onMouseEnter={e => (e.currentTarget.style.background = 'var(--card-bg)')} onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
                 <h3 className="text-xl font-bold mb-1" style={{ ...GEO, color: 'var(--fg)' }}>{v.title}</h3>
                 <p className="text-sm" style={{ color: 'var(--muted)' }}>{v.location}</p>
               </a>
@@ -1492,6 +1561,7 @@ function VacancyList() {
 // ─── Vacancy detail ───────────────────────────────────────────────────────────
 function VacancyDetail({ slug }: { slug: string }) {
   const v = VACANCIES.find((x: any) => x.slug === slug)
+  const returnTo = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('returnTo') as 'home' | 'collection' | null) : null
   if (typeof document !== 'undefined' && v) {
     document.title = `${v.title} — ${COMPANY.name}`
   }
@@ -1507,7 +1577,7 @@ function VacancyDetail({ slug }: { slug: string }) {
   return (
     <section id="vacancies" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[900px] mx-auto px-6 md:px-10">
-        <a href={sectionHref('VACANCIES')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к вакансиям</a>
+        <a href={backHref('VACANCIES', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к вакансиям</a>
         <h1 className="text-3xl md:text-4xl font-bold leading-tight mt-8 mb-5" style={{ ...GEO, color: 'var(--fg)' }}>{v.title}</h1>
         {v.location ? <p className="text-sm uppercase tracking-widest mb-6" style={{ color: 'var(--brass)' }}>{v.location}</p> : null}
         {v.description ? <div className="mb-6" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{v.description}</div> : null}
@@ -1742,7 +1812,7 @@ function Footer() {
           <div>
             <FooterHeading>Компания</FooterHeading>
             <nav className="flex flex-col gap-3">
-              {(NAV || []).filter((n: any) => n.showInFooter).map((n: any) => (
+              {(NAV || []).filter((n: any) => n.showInFooter).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any) => (
                 <FooterLink key={n.id} href={n.href} target={n.external ? '_blank' : undefined} rel={n.external ? 'noopener noreferrer' : undefined}>{n.label}</FooterLink>
               ))}
             </nav>
@@ -1848,7 +1918,24 @@ function Footer() {
 }
 
 // ─── Home page sections ───────────────────────────────────────────────────────
-const SECTION_KEYS = ['about', 'services', 'projects', 'news', 'vacancies', 'contacts']
+const HOME_SECTIONS = ['about', 'contacts']
+const COLLECTIONS = ['news', 'projects', 'services', 'vacancies']
+
+const SECTION_COMPONENTS: Record<string, () => JSX.Element> = {
+  about: () => <About />,
+  services: () => <ServiceList preview />,
+  projects: () => <ProjectList preview />,
+  news: () => <NewsList preview />,
+  vacancies: () => <VacancyList preview />,
+  contacts: () => <CTA />,
+}
+
+function SectionResolver({ item }: { item: any }) {
+  const key = (item.target || '').toLowerCase()
+  const Comp = SECTION_COMPONENTS[key]
+  if (!Comp) return null
+  return <Comp />
+}
 
 function Home({ activeSection }: { activeSection?: string }) {
   useEffect(() => {
@@ -1863,16 +1950,17 @@ function Home({ activeSection }: { activeSection?: string }) {
     }
   }, [activeSection])
 
+  const homeSections = (NAV || [])
+    .filter((n: any) => n.showOnHomepage)
+    .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+
   return (
     <>
       <Hero />
-      <About />
-      <Services />
-      <Projects />
+      {homeSections.map((n: any) => (
+        <SectionResolver key={n.id} item={n} />
+      ))}
       <Process />
-      <News />
-      <VacancyList />
-      <CTA />
     </>
   )
 }
@@ -1882,7 +1970,8 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const route = (cms as any).route || ''
   const sub = (cms as any).subRoute || ''
-  const isHomeSection = SECTION_KEYS.includes(route) && !sub
+  const isHomeSection = HOME_SECTIONS.includes(route) && !sub
+  const isCollection = COLLECTIONS.includes(route) && !sub
   const matchedPage = route ? PAGES.find((p: any) => p.slug === route) : null
 
   return (
@@ -1891,6 +1980,11 @@ export default function App() {
       <main>
         {!route || isHomeSection ? (
           <Home activeSection={isHomeSection ? route : undefined} />
+        ) : isCollection ? (
+          route === 'news' ? <NewsList /> :
+          route === 'projects' ? <ProjectList /> :
+          route === 'services' ? <ServiceList /> :
+          route === 'vacancies' ? <VacancyList /> : null
         ) : route === 'news' && sub ? (
           <NewsDetail slug={sub} />
         ) : route === 'projects' && sub ? (

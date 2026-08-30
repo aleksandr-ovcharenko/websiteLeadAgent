@@ -94,14 +94,14 @@ export function constructionModernV1(ctx: RenderContext): string {
   const defaultNav = (ctx.menu && ctx.menu.length > 0)
     ? ctx.menu.filter((i) => i.visible !== false)
     : [
-        { label: 'Главная', targetType: 'HOME', target: '' },
-        { label: 'О компании', targetType: 'HOME_SECTION', target: 'ABOUT' },
-        { label: 'Услуги', targetType: 'HOME_SECTION', target: 'SERVICES' },
-        { label: 'Объекты', targetType: 'HOME_SECTION', target: 'PROJECTS' },
-        { label: 'Новости', targetType: 'HOME_SECTION', target: 'NEWS' },
-        { label: 'Вакансии', targetType: 'HOME_SECTION', target: 'VACANCIES' },
-        { label: 'Контакты', targetType: 'HOME_SECTION', target: 'CONTACTS' },
-      ];
+        { label: 'Главная', targetType: 'HOME', target: '', showInHeader: true, showInFooter: true, showOnHomepage: true },
+        { label: 'О компании', targetType: 'HOME_SECTION', target: 'ABOUT', showInHeader: true, showInFooter: true, showOnHomepage: true },
+        { label: 'Услуги', targetType: 'COLLECTION', target: 'SERVICES', showInHeader: true, showInFooter: true, showOnHomepage: true },
+        { label: 'Объекты', targetType: 'COLLECTION', target: 'PROJECTS', showInHeader: true, showInFooter: true, showOnHomepage: true },
+        { label: 'Новости', targetType: 'COLLECTION', target: 'NEWS', showInHeader: true, showInFooter: true, showOnHomepage: true },
+        { label: 'Вакансии', targetType: 'COLLECTION', target: 'VACANCIES', showInHeader: false, showInFooter: true, showOnHomepage: true },
+        { label: 'Контакты', targetType: 'HOME_SECTION', target: 'CONTACTS', showInHeader: true, showInFooter: true, showOnHomepage: true },
+      ].map((i, idx) => ({ ...i, sortOrder: idx }));
 
   const token = ctx.site?.previewToken || '';
   const base = token ? `/showcase/${token}` : '';
@@ -119,22 +119,27 @@ export function constructionModernV1(ctx: RenderContext): string {
   function resolveNavHref(item: any): string {
     if (!item) return '#';
 
-    // New semantic model
+    const showOnHomepage = item.showOnHomepage !== false;
     const targetType = item.targetType;
-    const target = item.target;
+    const target = (item.target || '').toUpperCase();
+    const key = target.toLowerCase();
 
     if (targetType === 'HOME') return `${base}/`;
-    if (targetType === 'HOME_SECTION') return `${base}/#${(target || '').toLowerCase()}`;
+    if (targetType === 'HOME_SECTION') return `${base}/#${key}`;
+    if (targetType === 'COLLECTION') {
+      if (showOnHomepage) return `${base}/#${key}`;
+      return `${base}/${key}`;
+    }
     if (targetType === 'PAGE') {
       const slug = item.page?.slug || target || '';
       if (slug) return `${base}/${slug}`;
     }
     if (targetType === 'CONTENT_DETAIL') {
-      const [contentType, slug] = (target || '').split(':');
+      const [contentType, slug] = (item.target || '').split(':');
       if (contentType && slug) return `${base}/${contentType.toLowerCase()}/${slug}`;
     }
     if (targetType === 'EXTERNAL_URL' || targetType === 'CUSTOM_URL') {
-      const u = item.url || target || '';
+      const u = item.url || item.target || '';
       if (/^https?:\/\//.test(u)) return u;
       if (u.startsWith('http')) return u;
       return u.startsWith('/') ? u : `${base}/${u}`;
@@ -145,14 +150,14 @@ export function constructionModernV1(ctx: RenderContext): string {
     const pageSlug = item.page?.slug || '';
     if (pageSlug) {
       const sectionKey = SECTION_BY_SLUG[pageSlug];
-      if (sectionKey) return `${base}/#${sectionKey}`;
+      if (sectionKey) return showOnHomepage ? `${base}/#${sectionKey}` : `${base}/${sectionKey}`;
       if (pageSlug === 'index') return `${base}/`;
       return `${base}/${pageSlug}`;
     }
     const u = (item.url || '').replace(/^\/+/, '').replace(/\/$/, '');
     if (u) {
       const sectionKey = SECTION_BY_SLUG[u];
-      if (sectionKey) return `${base}/#${sectionKey}`;
+      if (sectionKey) return showOnHomepage ? `${base}/#${sectionKey}` : `${base}/${sectionKey}`;
       if (u === 'index') return `${base}/`;
       return `${base}/${u}`;
     }
@@ -167,6 +172,7 @@ export function constructionModernV1(ctx: RenderContext): string {
     targetType: item.targetType,
     target: item.target,
     pageId: item.pageId,
+    sortOrder: item.sortOrder ?? i,
     showInHeader: item.showInHeader !== false,
     showInFooter: item.showInFooter !== false,
     showOnHomepage: item.showOnHomepage !== false

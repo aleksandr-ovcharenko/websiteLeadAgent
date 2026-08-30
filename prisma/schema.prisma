@@ -493,11 +493,14 @@ model MenuItem {
   label      String
   pageId     String?
   url        String?
-  targetType String? // HOME, HOME_SECTION, PAGE, CONTENT_DETAIL, CUSTOM_URL, EXTERNAL_URL
-  target     String? // section key, content slug, or custom target
+  targetType String? // HOME, HOME_SECTION, COLLECTION, PAGE, CONTENT_DETAIL, CUSTOM_URL, EXTERNAL_URL
+  target     String? // section/collection key, content slug, or custom target
   parentId   String?
   sortOrder  Int      @default(0)
   visible   Boolean  @default(true)
+  showInHeader   Boolean  @default(true)
+  showInFooter   Boolean  @default(true)
+  showOnHomepage Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

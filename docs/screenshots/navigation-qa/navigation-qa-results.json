@@ -16,7 +16,7 @@
       "ok": true,
       "url": "http://localhost:3000/showcase/8e25ix7c/#services",
       "hash": "#services",
-      "sectionInViewport": true,
+      "sectionInViewport": false,
       "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/header_______.png"
     },
     {
@@ -32,7 +32,7 @@
       "ok": true,
       "url": "http://localhost:3000/showcase/8e25ix7c/#news",
       "hash": "#news",
-      "sectionInViewport": false,
+      "sectionInViewport": true,
       "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/header________.png"
     },
     {
@@ -82,6 +82,103 @@
       "hash": "#projects",
       "sectionInViewport": true,
       "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/project_back_to_projects.png"
+    },
+    {
+      "name": "cms-nav-вакансии-header-off",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "hash": "#projects",
+      "screenshot": ""
+    },
+    {
+      "name": "cms-nav-вакансии-footer-on",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "hash": "#projects",
+      "screenshot": ""
+    },
+    {
+      "name": "cms-nav-вакансии-homepage-on",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "hash": "#projects",
+      "screenshot": ""
+    },
+    {
+      "name": "cms-nav-order",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "hash": "#projects",
+      "screenshot": ""
+    },
+    {
+      "name": "cta-Все новости",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/news",
+      "hash": "",
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/cta____________.png"
+    },
+    {
+      "name": "Все новости-back-to-home",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "hash": "#news",
+      "sectionInViewport": true,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/____________back_to_home.png"
+    },
+    {
+      "name": "cta-Все объекты",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "hash": "",
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/cta____________.png"
+    },
+    {
+      "name": "Все объекты-back-to-home",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "hash": "#projects",
+      "sectionInViewport": true,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/____________back_to_home.png"
+    },
+    {
+      "name": "cta-Все услуги",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/services",
+      "hash": "",
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/cta___________.png"
+    },
+    {
+      "name": "Все услуги-back-to-home",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "hash": "#services",
+      "sectionInViewport": true,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/___________back_to_home.png"
+    },
+    {
+      "name": "news-detail-back-to-collection",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/news",
+      "hash": "",
+      "sectionInViewport": true,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/news_detail_back_to_collection.png"
+    },
+    {
+      "name": "news-detail-back-to-home",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "hash": "#news",
+      "sectionInViewport": true,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/news_detail_back_to_home.png"
+    },
+    {
+      "name": "detail-header-to-services",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "hash": "#services",
+      "sectionInViewport": false,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/detail_header_to_services.png"
     }
   ],
   "logs": [],

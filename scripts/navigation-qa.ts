@@ -131,6 +131,59 @@ async function run() {
     results.push(await clickAndVerify(page, 'project-back-to-projects', backToProjects, `${START}/#projects`, '#projects', 'projects'));
   }
 
+  // ─── CMS NAV audit from homepage ─────────────────────────────────────────────
+  const nav = await page.evaluate(() => (window as any).__CMS__?.NAV || []);
+  results.push({ name: 'cms-nav-вакансии-header-off', ok: !!nav.find((n: any) => n.target === 'VACANCIES' && !n.showInHeader), url: page.url(), hash: new URL(page.url()).hash, screenshot: '' });
+  results.push({ name: 'cms-nav-вакансии-footer-on', ok: !!nav.find((n: any) => n.target === 'VACANCIES' && n.showInFooter), url: page.url(), hash: new URL(page.url()).hash, screenshot: '' });
+  results.push({ name: 'cms-nav-вакансии-homepage-on', ok: !!nav.find((n: any) => n.target === 'VACANCIES' && n.showOnHomepage), url: page.url(), hash: new URL(page.url()).hash, screenshot: '' });
+  results.push({ name: 'cms-nav-order', ok: nav.every((n: any, i: number, a: any[]) => i === 0 || (n.sortOrder ?? i) >= (a[i - 1].sortOrder ?? (i - 1))), url: page.url(), hash: new URL(page.url()).hash, screenshot: '' });
+
+  // ─── Collection CTAs from homepage ───────────────────────────────────────────
+  const allCtas = [
+    ['Все новости', `${START}/news`, 'news'],
+    ['Все объекты', `${START}/projects`, 'projects'],
+    ['Все услуги', `${START}/services`, 'services'],
+  ] as const;
+  for (const [label, expectedUrl, section] of allCtas) {
+    const cta = page.locator('a', { hasText: new RegExp(label) }).first();
+    if (await cta.count() > 0) {
+      await page.goto(START, { waitUntil: 'networkidle' });
+      await page.screenshot({ path: join(OUT, '01-home.png'), fullPage: false });
+      results.push(await clickAndVerify(page, `cta-${label}`, cta, expectedUrl, undefined, undefined));
+      const backLink = page.locator('a', { hasText: 'Назад к главной' }).first();
+      results.push(await clickAndVerify(page, `${label}-back-to-home`, backLink, `${START}/#${section}`, `#${section}`, section));
+    } else {
+      results.push({ name: `cta-missing-${label}`, ok: false, url: page.url(), hash: new URL(page.url()).hash, error: `CTA "${label}" not found`, screenshot: '' });
+    }
+  }
+
+  // ─── Detail from collection returns to collection, not home ──────────────────
+  await page.goto(`${START}/news`, { waitUntil: 'networkidle' });
+  await page.screenshot({ path: join(OUT, '05-news-collection.png'), fullPage: false });
+  const collectionNewsLink = page.locator('a[href*="/news/"]').first();
+  if (await collectionNewsLink.count() > 0) {
+    const collectionDetailHref = await collectionNewsLink.getAttribute('href') || '';
+    const collectionDetailUrl = new URL(collectionDetailHref, START).href;
+    const detailSlug = new URL(collectionDetailUrl).pathname.split('/').pop() || 'unknown';
+    const homeDetailUrl = `${START}/news/${detailSlug}?returnTo=home`;
+
+    // From collection
+    await page.goto(collectionDetailUrl, { waitUntil: 'networkidle' });
+    await page.screenshot({ path: join(OUT, '06-news-detail-from-collection.png'), fullPage: false });
+    const backFromCollection = page.locator('a', { hasText: 'Назад к новостям' });
+    results.push(await clickAndVerify(page, 'news-detail-back-to-collection', backFromCollection, `${START}/news`, undefined, 'news'));
+
+    // Explicit returnTo=home
+    await page.goto(homeDetailUrl, { waitUntil: 'networkidle' });
+    await page.screenshot({ path: join(OUT, '07-news-detail-from-home.png'), fullPage: false });
+    const backFromHome = page.locator('a', { hasText: 'Назад к новостям' });
+    results.push(await clickAndVerify(page, 'news-detail-back-to-home', backFromHome, `${START}/#news`, '#news', 'news'));
+
+    // Cross-page header navigation from detail
+    const headerServices = page.locator('a', { hasText: 'Услуги' }).first();
+    results.push(await clickAndVerify(page, 'detail-header-to-services', headerServices, `${START}/#services`, '#services', 'services'));
+  }
+
   await browser.close();
 
   const ok = results.every(r => r.ok) && logs.length === 0 && failedRequests.length === 0;

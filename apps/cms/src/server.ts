@@ -291,6 +291,9 @@ app.put('/api/cms/sites/:siteId/menu', requireSiteAccess('siteId'), requireSiteR
           target: item.target || null,
           sortOrder: i,
           visible: item.isVisible !== false,
+          showInHeader: item.showInHeader !== false,
+          showInFooter: item.showInFooter !== false,
+          showOnHomepage: item.showOnHomepage !== false,
           parentId
         }
       });
