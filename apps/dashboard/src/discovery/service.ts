@@ -3,7 +3,7 @@ import type { PrismaClient } from '@prisma/client';
 import type pino from 'pino';
 import { getDiscoveryProvider, listDiscoveryProviders } from './registry.js';
 import { DISCOVERY_PRESETS } from './presets.js';
-import type { DiscoveryRequest } from './types.js';
+import type { DiscoveryRequest, DiscoveryContext } from './types.js';
 import { enrichLeads } from '../../../collector/src/enrichment/enrichLeads.js';
 
 export interface DiscoveryServiceInput {
@@ -54,7 +54,7 @@ export class DiscoveryService {
     };
   }
 
-  async start(input: StartDiscoveryInput) {
+  async start(input: StartDiscoveryInput, onProgress?: DiscoveryContext['onProgress']) {
     const request = this.resolveRequest(input);
     const provider = getDiscoveryProvider(request.provider);
 
@@ -89,6 +89,7 @@ export class DiscoveryService {
         prisma: this.prisma,
         logger: this.logger,
         env: this.env,
+        onProgress,
       });
 
       const leadIds: string[] = [];
@@ -233,9 +234,9 @@ export class DiscoveryService {
 
     const request: DiscoveryRequest = {
       provider: providerId,
-      query: 'test',
+      query: 'строительные компании',
       location: 'Минск',
-      limit: 1,
+      limit: 5,
       maxPages: 1,
       providerOptions: {},
     };

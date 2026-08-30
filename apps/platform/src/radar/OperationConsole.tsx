@@ -128,7 +128,7 @@ export function OperationConsole({ runId, title, onClose }: { runId: string; tit
   const label = title || (run ? run.operationId : 'Operation');
 
   return (
-    <div className={`bg-white border border-[#e5e3df] rounded-[8px] shadow-sm overflow-hidden ${expanded ? '' : 'h-[54px]'}`}>
+    <div data-testid="operation-console" className={`bg-white border border-[#e5e3df] rounded-[8px] shadow-sm overflow-hidden ${expanded ? '' : 'h-[54px]'}`}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#e5e3df] bg-[#fafaf9]">
         <div className="flex items-center gap-3">
           <button onClick={() => setExpanded(!expanded)} className="text-[#57534e] hover:text-[#1c1917] text-[13px] font-semibold">

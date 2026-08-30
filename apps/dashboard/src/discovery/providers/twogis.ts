@@ -37,7 +37,12 @@ export const twogisProvider: BusinessDiscoveryProvider = {
     const query = request.query;
     const limit = Math.min(200, Math.max(1, request.limit));
     const maxPages = Math.min(20, Math.max(1, request.maxPages ?? 5));
-    const pageSize = Math.min(32, limit);
+    const pageSize = Math.min(10, limit);
+
+    context.onProgress?.(
+      `Effective 2GIS request: query="${query}", location="${city}", limit=${limit}, maxPages=${maxPages}, pageSize=${pageSize}`,
+      { provider: 'dgis', endpoint: 'https://catalog.api.2gis.com/3.0/items', query, city, limit, maxPages, pageSize }
+    );
 
     const candidates: DiscoveryCandidate[] = [];
     let warning: string | undefined;
@@ -47,6 +52,10 @@ export const twogisProvider: BusinessDiscoveryProvider = {
       const size = Math.min(pageSize, remaining);
       try {
         const items = await fetch2gisItems({ apiKey, city, query, page, pageSize: size });
+        context.onProgress?.(
+          `2GIS page ${page} (pageSize=${size}): HTTP 200, raw=${items.length}, normalized=${Math.min(items.length, remaining)}`,
+          { provider: 'dgis', page, pageSize: size, rawCount: items.length, normalizedCount: Math.min(items.length, remaining) }
+        );
         if (!items.length) break;
 
         for (const item of items) {
@@ -61,6 +70,10 @@ export const twogisProvider: BusinessDiscoveryProvider = {
       } catch (err: any) {
         warning = err?.message || '2GIS request failed';
         logger.warn({ err, provider: 'dgis', page }, 'discovery.2gis.page.error');
+        context.onProgress?.(
+          `2GIS page ${page} failed: ${warning}`,
+          { provider: 'dgis', page, pageSize: size, error: warning }
+        );
         break;
       }
     }
@@ -68,6 +81,11 @@ export const twogisProvider: BusinessDiscoveryProvider = {
     if (!candidates.length && !warning) {
       warning = '2GIS returned no results for this query/location';
     }
+
+    context.onProgress?.(
+      `2GIS finished: ${candidates.length} candidate(s), warning=${warning || 'none'}`,
+      { provider: 'dgis', totalCandidates: candidates.length, warning }
+    );
 
     return { candidates, warning };
   },

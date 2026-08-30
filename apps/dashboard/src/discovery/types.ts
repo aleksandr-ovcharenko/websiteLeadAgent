@@ -50,6 +50,7 @@ export interface DiscoveryContext {
   prisma: PrismaClient;
   logger: pino.Logger;
   env: Record<string, string | undefined>;
+  onProgress?: (message: string, metadata?: Record<string, any>) => void;
 }
 
 export interface BusinessDiscoveryProvider {

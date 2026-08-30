@@ -1,0 +1,44 @@
+{
+  "results": [
+    {
+      "operationRunId": "cmtg7gf6g004yxe7tonz80ch3",
+      "discoveryRunId": "cmtg7gf6y0055xe7th7hc5q96",
+      "query": "строительство домов",
+      "location": "Минск",
+      "limit": 50,
+      "maxPages": 5,
+      "collected": 50,
+      "created": 0,
+      "duplicates": 50,
+      "consoleText": "− Discovery runRUNNING21:31:20 — 1.1sAuto-scrollClearCopyClose21:31:20INFOstartStarting Discover businesses21:31:20INFOresolveResolving provider and query21:31:20INFOsearchSearching dgis for \"строительство домов\" in \"Минск\"21:31:20INFOpageEffective 2GIS request: query=\"строительство домов\", location=\"Минск\", limit=50, maxPages=5, pageSize=1021:31:20INFOpage2GIS page 1 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:20INFOpage2GIS page 2 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:20INFOpage2GIS page 3 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:20INFOpage2GIS page 4 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:20INFOpage2GIS finished: 50 candidate(s), warning=none21:31:20INFOpage2GIS page 5 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:21SUCCESSpersistFound 50 results (0 new, 50 duplicates)21:31:21INFOenrichEnrichment started in background for 50 candidate(s)"
+    },
+    {
+      "operationRunId": "cmtg7gibt009wxe7t6fmkxx8c",
+      "discoveryRunId": "cmtg7gic800a3xe7t0vj8nm7l",
+      "query": "строительные компании",
+      "location": "Минск",
+      "limit": 50,
+      "maxPages": 5,
+      "collected": 50,
+      "created": 30,
+      "duplicates": 20,
+      "consoleText": "− Discovery runSUCCESS21:31:24 — 0.9sAuto-scrollClearCopyClose21:31:24INFOstartStarting Discover businesses21:31:24INFOresolveResolving provider and query21:31:24INFOsearchSearching dgis for \"строительные компании\" in \"Минск\"21:31:24INFOpageEffective 2GIS request: query=\"строительные компании\", location=\"Минск\", limit=50, maxPages=5, pageSize=1021:31:24INFOpage2GIS page 1 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:24INFOpage2GIS page 2 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:24INFOpage2GIS page 3 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:24INFOpage2GIS page 4 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:24INFOpage2GIS page 5 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:24INFOpage2GIS finished: 50 candidate(s), warning=none21:31:25SUCCESSpersistFound 50 results (30 new, 20 duplicates)21:31:25INFOenrichEnrichment started in background for 50 candidate(s)21:31:25SUCCESScompleteOperation completed successfullyResult{\n  \"created\": 30,\n  \"collected\": 50,\n  \"duplicates\": 20,\n  \"discoveryRunId\": \"cmtg7gic800a3xe7t0vj8nm7l\"\n}"
+    },
+    {
+      "operationRunId": "cmtg7glk300euxe7t8hxcqbgb",
+      "discoveryRunId": "cmtg7glkm00f1xe7tzq0qux6t",
+      "query": "ремонт квартир",
+      "location": "Минск",
+      "limit": 50,
+      "maxPages": 5,
+      "collected": 50,
+      "created": 45,
+      "duplicates": 5,
+      "consoleText": "− Discovery runSUCCESS21:31:28 — 0.9sAuto-scrollClearCopyClose21:31:28INFOstartStarting Discover businesses21:31:28INFOresolveResolving provider and query21:31:28INFOsearchSearching dgis for \"ремонт квартир\" in \"Минск\"21:31:28INFOpageEffective 2GIS request: query=\"ремонт квартир\", location=\"Минск\", limit=50, maxPages=5, pageSize=1021:31:28INFOpage2GIS page 1 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:28INFOpage2GIS page 2 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:28INFOpage2GIS page 3 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:28INFOpage2GIS page 4 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:28INFOpage2GIS page 5 (pageSize=10): HTTP 200, raw=10, normalized=1021:31:28INFOpage2GIS finished: 50 candidate(s), warning=none21:31:29SUCCESSpersistFound 50 results (45 new, 5 duplicates)21:31:29INFOenrichEnrichment started in background for 50 candidate(s)21:31:29SUCCESScompleteOperation completed successfullyResult{\n  \"created\": 45,\n  \"collected\": 50,\n  \"duplicates\": 5,\n  \"discoveryRunId\": \"cmtg7glkm00f1xe7tzq0qux6t\"\n}"
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+}

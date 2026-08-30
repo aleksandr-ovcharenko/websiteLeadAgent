@@ -66,14 +66,20 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
         await ctx.stage('resolve', 'Resolving provider and query');
         const provider = input.provider || 'dgis';
         const query = input.query || '';
-        await ctx.stage('search', `Searching ${provider} for "${query}"`);
-        const { run, warning } = await deps.discovery.start(input);
+        const location = input.location || '';
+        await ctx.stage('search', `Searching ${provider} for "${query}" in "${location}"`);
+        const onProgress = (message: string, metadata?: Record<string, any>) => ctx.info(message, { stage: 'page', metadata });
+        const { run, warning } = await deps.discovery.start(input, onProgress);
         await ctx.success(
           `Found ${run.collected} results (${run.createdCount} new, ${run.duplicateCount} duplicates)`,
           { stage: 'persist', metadata: { runId: run.id, created: run.createdCount, duplicates: run.duplicateCount } }
         );
         if (warning) await ctx.warn(warning);
-        await ctx.info('Enrichment started in background', { stage: 'enrich' });
+        if (run.collected > 0) {
+          await ctx.info(`Enrichment started in background for ${run.collected} candidate(s)`, { stage: 'enrich' });
+        } else {
+          await ctx.info('Skipping enrichment: no candidates found', { stage: 'enrich' });
+        }
         return { discoveryRunId: run.id, collected: run.collected, created: run.createdCount, duplicates: run.duplicateCount };
       },
     },
