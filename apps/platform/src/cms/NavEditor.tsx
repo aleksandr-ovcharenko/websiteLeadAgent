@@ -9,11 +9,15 @@ interface NavEditorProps {
   onNavigate: (s: Screen) => void
 }
 
+const SECTION_KEYS = ['ABOUT', 'SERVICES', 'PROJECTS', 'NEWS', 'VACANCIES', 'CONTACTS']
+
 interface MenuTreeItem {
   id: string
   title: string
   url: string
-  type?: 'page' | 'section' | 'external'
+  targetType: 'HOME' | 'HOME_SECTION' | 'PAGE' | 'CONTENT_DETAIL' | 'CUSTOM_URL' | 'EXTERNAL_URL'
+  target: string
+  pageId: string
   isVisible: boolean
   order: number
   children: MenuTreeItem[]
@@ -24,7 +28,18 @@ function flatToTree(flat: any[]): MenuTreeItem[] {
   const roots: MenuTreeItem[] = []
   const sorted = [...flat].sort((a, b) => (a.order || 0) - (b.order || 0))
   sorted.forEach(item => {
-    const node: MenuTreeItem = { id: item.id, title: item.label || item.title || '', url: item.url || '', type: item.type || 'page', isVisible: item.isVisible !== false, order: item.sortOrder || item.order || 0, children: [] }
+    const targetType = (item.targetType || item.type || 'PAGE') as MenuTreeItem['targetType']
+    const node: MenuTreeItem = {
+      id: item.id,
+      title: item.label || item.title || '',
+      url: item.url || '',
+      targetType,
+      target: item.target || (targetType === 'HOME_SECTION' ? (item.url || '').replace(/^#/, '').toUpperCase() : (item.url || '')),
+      pageId: item.pageId || '',
+      isVisible: item.isVisible !== false,
+      order: item.sortOrder || item.order || 0,
+      children: []
+    }
     map[node.id] = node
   })
   sorted.forEach(item => {
@@ -61,6 +76,21 @@ interface TreeRowProps {
 
 function TreeRow({ item, depth, onChange, onToggle, onDelete, onAddChild, onMove }: TreeRowProps) {
   const [expanded, setExpanded] = useState(true)
+  const { pages } = useStudio()
+
+  const onTypeChange = (type: MenuTreeItem['targetType']) => {
+    const patch: Partial<MenuTreeItem> = { targetType: type }
+    if (type === 'HOME') { patch.target = ''; patch.url = ''; patch.pageId = '' }
+    if (type === 'HOME_SECTION') { patch.target = 'ABOUT'; patch.url = ''; patch.pageId = '' }
+    if (type === 'PAGE') { patch.target = ''; patch.pageId = pages[0]?.id || ''; patch.url = '' }
+    if (type === 'CUSTOM_URL' || type === 'EXTERNAL_URL') { patch.url = item.url || ''; patch.target = ''; patch.pageId = '' }
+    onChange(item.id, patch)
+  }
+
+  const onPageChange = (pageId: string) => {
+    const page = pages.find((p: any) => p.id === pageId)
+    onChange(item.id, { pageId, target: page?.slug || '', url: '' })
+  }
 
   return (
     <div className="flex flex-col">
@@ -69,12 +99,29 @@ function TreeRow({ item, depth, onChange, onToggle, onDelete, onAddChild, onMove
           <button onClick={() => setExpanded(!expanded)} className="text-gray-400 hover:text-gray-600">{expanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}</button>
         ) : <span className="w-4" />}
         <Input value={item.title} onChange={v => onChange(item.id, { title: v })} placeholder="Label" className="flex-1 min-w-0" />
-        <Input value={item.url} onChange={v => onChange(item.id, { url: v })} placeholder="URL" className="w-40" />
-        <select value={item.type} onChange={e => onChange(item.id, { type: e.target.value as any })} className="h-8 px-2 border border-gray-300 rounded text-[12px] bg-white">
-          <option value="page">Page</option>
-          <option value="section">Section</option>
-          <option value="external">External</option>
+        <select value={item.targetType} onChange={e => onTypeChange(e.target.value as MenuTreeItem['targetType'])} className="h-8 px-2 border border-gray-300 rounded text-[12px] bg-white w-[120px]">
+          <option value="HOME">Home</option>
+          <option value="HOME_SECTION">Section</option>
+          <option value="PAGE">Page</option>
+          <option value="CONTENT_DETAIL">Detail</option>
+          <option value="CUSTOM_URL">Custom</option>
+          <option value="EXTERNAL_URL">External</option>
         </select>
+        {item.targetType === 'HOME_SECTION' ? (
+          <select value={item.target} onChange={e => onChange(item.id, { target: e.target.value })} className="h-8 px-2 border border-gray-300 rounded text-[12px] bg-white w-[120px]">
+            {SECTION_KEYS.map(k => <option key={k} value={k}>{k}</option>)}
+          </select>
+        ) : item.targetType === 'PAGE' ? (
+          <select value={item.pageId} onChange={e => onPageChange(e.target.value)} className="h-8 px-2 border border-gray-300 rounded text-[12px] bg-white w-[120px]">
+            {pages.map((p: any) => <option key={p.id} value={p.id}>{p.title}</option>)}
+          </select>
+        ) : item.targetType === 'CUSTOM_URL' || item.targetType === 'EXTERNAL_URL' ? (
+          <Input value={item.url} onChange={v => onChange(item.id, { url: v })} placeholder={item.targetType === 'EXTERNAL_URL' ? 'https://...' : '/path'} className="w-40" />
+        ) : item.targetType === 'CONTENT_DETAIL' ? (
+          <Input value={item.target} onChange={v => onChange(item.id, { target: v })} placeholder="news:slug" className="w-40" />
+        ) : (
+          <span className="w-40" />
+        )}
         <button onClick={() => onToggle(item.id)} className="text-gray-400 hover:text-gray-700">{item.isVisible ? <IconEye size={14} /> : <IconEyeOff size={14} />}</button>
         <button onClick={() => onMove(item.id, 'up')} className="text-gray-400 hover:text-gray-700 text-[10px]">▲</button>
         <button onClick={() => onMove(item.id, 'down')} className="text-gray-400 hover:text-gray-700 text-[10px]">▼</button>
@@ -132,8 +179,8 @@ export default function NavEditor({ onNavigate }: NavEditorProps) {
     if (node) handleChange(id, { isVisible: !node.isVisible })
   }
   const handleDelete = (id: string) => setItems(tree => removeFromTree(tree, id))
-  const handleAddRoot = () => setItems(tree => [...tree, { id: generateId(), title: 'New item', url: '/', type: 'page', isVisible: true, order: tree.length, children: [] }])
-  const handleAddChild = (parentId: string) => setItems(tree => addToTree(tree, parentId, { id: generateId(), title: 'New item', url: '/', type: 'page', isVisible: true, order: 0, children: [] }))
+  const handleAddRoot = () => setItems(tree => [...tree, { id: generateId(), title: 'New item', url: '', targetType: 'HOME_SECTION', target: 'ABOUT', pageId: '', isVisible: true, order: tree.length, children: [] }])
+  const handleAddChild = (parentId: string) => setItems(tree => addToTree(tree, parentId, { id: generateId(), title: 'New item', url: '', targetType: 'HOME_SECTION', target: 'ABOUT', pageId: '', isVisible: true, order: 0, children: [] }))
 
   const updateTreeParents = (tree: MenuTreeItem[], oldList: MenuTreeItem[], newList: MenuTreeItem[]): MenuTreeItem[] => {
     if (tree === oldList) return newList
@@ -177,10 +224,11 @@ export default function NavEditor({ onNavigate }: NavEditorProps) {
       </div>
 
       <div className="bg-white border border-gray-200 rounded overflow-hidden">
-        <div className="grid grid-cols-[1fr_160px_80px_120px] gap-2 px-4 py-2 bg-gray-50 text-[11px] font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-200">
+        <div className="grid grid-cols-[1fr_120px_120px_100px_120px] gap-2 px-4 py-2 bg-gray-50 text-[11px] font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-200">
           <span>Label</span>
-          <span>URL</span>
           <span>Type</span>
+          <span>Target / URL</span>
+          <span>Page</span>
           <span className="text-right">Actions</span>
         </div>
         {items.length === 0 ? (

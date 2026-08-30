@@ -7,7 +7,7 @@ const BASE = 'http://localhost:3000';
 const TOKEN = '8e25ix7c';
 const START = `${BASE}/showcase/${TOKEN}`;
 
-const PAGES_TO_CRAWL = [
+const BASE_PAGES = [
   `${BASE}/showcase/${TOKEN}`,
   `${BASE}/showcase/${TOKEN}/about`,
   `${BASE}/showcase/${TOKEN}/contacts`,
@@ -16,6 +16,21 @@ const PAGES_TO_CRAWL = [
   `${BASE}/showcase/${TOKEN}/news`,
   `${BASE}/showcase/${TOKEN}/vacancies`,
 ];
+
+function detailPages(cms: any): string[] {
+  const pages: string[] = [];
+  const token = cms?.PREVIEW_TOKEN || TOKEN;
+  const base = `${BASE}/showcase/${token}`;
+  const services = cms?.SERVICES || [];
+  const projects = cms?.PROJECTS || [];
+  const news = cms?.NEWS_ITEMS || [];
+  const vacancies = cms?.VACANCIES || [];
+  if (services[0]) pages.push(`${base}/services/${services[0].slug}`);
+  if (projects[0]) pages.push(`${base}/projects/${projects[0].slug}`);
+  if (news[0]) pages.push(`${base}/news/${news[0].slug}`);
+  if (vacancies[0]) pages.push(`${base}/vacancies/${vacancies[0].slug}`);
+  return pages;
+}
 
 type Link = {
   page: string;
@@ -36,6 +51,15 @@ async function run() {
   const all: Link[] = [];
   const seen = new Set<string>();
 
+  // First load the homepage to discover real detail slugs from __CMS__
+  const startPage = await browser.newPage({ viewport: { width: 1280, height: 900 } });
+  await startPage.goto(START, { waitUntil: 'networkidle', timeout: 15000 });
+  const cmsPayload = await startPage.evaluate(() => (window as any).__CMS__ || {});
+  const detail = detailPages(cmsPayload);
+  await startPage.close();
+
+  const PAGES_TO_CRAWL = [...BASE_PAGES, ...detail];
+
   for (const p of PAGES_TO_CRAWL) {
     try {
       await page.goto(p, { waitUntil: 'networkidle', timeout: 15000 });
@@ -46,19 +70,30 @@ async function run() {
         const key = `${p}||${l.text}||${fullHref}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        const isPlaceholder = (l.href || '#') === '#';
-        const isAnchor = (l.href || '').startsWith('#') && !isPlaceholder;
+        const rawHref = l.href || '';
+        const trimmedHref = rawHref.trim();
+        const isEmpty = trimmedHref === '';
+        const isPlaceholder = trimmedHref === '#';
+        const isBadProtocol = /^(javascript:|vbscript:|data:|file:)/i.test(trimmedHref);
+        const isAction = /^(tel:|mailto:|sms:)/.test(trimmedHref);
         const isExternal = fullHref.startsWith('http') && !fullHref.includes('localhost:3000');
-        const isAction = /^(tel:|mailto:|sms:)/.test(l.href || '');
+        const hasHomeSectionHash = fullHref.startsWith(`${BASE}/showcase/${TOKEN}/#`) || fullHref.startsWith(`${BASE}/#`);
+        const isPureAnchor = trimmedHref.startsWith('#') && !isPlaceholder;
+
         let status: number | null = null;
         let classification = 'UNKNOWN';
-        if (isPlaceholder) classification = 'PLACEHOLDER';
-        else if (isAnchor) classification = 'ANCHOR';
+
+        if (isEmpty) classification = 'EMPTY';
+        else if (isPlaceholder) classification = 'PLACEHOLDER';
+        else if (isBadProtocol) classification = 'BAD_PROTOCOL';
         else if (isAction) classification = 'VALID_ACTION';
         else if (isExternal) classification = 'EXTERNAL';
+        else if (hasHomeSectionHash) classification = 'VALID_HOME_ANCHOR';
+        else if (isPureAnchor) classification = 'ANCHOR';
         else {
           try {
-            const r = await fetch(fullHref, { method: 'HEAD', redirect: 'follow' });
+            const fetchUrl = fullHref.split('#')[0];
+            const r = await fetch(fetchUrl, { method: 'HEAD', redirect: 'follow' });
             status = r.status;
             classification = status >= 200 && status < 400 ? 'VALID_INTERNAL' : 'BROKEN';
           } catch {
@@ -80,10 +115,13 @@ async function run() {
     total: all.length,
     summary: {
       VALID_INTERNAL: all.filter(l => l.classification === 'VALID_INTERNAL').length,
+      VALID_HOME_ANCHOR: all.filter(l => l.classification === 'VALID_HOME_ANCHOR').length,
       ANCHOR: all.filter(l => l.classification === 'ANCHOR').length,
       VALID_ACTION: all.filter(l => l.classification === 'VALID_ACTION').length,
       EXTERNAL: all.filter(l => l.classification === 'EXTERNAL').length,
+      EMPTY: all.filter(l => l.classification === 'EMPTY').length,
       PLACEHOLDER: all.filter(l => l.classification === 'PLACEHOLDER').length,
+      BAD_PROTOCOL: all.filter(l => l.classification === 'BAD_PROTOCOL').length,
       BROKEN: all.filter(l => l.classification === 'BROKEN').length,
       UNKNOWN: all.filter(l => l.classification === 'UNKNOWN').length,
     },

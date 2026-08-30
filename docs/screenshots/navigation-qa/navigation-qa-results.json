@@ -1,0 +1,89 @@
+{
+  "ok": true,
+  "token": "8e25ix7c",
+  "startUrl": "http://localhost:3000/showcase/8e25ix7c",
+  "results": [
+    {
+      "name": "header-О компании",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#about",
+      "hash": "#about",
+      "sectionInViewport": true,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/header___________.png"
+    },
+    {
+      "name": "header-Услуги",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "hash": "#services",
+      "sectionInViewport": true,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/header_______.png"
+    },
+    {
+      "name": "header-Объекты",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "hash": "#projects",
+      "sectionInViewport": true,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/header________.png"
+    },
+    {
+      "name": "header-Новости",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "hash": "#news",
+      "sectionInViewport": false,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/header________.png"
+    },
+    {
+      "name": "header-Контакты",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "hash": "#contacts",
+      "sectionInViewport": true,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/header_________.png"
+    },
+    {
+      "name": "footer-vacancies",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#vacancies",
+      "hash": "#vacancies",
+      "sectionInViewport": false,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/footer_vacancies.png"
+    },
+    {
+      "name": "service-back-to-services",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "hash": "#services",
+      "sectionInViewport": true,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/service_back_to_services.png"
+    },
+    {
+      "name": "service-detail-to-projects",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "hash": "#projects",
+      "sectionInViewport": true,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/service_detail_to_projects.png"
+    },
+    {
+      "name": "news-back-to-news",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "hash": "#news",
+      "sectionInViewport": true,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/news_back_to_news.png"
+    },
+    {
+      "name": "project-back-to-projects",
+      "ok": true,
+      "url": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "hash": "#projects",
+      "sectionInViewport": true,
+      "screenshot": "/home/aleks/dev/websiteLeadAgent/docs/screenshots/navigation-qa/project_back_to_projects.png"
+    }
+  ],
+  "logs": [],
+  "failedRequests": []
+}

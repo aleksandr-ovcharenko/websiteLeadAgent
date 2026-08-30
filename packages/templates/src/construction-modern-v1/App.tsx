@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 
 // ─── Logo assets ─────────────────────────────────────────────────────────────
 // Customer logo is supplied by __CMS__.company.logoUrl; no hardcoded marks below.
@@ -39,13 +39,13 @@ const DEFAULT_CMS = {
     },
   },
   NAV: [
-    { id: 'nav_1', label: 'Главная', href: '/', target: 'page', showInHeader: true, showInFooter: true, showOnHomepage: false },
-    { id: 'nav_2', label: 'Услуги', href: '#services', target: 'section', showInHeader: true, showInFooter: true, showOnHomepage: true },
-    { id: 'nav_3', label: 'Объекты', href: '#projects', target: 'section', showInHeader: true, showInFooter: true, showOnHomepage: true },
-    { id: 'nav_4', label: 'О компании', href: '#about', target: 'section', showInHeader: true, showInFooter: true, showOnHomepage: true },
-    { id: 'nav_5', label: 'Новости', href: '#news', target: 'section', showInHeader: true, showInFooter: true, showOnHomepage: true },
-    { id: 'nav_6', label: 'Вакансии', href: '#vacancies', target: 'section', showInHeader: false, showInFooter: true, showOnHomepage: false },
-    { id: 'nav_7', label: 'Контакты', href: '#contact', target: 'section', showInHeader: true, showInFooter: true, showOnHomepage: false },
+    { id: 'nav_1', label: 'Главная', href: '/', targetType: 'HOME', target: '', showInHeader: true, showInFooter: true, showOnHomepage: false },
+    { id: 'nav_2', label: 'О компании', href: '#about', targetType: 'HOME_SECTION', target: 'ABOUT', showInHeader: true, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_3', label: 'Услуги', href: '#services', targetType: 'HOME_SECTION', target: 'SERVICES', showInHeader: true, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_4', label: 'Объекты', href: '#projects', targetType: 'HOME_SECTION', target: 'PROJECTS', showInHeader: true, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_5', label: 'Новости', href: '#news', targetType: 'HOME_SECTION', target: 'NEWS', showInHeader: true, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_6', label: 'Вакансии', href: '#vacancies', targetType: 'HOME_SECTION', target: 'VACANCIES', showInHeader: false, showInFooter: true, showOnHomepage: true },
+    { id: 'nav_7', label: 'Контакты', href: '#contacts', targetType: 'HOME_SECTION', target: 'CONTACTS', showInHeader: true, showInFooter: true, showOnHomepage: true },
   ],
   PAGES: [],
   SERVICES: [],
@@ -73,6 +73,14 @@ function navHref(label: string) {
   if (found) return found.href;
   const base = PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}` : '/';
   return base;
+}
+
+function sectionHref(targetKey: string) {
+  const key = targetKey.toUpperCase();
+  const found = (NAV || []).find((n: any) => n.targetType === 'HOME_SECTION' && (n.target || '').toUpperCase() === key);
+  if (found) return found.href;
+  const base = PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}` : '';
+  return `${base}/#${key.toLowerCase()}`;
 }
 
 function newsHref(slug: string) {
@@ -1222,7 +1230,7 @@ function NewsDetail({ slug }: { slug: string }) {
   return (
     <section id="news" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[800px] mx-auto px-6 md:px-10">
-        <a href={PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}` : '#'} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к новостям</a>
+        <a href={sectionHref('NEWS')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к новостям</a>
         <article className="mt-8">
           {item.coverImageUrl ? (
             <div className="mb-8 overflow-hidden" style={{ aspectRatio: '3/2' }}>
@@ -1300,7 +1308,7 @@ function ProjectDetail({ slug }: { slug: string }) {
   return (
     <section id="projects" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[900px] mx-auto px-6 md:px-10">
-        <a href={navHref('Объекты')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к объектам</a>
+        <a href={sectionHref('PROJECTS')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к объектам</a>
         <article className="mt-8">
           <div className="mb-8 overflow-hidden" style={{ aspectRatio: '3/2' }}>
             <img src={p.img} alt={p.title} className="w-full h-full object-cover" />
@@ -1382,7 +1390,7 @@ function ServiceDetail({ slug }: { slug: string }) {
   return (
     <section id="services" className="py-24 md:py-32 border-t" style={{ background: 'var(--dark)' }}>
       <div className="max-w-[900px] mx-auto px-6 md:px-10">
-        <a href={navHref('Услуги')} className="text-sm font-medium" style={{ color: 'rgba(242,244,245,0.5)' }}>← Назад к услугам</a>
+        <a href={sectionHref('SERVICES')} className="text-sm font-medium" style={{ color: 'rgba(242,244,245,0.5)' }}>← Назад к услугам</a>
         <article className="mt-8">
           {s.img ? (
             <div className="mb-8 overflow-hidden" style={{ aspectRatio: '3/2' }}>
@@ -1499,7 +1507,7 @@ function VacancyDetail({ slug }: { slug: string }) {
   return (
     <section id="vacancies" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[900px] mx-auto px-6 md:px-10">
-        <a href={navHref('Вакансии')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к вакансиям</a>
+        <a href={sectionHref('VACANCIES')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к вакансиям</a>
         <h1 className="text-3xl md:text-4xl font-bold leading-tight mt-8 mb-5" style={{ ...GEO, color: 'var(--fg)' }}>{v.title}</h1>
         {v.location ? <p className="text-sm uppercase tracking-widest mb-6" style={{ color: 'var(--brass)' }}>{v.location}</p> : null}
         {v.description ? <div className="mb-6" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{v.description}</div> : null}
@@ -1514,7 +1522,7 @@ function VacancyDetail({ slug }: { slug: string }) {
 // ─── CTA section ──────────────────────────────────────────────────────────────
 function CTA() {
   return (
-    <section id="contact" className="relative overflow-hidden" style={{ background: 'var(--dark)' }}>
+    <section id="contacts" className="relative overflow-hidden" style={{ background: 'var(--dark)' }}>
       {/* Subtle grid texture */}
       <div
         className="absolute inset-0 opacity-[0.04]"
@@ -1823,7 +1831,6 @@ function Footer() {
             © {COMPANY.founded}–2025 {COMPANY.legalName}. УНП {COMPANY.unp}. Все права защищены.
           </p>
           <div className="flex items-center gap-6">
-            <FooterLink href={navHref('Вакансии')}>Вакансии</FooterLink>
             <a
               href={`https://${COMPANY.domain}`}
               className="text-xs transition-colors"
@@ -1840,41 +1847,56 @@ function Footer() {
   )
 }
 
+// ─── Home page sections ───────────────────────────────────────────────────────
+const SECTION_KEYS = ['about', 'services', 'projects', 'news', 'vacancies', 'contacts']
+
+function Home({ activeSection }: { activeSection?: string }) {
+  useEffect(() => {
+    if (typeof document === 'undefined') return
+    if (activeSection) {
+      const el = document.getElementById(activeSection)
+      if (el) setTimeout(() => el.scrollIntoView({ behavior: 'auto' }), 50)
+    } else if (window.location.hash) {
+      const id = window.location.hash.slice(1)
+      const el = document.getElementById(id)
+      if (el) setTimeout(() => el.scrollIntoView({ behavior: 'auto' }), 50)
+    }
+  }, [activeSection])
+
+  return (
+    <>
+      <Hero />
+      <About />
+      <Services />
+      <Projects />
+      <Process />
+      <News />
+      <VacancyList />
+      <CTA />
+    </>
+  )
+}
+
 // ─── App ──────────────────────────────────────────────────────────────────────
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const route = (cms as any).route || ''
   const sub = (cms as any).subRoute || ''
+  const isHomeSection = SECTION_KEYS.includes(route) && !sub
   const matchedPage = route ? PAGES.find((p: any) => p.slug === route) : null
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", background: 'var(--bg)', color: 'var(--fg)' }}>
       <Header menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
       <main>
-        {!route ? (
-          <>
-            <Hero />
-            <Projects />
-            <Services />
-            <About />
-            <Process />
-            <News />
-            <CTA />
-          </>
-        ) : route === 'news' && !sub ? (
-          <NewsList />
+        {!route || isHomeSection ? (
+          <Home activeSection={isHomeSection ? route : undefined} />
         ) : route === 'news' && sub ? (
           <NewsDetail slug={sub} />
-        ) : route === 'projects' && !sub ? (
-          <ProjectList />
         ) : route === 'projects' && sub ? (
           <ProjectDetail slug={sub} />
-        ) : route === 'services' && !sub ? (
-          <ServiceList />
         ) : route === 'services' && sub ? (
           <ServiceDetail slug={sub} />
-        ) : route === 'vacancies' && !sub ? (
-          <VacancyList />
         ) : route === 'vacancies' && sub ? (
           <VacancyDetail slug={sub} />
         ) : matchedPage ? (

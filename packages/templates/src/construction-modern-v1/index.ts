@@ -94,26 +94,67 @@ export function constructionModernV1(ctx: RenderContext): string {
   const defaultNav = (ctx.menu && ctx.menu.length > 0)
     ? ctx.menu.filter((i) => i.visible !== false)
     : [
-        { label: 'Главная', url: '/' },
-        { label: 'Услуги', url: '/services' },
-        { label: 'Объекты', url: '/projects' },
-        { label: 'О компании', url: '/about' },
-        { label: 'Новости', url: '/news' },
-        { label: 'Вакансии', url: '/vacancies' },
-        { label: 'Контакты', url: '/contacts' },
+        { label: 'Главная', targetType: 'HOME', target: '' },
+        { label: 'О компании', targetType: 'HOME_SECTION', target: 'ABOUT' },
+        { label: 'Услуги', targetType: 'HOME_SECTION', target: 'SERVICES' },
+        { label: 'Объекты', targetType: 'HOME_SECTION', target: 'PROJECTS' },
+        { label: 'Новости', targetType: 'HOME_SECTION', target: 'NEWS' },
+        { label: 'Вакансии', targetType: 'HOME_SECTION', target: 'VACANCIES' },
+        { label: 'Контакты', targetType: 'HOME_SECTION', target: 'CONTACTS' },
       ];
 
   const token = ctx.site?.previewToken || '';
+  const base = token ? `/showcase/${token}` : '';
+
+  const SECTION_BY_SLUG: Record<string, string> = {
+    about: 'about',
+    services: 'services',
+    objects: 'projects',
+    projects: 'projects',
+    news: 'news',
+    vacancies: 'vacancies',
+    contacts: 'contacts'
+  };
+
   function resolveNavHref(item: any): string {
     if (!item) return '#';
+
+    // New semantic model
+    const targetType = item.targetType;
+    const target = item.target;
+
+    if (targetType === 'HOME') return `${base}/`;
+    if (targetType === 'HOME_SECTION') return `${base}/#${(target || '').toLowerCase()}`;
+    if (targetType === 'PAGE') {
+      const slug = item.page?.slug || target || '';
+      if (slug) return `${base}/${slug}`;
+    }
+    if (targetType === 'CONTENT_DETAIL') {
+      const [contentType, slug] = (target || '').split(':');
+      if (contentType && slug) return `${base}/${contentType.toLowerCase()}/${slug}`;
+    }
+    if (targetType === 'EXTERNAL_URL' || targetType === 'CUSTOM_URL') {
+      const u = item.url || target || '';
+      if (/^https?:\/\//.test(u)) return u;
+      if (u.startsWith('http')) return u;
+      return u.startsWith('/') ? u : `${base}/${u}`;
+    }
+
+    // Legacy fallback for un-migrated menu rows: infer from page.slug or url
     if (item.url && /^https?:\/\//.test(item.url)) return item.url;
-    const pageSlug = item.page?.slug;
-    if (pageSlug) return pageSlug === 'index' ? `/showcase/${token}/` : `/showcase/${token}/${pageSlug}`;
+    const pageSlug = item.page?.slug || '';
+    if (pageSlug) {
+      const sectionKey = SECTION_BY_SLUG[pageSlug];
+      if (sectionKey) return `${base}/#${sectionKey}`;
+      if (pageSlug === 'index') return `${base}/`;
+      return `${base}/${pageSlug}`;
+    }
     const u = (item.url || '').replace(/^\/+/, '').replace(/\/$/, '');
-    if (u) return u === 'index' ? `/showcase/${token}/` : `/showcase/${token}/${u}`;
-    if (item.pageId) {
-      const p = ctx.pages?.find((page: any) => page.id === item.pageId);
-      if (p) return p.slug === 'index' ? `/showcase/${token}/` : `/showcase/${token}/${p.slug}`;
+    if (u) {
+      const sectionKey = SECTION_BY_SLUG[u];
+      if (sectionKey) return `${base}/#${sectionKey}`;
+      if (u === 'index') return `${base}/`;
+      return `${base}/${u}`;
     }
     return '#';
   }
@@ -123,7 +164,9 @@ export function constructionModernV1(ctx: RenderContext): string {
     label: item.label || item.title || 'Item',
     href: resolveNavHref(item),
     external: !!item.url && /^https?:\/\//.test(item.url),
-    target: item.pageId ? 'page' : (item.url ? 'custom' : 'unknown'),
+    targetType: item.targetType,
+    target: item.target,
+    pageId: item.pageId,
     showInHeader: item.showInHeader !== false,
     showInFooter: item.showInFooter !== false,
     showOnHomepage: item.showOnHomepage !== false

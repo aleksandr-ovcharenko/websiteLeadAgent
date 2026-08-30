@@ -281,7 +281,18 @@ app.put('/api/cms/sites/:siteId/menu', requireSiteAccess('siteId'), requireSiteR
     for (let i = 0; i < list.length; i++) {
       const item = list[i];
       const created = await (prisma as any).menuItem.create({
-        data: { siteId, menuId: menu.id, label: item.label || item.title || 'Item', pageId: item.pageId || null, url: item.url || null, sortOrder: i, visible: item.isVisible !== false, parentId }
+        data: {
+          siteId,
+          menuId: menu.id,
+          label: item.label || item.title || 'Item',
+          pageId: item.pageId || null,
+          url: item.url || null,
+          targetType: item.targetType || item.type || null,
+          target: item.target || null,
+          sortOrder: i,
+          visible: item.isVisible !== false,
+          parentId
+        }
       });
       if (item.children && Array.isArray(item.children)) await createTree(item.children, created.id);
     }

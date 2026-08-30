@@ -1,12 +1,15 @@
 {
   "ok": true,
-  "total": 171,
+  "total": 354,
   "summary": {
-    "VALID_INTERNAL": 141,
+    "VALID_INTERNAL": 192,
+    "VALID_HOME_ANCHOR": 108,
     "ANCHOR": 0,
-    "VALID_ACTION": 23,
-    "EXTERNAL": 7,
+    "VALID_ACTION": 44,
+    "EXTERNAL": 10,
+    "EMPTY": 0,
     "PLACEHOLDER": 0,
+    "BAD_PROTOCOL": 0,
     "BROKEN": 0,
     "UNKNOWN": 0
   },
@@ -28,37 +31,44 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
       "text": "Услуги",
-      "href": "http://localhost:3000/showcase/8e25ix7c/services",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
       "text": "Объекты",
-      "href": "http://localhost:3000/showcase/8e25ix7c/objects",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
       "text": "О компании",
-      "href": "http://localhost:3000/showcase/8e25ix7c/about",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#about",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
       "text": "Новости",
-      "href": "http://localhost:3000/showcase/8e25ix7c/news",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
       "text": "Контакты",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c",
+      "text": "Вакансии",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#vacancies",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
@@ -70,49 +80,21 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
       "text": "Обсудить проект",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
       "text": "Наши объекты→",
-      "href": "http://localhost:3000/showcase/8e25ix7c/objects",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
-      "text": "Все объекты→",
-      "href": "http://localhost:3000/showcase/8e25ix7c/objects",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c",
-      "text": "Подробнее об объекте→",
-      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B5-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D0%B5-0",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c",
-      "text": "Подробнее об объекте→",
-      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-1",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c",
-      "text": "Производственный комплекс",
-      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-3",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c",
-      "text": "Реконструкция многофункционального здания",
-      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D1%80%D0%B5%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D1%8F-%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D0%BE%D0%BD%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE%D0%B3%D0%BE-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D1%8F-2",
+      "text": "Подробнее о компании→",
+      "href": "http://localhost:3000/about",
       "status": 200,
       "classification": "VALID_INTERNAL"
     },
@@ -175,23 +157,51 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
       "text": "Обсудить задачу →",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c",
+      "text": "Все объекты→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c",
+      "text": "Подробнее об объекте→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B5-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D0%B5-0",
       "status": 200,
       "classification": "VALID_INTERNAL"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
-      "text": "Подробнее о компании→",
-      "href": "http://localhost:3000/about",
+      "text": "Подробнее об объекте→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-1",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c",
+      "text": "Производственный комплекс",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-3",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c",
+      "text": "Реконструкция многофункционального здания",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D1%80%D0%B5%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D1%8F-%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D0%BE%D0%BD%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE%D0%B3%D0%BE-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D1%8F-2",
       "status": 200,
       "classification": "VALID_INTERNAL"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
       "text": "Все новости→",
-      "href": "http://localhost:3000/showcase/8e25ix7c/news",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
@@ -217,9 +227,9 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
       "text": "Все новости →",
-      "href": "http://localhost:3000/showcase/8e25ix7c/news",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
@@ -293,13 +303,6 @@
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c",
-      "text": "Вакансии",
-      "href": "http://localhost:3000/showcase/8e25ix7c",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c",
       "text": "garantk.by",
       "href": "https://garantk.by/",
       "status": null,
@@ -322,37 +325,44 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/about",
       "text": "Услуги",
-      "href": "http://localhost:3000/showcase/8e25ix7c/services",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/about",
       "text": "Объекты",
-      "href": "http://localhost:3000/showcase/8e25ix7c/objects",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/about",
       "text": "О компании",
-      "href": "http://localhost:3000/showcase/8e25ix7c/about",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#about",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/about",
       "text": "Новости",
-      "href": "http://localhost:3000/showcase/8e25ix7c/news",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/about",
       "text": "Контакты",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "Вакансии",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#vacancies",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/about",
@@ -364,9 +374,177 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/about",
       "text": "Обсудить проект",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "Наши объекты→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "Подробнее о компании→",
+      "href": "http://localhost:3000/about",
       "status": 200,
       "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "01Земляные работыРазработка грунта, устройство котлованов, траншей. Горизонтальн",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "02Геодезические работыПолное инженерно-геодезическое сопровождение возводимых об",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B3%D0%B5%D0%BE%D0%B4%D0%B5%D0%B7%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "03Монтаж строительных конструкцийПолный спектр работ по монтажу железобетонных и",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BC%D0%BE%D0%BD%D1%82%D0%B0%D0%B6-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D1%85-%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "04Общестроительные работыВсе виды строительных работ при капитальном ремонте и р",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BE%D0%B1%D1%89%D0%B5%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "05Комплекс отделочных работВнутренняя и внешняя отделка: штукатурные, малярные, ",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-%D0%BE%D1%82%D0%B4%D0%B5%D0%BB%D0%BE%D1%87%D0%BD%D1%8B%D1%85-%D1%80%D0%B0%D0%B1%D0%BE%D1%82",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "06Благоустройство территорийПолный комплекс услуг по дорожным работам, организац",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B1%D0%BB%D0%B0%D0%B3%D0%BE%D1%83%D1%81%D1%82%D1%80%D0%BE%D0%B9%D1%81%D1%82%D0%B2%D0%BE-%D1%82%D0%B5%D1%80%D1%80%D0%B8%D1%82%D0%BE%D1%80%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "07Испытание бетонных конструкцийЛабораторные испытания бетонных смесей, сборных ",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B8%D1%81%D0%BF%D1%8B%D1%82%D0%B0%D0%BD%D0%B8%D0%B5-%D0%B1%D0%B5%D1%82%D0%BE%D0%BD%D0%BD%D1%8B%D1%85-%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "08Контроль качества строительстваБюро контроля качества и надзора за строительны",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BA%D0%BE%D0%BD%D1%82%D1%80%D0%BE%D0%BB%D1%8C-%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D1%81%D1%82%D0%B2%D0%B0",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "Обсудить задачу →",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "Все объекты→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "Подробнее об объекте→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B5-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D0%B5-0",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "Подробнее об объекте→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-1",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "Производственный комплекс",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-3",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "Реконструкция многофункционального здания",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D1%80%D0%B5%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D1%8F-%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D0%BE%D0%BD%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE%D0%B3%D0%BE-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D1%8F-2",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "Все новости→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "29 авг. 2026 г.Завершён монтаж металлоконструкций производственного корпуса в Ми",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/1%D0%B7%D0%B0%D0%B2%D0%B5%D1%80%D1%88%D1%91%D0%BD-%D0%BC%D0%BE%D0%BD%D1%82%D0%B0%D0%B6-%D0%BC%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D0%BE%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9-%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B3%D0%BE-%D0%BA%D0%BE%D1%80%D0%BF%D1%83%D1%81%D0%B0-%D0%B2-%D0%BC%D0%B8%D0%BD%D1%81%D0%BA%D0%BE%D0%B9-%D0%BE%D0%B1%D0%BB%D0%B0%D1%81%D1%82%D0%B8",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "18 мая 2025 г.Компания приняла участие в строительной выставке BuildExpo 2025→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/%D0%BA%D0%BE%D0%BC%D0%BF%D0%B0%D0%BD%D0%B8%D1%8F-%D0%BF%D1%80%D0%B8%D0%BD%D1%8F%D0%BB%D0%B0-%D1%83%D1%87%D0%B0%D1%81%D1%82%D0%B8%D0%B5-%D0%B2-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D0%BE%D0%B9-%D0%B2%D1%8B%D1%81%D1%82%D0%B0%D0%B2%D0%BA%D0%B5-buildexpo-2025",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "2 июл. 2025 г.Начаты земляные работы на новом промышленном объекте в Брестской о",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/%D0%BD%D0%B0%D1%87%D0%B0%D1%82%D1%8B-%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B-%D0%BD%D0%B0-%D0%BD%D0%BE%D0%B2%D0%BE%D0%BC-%D0%BF%D1%80%D0%BE%D0%BC%D1%8B%D1%88%D0%BB%D0%B5%D0%BD%D0%BD%D0%BE%D0%BC-%D0%BE%D0%B1%D1%8A%D0%B5%D0%BA%D1%82%D0%B5-%D0%B2-%D0%B1%D1%80%D0%B5%D1%81%D1%82%D1%81%D0%BA%D0%BE%D0%B9-%D0%BE%D0%B1%D0%BB%D0%B0%D1%81%D1%82%D0%B8",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "Все новости →",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "garantk@tut.by →",
+      "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "garantk@tut.by",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/about",
+      "text": "Связаться с нами →",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/about",
@@ -412,24 +590,10 @@
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/about",
-      "text": "garantk@tut.by",
-      "href": "mailto:garantk@tut.by",
-      "status": null,
-      "classification": "VALID_ACTION"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c/about",
       "text": "Пригласить на тендер →",
       "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
       "status": null,
       "classification": "VALID_ACTION"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c/about",
-      "text": "Вакансии",
-      "href": "http://localhost:3000/showcase/8e25ix7c",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/about",
@@ -455,37 +619,44 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
       "text": "Услуги",
-      "href": "http://localhost:3000/showcase/8e25ix7c/services",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
       "text": "Объекты",
-      "href": "http://localhost:3000/showcase/8e25ix7c/objects",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
       "text": "О компании",
-      "href": "http://localhost:3000/showcase/8e25ix7c/about",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#about",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
       "text": "Новости",
-      "href": "http://localhost:3000/showcase/8e25ix7c/news",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
       "text": "Контакты",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "Вакансии",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#vacancies",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
@@ -497,9 +668,177 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
       "text": "Обсудить проект",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "Наши объекты→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "Подробнее о компании→",
+      "href": "http://localhost:3000/about",
       "status": 200,
       "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "01Земляные работыРазработка грунта, устройство котлованов, траншей. Горизонтальн",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "02Геодезические работыПолное инженерно-геодезическое сопровождение возводимых об",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B3%D0%B5%D0%BE%D0%B4%D0%B5%D0%B7%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "03Монтаж строительных конструкцийПолный спектр работ по монтажу железобетонных и",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BC%D0%BE%D0%BD%D1%82%D0%B0%D0%B6-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D1%85-%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "04Общестроительные работыВсе виды строительных работ при капитальном ремонте и р",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BE%D0%B1%D1%89%D0%B5%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "05Комплекс отделочных работВнутренняя и внешняя отделка: штукатурные, малярные, ",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-%D0%BE%D1%82%D0%B4%D0%B5%D0%BB%D0%BE%D1%87%D0%BD%D1%8B%D1%85-%D1%80%D0%B0%D0%B1%D0%BE%D1%82",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "06Благоустройство территорийПолный комплекс услуг по дорожным работам, организац",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B1%D0%BB%D0%B0%D0%B3%D0%BE%D1%83%D1%81%D1%82%D1%80%D0%BE%D0%B9%D1%81%D1%82%D0%B2%D0%BE-%D1%82%D0%B5%D1%80%D1%80%D0%B8%D1%82%D0%BE%D1%80%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "07Испытание бетонных конструкцийЛабораторные испытания бетонных смесей, сборных ",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B8%D1%81%D0%BF%D1%8B%D1%82%D0%B0%D0%BD%D0%B8%D0%B5-%D0%B1%D0%B5%D1%82%D0%BE%D0%BD%D0%BD%D1%8B%D1%85-%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "08Контроль качества строительстваБюро контроля качества и надзора за строительны",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BA%D0%BE%D0%BD%D1%82%D1%80%D0%BE%D0%BB%D1%8C-%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D1%81%D1%82%D0%B2%D0%B0",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "Обсудить задачу →",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "Все объекты→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "Подробнее об объекте→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B5-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D0%B5-0",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "Подробнее об объекте→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-1",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "Производственный комплекс",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-3",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "Реконструкция многофункционального здания",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D1%80%D0%B5%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D1%8F-%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D0%BE%D0%BD%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE%D0%B3%D0%BE-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D1%8F-2",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "Все новости→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "29 авг. 2026 г.Завершён монтаж металлоконструкций производственного корпуса в Ми",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/1%D0%B7%D0%B0%D0%B2%D0%B5%D1%80%D1%88%D1%91%D0%BD-%D0%BC%D0%BE%D0%BD%D1%82%D0%B0%D0%B6-%D0%BC%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D0%BE%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9-%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B3%D0%BE-%D0%BA%D0%BE%D1%80%D0%BF%D1%83%D1%81%D0%B0-%D0%B2-%D0%BC%D0%B8%D0%BD%D1%81%D0%BA%D0%BE%D0%B9-%D0%BE%D0%B1%D0%BB%D0%B0%D1%81%D1%82%D0%B8",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "18 мая 2025 г.Компания приняла участие в строительной выставке BuildExpo 2025→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/%D0%BA%D0%BE%D0%BC%D0%BF%D0%B0%D0%BD%D0%B8%D1%8F-%D0%BF%D1%80%D0%B8%D0%BD%D1%8F%D0%BB%D0%B0-%D1%83%D1%87%D0%B0%D1%81%D1%82%D0%B8%D0%B5-%D0%B2-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D0%BE%D0%B9-%D0%B2%D1%8B%D1%81%D1%82%D0%B0%D0%B2%D0%BA%D0%B5-buildexpo-2025",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "2 июл. 2025 г.Начаты земляные работы на новом промышленном объекте в Брестской о",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/%D0%BD%D0%B0%D1%87%D0%B0%D1%82%D1%8B-%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B-%D0%BD%D0%B0-%D0%BD%D0%BE%D0%B2%D0%BE%D0%BC-%D0%BF%D1%80%D0%BE%D0%BC%D1%8B%D1%88%D0%BB%D0%B5%D0%BD%D0%BD%D0%BE%D0%BC-%D0%BE%D0%B1%D1%8A%D0%B5%D0%BA%D1%82%D0%B5-%D0%B2-%D0%B1%D1%80%D0%B5%D1%81%D1%82%D1%81%D0%BA%D0%BE%D0%B9-%D0%BE%D0%B1%D0%BB%D0%B0%D1%81%D1%82%D0%B8",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "Все новости →",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "garantk@tut.by →",
+      "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "garantk@tut.by",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "text": "Связаться с нами →",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
@@ -545,24 +884,10 @@
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
-      "text": "garantk@tut.by",
-      "href": "mailto:garantk@tut.by",
-      "status": null,
-      "classification": "VALID_ACTION"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
       "text": "Пригласить на тендер →",
       "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
       "status": null,
       "classification": "VALID_ACTION"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
-      "text": "Вакансии",
-      "href": "http://localhost:3000/showcase/8e25ix7c",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/contacts",
@@ -588,37 +913,44 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/services",
       "text": "Услуги",
-      "href": "http://localhost:3000/showcase/8e25ix7c/services",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/services",
       "text": "Объекты",
-      "href": "http://localhost:3000/showcase/8e25ix7c/objects",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/services",
       "text": "О компании",
-      "href": "http://localhost:3000/showcase/8e25ix7c/about",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#about",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/services",
       "text": "Новости",
-      "href": "http://localhost:3000/showcase/8e25ix7c/news",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/services",
       "text": "Контакты",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "Вакансии",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#vacancies",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/services",
@@ -630,7 +962,21 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/services",
       "text": "Обсудить проект",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "Наши объекты→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "Подробнее о компании→",
+      "href": "http://localhost:3000/about",
       "status": 200,
       "classification": "VALID_INTERNAL"
     },
@@ -692,6 +1038,104 @@
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "Обсудить задачу →",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "Все объекты→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "Подробнее об объекте→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B5-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D0%B5-0",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "Подробнее об объекте→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-1",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "Производственный комплекс",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-3",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "Реконструкция многофункционального здания",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D1%80%D0%B5%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D1%8F-%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D0%BE%D0%BD%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE%D0%B3%D0%BE-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D1%8F-2",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "Все новости→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "29 авг. 2026 г.Завершён монтаж металлоконструкций производственного корпуса в Ми",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/1%D0%B7%D0%B0%D0%B2%D0%B5%D1%80%D1%88%D1%91%D0%BD-%D0%BC%D0%BE%D0%BD%D1%82%D0%B0%D0%B6-%D0%BC%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D0%BE%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9-%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B3%D0%BE-%D0%BA%D0%BE%D1%80%D0%BF%D1%83%D1%81%D0%B0-%D0%B2-%D0%BC%D0%B8%D0%BD%D1%81%D0%BA%D0%BE%D0%B9-%D0%BE%D0%B1%D0%BB%D0%B0%D1%81%D1%82%D0%B8",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "18 мая 2025 г.Компания приняла участие в строительной выставке BuildExpo 2025→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/%D0%BA%D0%BE%D0%BC%D0%BF%D0%B0%D0%BD%D0%B8%D1%8F-%D0%BF%D1%80%D0%B8%D0%BD%D1%8F%D0%BB%D0%B0-%D1%83%D1%87%D0%B0%D1%81%D1%82%D0%B8%D0%B5-%D0%B2-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D0%BE%D0%B9-%D0%B2%D1%8B%D1%81%D1%82%D0%B0%D0%B2%D0%BA%D0%B5-buildexpo-2025",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "2 июл. 2025 г.Начаты земляные работы на новом промышленном объекте в Брестской о",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/%D0%BD%D0%B0%D1%87%D0%B0%D1%82%D1%8B-%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B-%D0%BD%D0%B0-%D0%BD%D0%BE%D0%B2%D0%BE%D0%BC-%D0%BF%D1%80%D0%BE%D0%BC%D1%8B%D1%88%D0%BB%D0%B5%D0%BD%D0%BD%D0%BE%D0%BC-%D0%BE%D0%B1%D1%8A%D0%B5%D0%BA%D1%82%D0%B5-%D0%B2-%D0%B1%D1%80%D0%B5%D1%81%D1%82%D1%81%D0%BA%D0%BE%D0%B9-%D0%BE%D0%B1%D0%BB%D0%B0%D1%81%D1%82%D0%B8",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "Все новости →",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "garantk@tut.by →",
+      "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "garantk@tut.by",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
+      "text": "Связаться с нами →",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services",
       "text": "Земляные работы",
       "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
       "status": 200,
@@ -734,24 +1178,10 @@
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/services",
-      "text": "garantk@tut.by",
-      "href": "mailto:garantk@tut.by",
-      "status": null,
-      "classification": "VALID_ACTION"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c/services",
       "text": "Пригласить на тендер →",
       "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
       "status": null,
       "classification": "VALID_ACTION"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c/services",
-      "text": "Вакансии",
-      "href": "http://localhost:3000/showcase/8e25ix7c",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/services",
@@ -777,37 +1207,44 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/projects",
       "text": "Услуги",
-      "href": "http://localhost:3000/showcase/8e25ix7c/services",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/projects",
       "text": "Объекты",
-      "href": "http://localhost:3000/showcase/8e25ix7c/objects",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/projects",
       "text": "О компании",
-      "href": "http://localhost:3000/showcase/8e25ix7c/about",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#about",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/projects",
       "text": "Новости",
-      "href": "http://localhost:3000/showcase/8e25ix7c/news",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/projects",
       "text": "Контакты",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "Вакансии",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#vacancies",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/projects",
@@ -819,37 +1256,177 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/projects",
       "text": "Обсудить проект",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "Наши объекты→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "Подробнее о компании→",
+      "href": "http://localhost:3000/about",
       "status": 200,
       "classification": "VALID_INTERNAL"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/projects",
-      "text": "Промышленное строительствоin-progressПроизводственное зданиеПромышленное здание,",
+      "text": "01Земляные работыРазработка грунта, устройство котлованов, траншей. Горизонтальн",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "02Геодезические работыПолное инженерно-геодезическое сопровождение возводимых об",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B3%D0%B5%D0%BE%D0%B4%D0%B5%D0%B7%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "03Монтаж строительных конструкцийПолный спектр работ по монтажу железобетонных и",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BC%D0%BE%D0%BD%D1%82%D0%B0%D0%B6-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D1%85-%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "04Общестроительные работыВсе виды строительных работ при капитальном ремонте и р",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BE%D0%B1%D1%89%D0%B5%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "05Комплекс отделочных работВнутренняя и внешняя отделка: штукатурные, малярные, ",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-%D0%BE%D1%82%D0%B4%D0%B5%D0%BB%D0%BE%D1%87%D0%BD%D1%8B%D1%85-%D1%80%D0%B0%D0%B1%D0%BE%D1%82",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "06Благоустройство территорийПолный комплекс услуг по дорожным работам, организац",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B1%D0%BB%D0%B0%D0%B3%D0%BE%D1%83%D1%81%D1%82%D1%80%D0%BE%D0%B9%D1%81%D1%82%D0%B2%D0%BE-%D1%82%D0%B5%D1%80%D1%80%D0%B8%D1%82%D0%BE%D1%80%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "07Испытание бетонных конструкцийЛабораторные испытания бетонных смесей, сборных ",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B8%D1%81%D0%BF%D1%8B%D1%82%D0%B0%D0%BD%D0%B8%D0%B5-%D0%B1%D0%B5%D1%82%D0%BE%D0%BD%D0%BD%D1%8B%D1%85-%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "08Контроль качества строительстваБюро контроля качества и надзора за строительны",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BA%D0%BE%D0%BD%D1%82%D1%80%D0%BE%D0%BB%D1%8C-%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D1%81%D1%82%D0%B2%D0%B0",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "Обсудить задачу →",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "Все объекты→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "Подробнее об объекте→",
       "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B5-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D0%B5-0",
       "status": 200,
       "classification": "VALID_INTERNAL"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/projects",
-      "text": "Промышленное строительствоЗавершёнПроизводственный комплексПроизводственный комп",
+      "text": "Подробнее об объекте→",
       "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-1",
       "status": 200,
       "classification": "VALID_INTERNAL"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/projects",
-      "text": "Промышленное строительствоЗавершёнПроизводственный комплексПроизводственный комп",
+      "text": "Производственный комплекс",
       "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-3",
       "status": 200,
       "classification": "VALID_INTERNAL"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/projects",
-      "text": "РеконструкцияЗавершёнРеконструкция многофункционального зданияРеконструкция мног",
+      "text": "Реконструкция многофункционального здания",
       "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D1%80%D0%B5%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D1%8F-%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D0%BE%D0%BD%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE%D0%B3%D0%BE-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D1%8F-2",
       "status": 200,
       "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "Все новости→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "29 авг. 2026 г.Завершён монтаж металлоконструкций производственного корпуса в Ми",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/1%D0%B7%D0%B0%D0%B2%D0%B5%D1%80%D1%88%D1%91%D0%BD-%D0%BC%D0%BE%D0%BD%D1%82%D0%B0%D0%B6-%D0%BC%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D0%BE%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9-%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B3%D0%BE-%D0%BA%D0%BE%D1%80%D0%BF%D1%83%D1%81%D0%B0-%D0%B2-%D0%BC%D0%B8%D0%BD%D1%81%D0%BA%D0%BE%D0%B9-%D0%BE%D0%B1%D0%BB%D0%B0%D1%81%D1%82%D0%B8",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "18 мая 2025 г.Компания приняла участие в строительной выставке BuildExpo 2025→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/%D0%BA%D0%BE%D0%BC%D0%BF%D0%B0%D0%BD%D0%B8%D1%8F-%D0%BF%D1%80%D0%B8%D0%BD%D1%8F%D0%BB%D0%B0-%D1%83%D1%87%D0%B0%D1%81%D1%82%D0%B8%D0%B5-%D0%B2-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D0%BE%D0%B9-%D0%B2%D1%8B%D1%81%D1%82%D0%B0%D0%B2%D0%BA%D0%B5-buildexpo-2025",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "2 июл. 2025 г.Начаты земляные работы на новом промышленном объекте в Брестской о",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/%D0%BD%D0%B0%D1%87%D0%B0%D1%82%D1%8B-%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B-%D0%BD%D0%B0-%D0%BD%D0%BE%D0%B2%D0%BE%D0%BC-%D0%BF%D1%80%D0%BE%D0%BC%D1%8B%D1%88%D0%BB%D0%B5%D0%BD%D0%BD%D0%BE%D0%BC-%D0%BE%D0%B1%D1%8A%D0%B5%D0%BA%D1%82%D0%B5-%D0%B2-%D0%B1%D1%80%D0%B5%D1%81%D1%82%D1%81%D0%BA%D0%BE%D0%B9-%D0%BE%D0%B1%D0%BB%D0%B0%D1%81%D1%82%D0%B8",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "Все новости →",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "garantk@tut.by →",
+      "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "garantk@tut.by",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
+      "text": "Связаться с нами →",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/projects",
@@ -895,24 +1472,10 @@
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/projects",
-      "text": "garantk@tut.by",
-      "href": "mailto:garantk@tut.by",
-      "status": null,
-      "classification": "VALID_ACTION"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
       "text": "Пригласить на тендер →",
       "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
       "status": null,
       "classification": "VALID_ACTION"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c/projects",
-      "text": "Вакансии",
-      "href": "http://localhost:3000/showcase/8e25ix7c",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/projects",
@@ -938,37 +1501,44 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/news",
       "text": "Услуги",
-      "href": "http://localhost:3000/showcase/8e25ix7c/services",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/news",
       "text": "Объекты",
-      "href": "http://localhost:3000/showcase/8e25ix7c/objects",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/news",
       "text": "О компании",
-      "href": "http://localhost:3000/showcase/8e25ix7c/about",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#about",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/news",
       "text": "Новости",
-      "href": "http://localhost:3000/showcase/8e25ix7c/news",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/news",
       "text": "Контакты",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "Вакансии",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#vacancies",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/news",
@@ -980,9 +1550,128 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/news",
       "text": "Обсудить проект",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "Наши объекты→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "Подробнее о компании→",
+      "href": "http://localhost:3000/about",
       "status": 200,
       "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "01Земляные работыРазработка грунта, устройство котлованов, траншей. Горизонтальн",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "02Геодезические работыПолное инженерно-геодезическое сопровождение возводимых об",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B3%D0%B5%D0%BE%D0%B4%D0%B5%D0%B7%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "03Монтаж строительных конструкцийПолный спектр работ по монтажу железобетонных и",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BC%D0%BE%D0%BD%D1%82%D0%B0%D0%B6-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D1%85-%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "04Общестроительные работыВсе виды строительных работ при капитальном ремонте и р",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BE%D0%B1%D1%89%D0%B5%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "05Комплекс отделочных работВнутренняя и внешняя отделка: штукатурные, малярные, ",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-%D0%BE%D1%82%D0%B4%D0%B5%D0%BB%D0%BE%D1%87%D0%BD%D1%8B%D1%85-%D1%80%D0%B0%D0%B1%D0%BE%D1%82",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "06Благоустройство территорийПолный комплекс услуг по дорожным работам, организац",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B1%D0%BB%D0%B0%D0%B3%D0%BE%D1%83%D1%81%D1%82%D1%80%D0%BE%D0%B9%D1%81%D1%82%D0%B2%D0%BE-%D1%82%D0%B5%D1%80%D1%80%D0%B8%D1%82%D0%BE%D1%80%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "07Испытание бетонных конструкцийЛабораторные испытания бетонных смесей, сборных ",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B8%D1%81%D0%BF%D1%8B%D1%82%D0%B0%D0%BD%D0%B8%D0%B5-%D0%B1%D0%B5%D1%82%D0%BE%D0%BD%D0%BD%D1%8B%D1%85-%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "08Контроль качества строительстваБюро контроля качества и надзора за строительны",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BA%D0%BE%D0%BD%D1%82%D1%80%D0%BE%D0%BB%D1%8C-%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D1%81%D1%82%D0%B2%D0%B0",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "Обсудить задачу →",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "Все объекты→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "Подробнее об объекте→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B5-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D0%B5-0",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "Подробнее об объекте→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-1",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "Производственный комплекс",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-3",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "Реконструкция многофункционального здания",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D1%80%D0%B5%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D1%8F-%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D0%BE%D0%BD%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE%D0%B3%D0%BE-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D1%8F-2",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "Все новости→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/news",
@@ -1007,6 +1696,34 @@
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "Все новости →",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "garantk@tut.by →",
+      "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "garantk@tut.by",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
+      "text": "Связаться с нами →",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news",
       "text": "Земляные работы",
       "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
       "status": 200,
@@ -1049,24 +1766,10 @@
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/news",
-      "text": "garantk@tut.by",
-      "href": "mailto:garantk@tut.by",
-      "status": null,
-      "classification": "VALID_ACTION"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c/news",
       "text": "Пригласить на тендер →",
       "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
       "status": null,
       "classification": "VALID_ACTION"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c/news",
-      "text": "Вакансии",
-      "href": "http://localhost:3000/showcase/8e25ix7c",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/news",
@@ -1092,37 +1795,44 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
       "text": "Услуги",
-      "href": "http://localhost:3000/showcase/8e25ix7c/services",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
       "text": "Объекты",
-      "href": "http://localhost:3000/showcase/8e25ix7c/objects",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
       "text": "О компании",
-      "href": "http://localhost:3000/showcase/8e25ix7c/about",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#about",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
       "text": "Новости",
-      "href": "http://localhost:3000/showcase/8e25ix7c/news",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
       "text": "Контакты",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
-      "status": 200,
-      "classification": "VALID_INTERNAL"
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "Вакансии",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#vacancies",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
@@ -1134,9 +1844,177 @@
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
       "text": "Обсудить проект",
-      "href": "http://localhost:3000/showcase/8e25ix7c/contacts",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "Наши объекты→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "Подробнее о компании→",
+      "href": "http://localhost:3000/about",
       "status": 200,
       "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "01Земляные работыРазработка грунта, устройство котлованов, траншей. Горизонтальн",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "02Геодезические работыПолное инженерно-геодезическое сопровождение возводимых об",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B3%D0%B5%D0%BE%D0%B4%D0%B5%D0%B7%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "03Монтаж строительных конструкцийПолный спектр работ по монтажу железобетонных и",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BC%D0%BE%D0%BD%D1%82%D0%B0%D0%B6-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D1%85-%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "04Общестроительные работыВсе виды строительных работ при капитальном ремонте и р",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BE%D0%B1%D1%89%D0%B5%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "05Комплекс отделочных работВнутренняя и внешняя отделка: штукатурные, малярные, ",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-%D0%BE%D1%82%D0%B4%D0%B5%D0%BB%D0%BE%D1%87%D0%BD%D1%8B%D1%85-%D1%80%D0%B0%D0%B1%D0%BE%D1%82",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "06Благоустройство территорийПолный комплекс услуг по дорожным работам, организац",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B1%D0%BB%D0%B0%D0%B3%D0%BE%D1%83%D1%81%D1%82%D1%80%D0%BE%D0%B9%D1%81%D1%82%D0%B2%D0%BE-%D1%82%D0%B5%D1%80%D1%80%D0%B8%D1%82%D0%BE%D1%80%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "07Испытание бетонных конструкцийЛабораторные испытания бетонных смесей, сборных ",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B8%D1%81%D0%BF%D1%8B%D1%82%D0%B0%D0%BD%D0%B8%D0%B5-%D0%B1%D0%B5%D1%82%D0%BE%D0%BD%D0%BD%D1%8B%D1%85-%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "08Контроль качества строительстваБюро контроля качества и надзора за строительны",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BA%D0%BE%D0%BD%D1%82%D1%80%D0%BE%D0%BB%D1%8C-%D0%BA%D0%B0%D1%87%D0%B5%D1%81%D1%82%D0%B2%D0%B0-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D1%81%D1%82%D0%B2%D0%B0",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "Обсудить задачу →",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "Все объекты→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "Подробнее об объекте→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B5-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D0%B5-0",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "Подробнее об объекте→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-1",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "Производственный комплекс",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D1%8B%D0%B9-%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-3",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "Реконструкция многофункционального здания",
+      "href": "http://localhost:3000/showcase/8e25ix7c/projects/%D1%80%D0%B5%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D1%8F-%D0%BC%D0%BD%D0%BE%D0%B3%D0%BE%D1%84%D1%83%D0%BD%D0%BA%D1%86%D0%B8%D0%BE%D0%BD%D0%B0%D0%BB%D1%8C%D0%BD%D0%BE%D0%B3%D0%BE-%D0%B7%D0%B4%D0%B0%D0%BD%D0%B8%D1%8F-2",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "Все новости→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "29 авг. 2026 г.Завершён монтаж металлоконструкций производственного корпуса в Ми",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/1%D0%B7%D0%B0%D0%B2%D0%B5%D1%80%D1%88%D1%91%D0%BD-%D0%BC%D0%BE%D0%BD%D1%82%D0%B0%D0%B6-%D0%BC%D0%B5%D1%82%D0%B0%D0%BB%D0%BB%D0%BE%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9-%D0%BF%D1%80%D0%BE%D0%B8%D0%B7%D0%B2%D0%BE%D0%B4%D1%81%D1%82%D0%B2%D0%B5%D0%BD%D0%BD%D0%BE%D0%B3%D0%BE-%D0%BA%D0%BE%D1%80%D0%BF%D1%83%D1%81%D0%B0-%D0%B2-%D0%BC%D0%B8%D0%BD%D1%81%D0%BA%D0%BE%D0%B9-%D0%BE%D0%B1%D0%BB%D0%B0%D1%81%D1%82%D0%B8",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "18 мая 2025 г.Компания приняла участие в строительной выставке BuildExpo 2025→",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/%D0%BA%D0%BE%D0%BC%D0%BF%D0%B0%D0%BD%D0%B8%D1%8F-%D0%BF%D1%80%D0%B8%D0%BD%D1%8F%D0%BB%D0%B0-%D1%83%D1%87%D0%B0%D1%81%D1%82%D0%B8%D0%B5-%D0%B2-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D0%BE%D0%B9-%D0%B2%D1%8B%D1%81%D1%82%D0%B0%D0%B2%D0%BA%D0%B5-buildexpo-2025",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "2 июл. 2025 г.Начаты земляные работы на новом промышленном объекте в Брестской о",
+      "href": "http://localhost:3000/showcase/8e25ix7c/news/%D0%BD%D0%B0%D1%87%D0%B0%D1%82%D1%8B-%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B-%D0%BD%D0%B0-%D0%BD%D0%BE%D0%B2%D0%BE%D0%BC-%D0%BF%D1%80%D0%BE%D0%BC%D1%8B%D1%88%D0%BB%D0%B5%D0%BD%D0%BD%D0%BE%D0%BC-%D0%BE%D0%B1%D1%8A%D0%B5%D0%BA%D1%82%D0%B5-%D0%B2-%D0%B1%D1%80%D0%B5%D1%81%D1%82%D1%81%D0%BA%D0%BE%D0%B9-%D0%BE%D0%B1%D0%BB%D0%B0%D1%81%D1%82%D0%B8",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "Все новости →",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "garantk@tut.by →",
+      "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "garantk@tut.by",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "text": "Связаться с нами →",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
@@ -1182,13 +2060,6 @@
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
-      "text": "garantk@tut.by",
-      "href": "mailto:garantk@tut.by",
-      "status": null,
-      "classification": "VALID_ACTION"
-    },
-    {
-      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
       "text": "Пригласить на тендер →",
       "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
       "status": null,
@@ -1196,13 +2067,426 @@
     },
     {
       "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
-      "text": "Вакансии",
+      "text": "garantk.by",
+      "href": "https://garantk.by/",
+      "status": null,
+      "classification": "EXTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "ГГарант Качествастроительная компания",
       "href": "http://localhost:3000/showcase/8e25ix7c",
       "status": 200,
       "classification": "VALID_INTERNAL"
     },
     {
-      "page": "http://localhost:3000/showcase/8e25ix7c/vacancies",
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "Главная",
+      "href": "http://localhost:3000/showcase/8e25ix7c/",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "Услуги",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "Объекты",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "О компании",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#about",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "Новости",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "Контакты",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "Вакансии",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#vacancies",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "+375 17 374-15-28",
+      "href": "tel:+375173741528",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "Обсудить проект",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "← Назад к услугам",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "Земляные работы",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "Геодезические работы",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B3%D0%B5%D0%BE%D0%B4%D0%B5%D0%B7%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "Монтаж строительных конструкций",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BC%D0%BE%D0%BD%D1%82%D0%B0%D0%B6-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D1%85-%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "Общестроительные работы",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BE%D0%B1%D1%89%D0%B5%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "Комплекс отделочных работ",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-%D0%BE%D1%82%D0%B4%D0%B5%D0%BB%D0%BE%D1%87%D0%BD%D1%8B%D1%85-%D1%80%D0%B0%D0%B1%D0%BE%D1%82",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "Благоустройство территорий",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B1%D0%BB%D0%B0%D0%B3%D0%BE%D1%83%D1%81%D1%82%D1%80%D0%BE%D0%B9%D1%81%D1%82%D0%B2%D0%BE-%D1%82%D0%B5%D1%80%D1%80%D0%B8%D1%82%D0%BE%D1%80%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "garantk@tut.by",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "Пригласить на тендер →",
+      "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/services/земляные-работы",
+      "text": "garantk.by",
+      "href": "https://garantk.by/",
+      "status": null,
+      "classification": "EXTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "ГГарант Качествастроительная компания",
+      "href": "http://localhost:3000/showcase/8e25ix7c",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "Главная",
+      "href": "http://localhost:3000/showcase/8e25ix7c/",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "Услуги",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "Объекты",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "О компании",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#about",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "Новости",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "Контакты",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "Вакансии",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#vacancies",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "+375 17 374-15-28",
+      "href": "tel:+375173741528",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "Обсудить проект",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "← Назад к объектам",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "Земляные работы",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "Геодезические работы",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B3%D0%B5%D0%BE%D0%B4%D0%B5%D0%B7%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "Монтаж строительных конструкций",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BC%D0%BE%D0%BD%D1%82%D0%B0%D0%B6-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D1%85-%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "Общестроительные работы",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BE%D0%B1%D1%89%D0%B5%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "Комплекс отделочных работ",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-%D0%BE%D1%82%D0%B4%D0%B5%D0%BB%D0%BE%D1%87%D0%BD%D1%8B%D1%85-%D1%80%D0%B0%D0%B1%D0%BE%D1%82",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "Благоустройство территорий",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B1%D0%BB%D0%B0%D0%B3%D0%BE%D1%83%D1%81%D1%82%D1%80%D0%BE%D0%B9%D1%81%D1%82%D0%B2%D0%BE-%D1%82%D0%B5%D1%80%D1%80%D0%B8%D1%82%D0%BE%D1%80%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "garantk@tut.by",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "Пригласить на тендер →",
+      "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/projects/производственное-здание-0",
+      "text": "garantk.by",
+      "href": "https://garantk.by/",
+      "status": null,
+      "classification": "EXTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "ГГарант Качествастроительная компания",
+      "href": "http://localhost:3000/showcase/8e25ix7c",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "Главная",
+      "href": "http://localhost:3000/showcase/8e25ix7c/",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "Услуги",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#services",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "Объекты",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#projects",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "О компании",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#about",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "Новости",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "Контакты",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "Вакансии",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#vacancies",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "+375 17 374-15-28",
+      "href": "tel:+375173741528",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "Обсудить проект",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#contacts",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "← Назад к новостям",
+      "href": "http://localhost:3000/showcase/8e25ix7c/#news",
+      "status": null,
+      "classification": "VALID_HOME_ANCHOR"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "Земляные работы",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B7%D0%B5%D0%BC%D0%BB%D1%8F%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "Геодезические работы",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B3%D0%B5%D0%BE%D0%B4%D0%B5%D0%B7%D0%B8%D1%87%D0%B5%D1%81%D0%BA%D0%B8%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "Монтаж строительных конструкций",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BC%D0%BE%D0%BD%D1%82%D0%B0%D0%B6-%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D1%85-%D0%BA%D0%BE%D0%BD%D1%81%D1%82%D1%80%D1%83%D0%BA%D1%86%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "Общестроительные работы",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BE%D0%B1%D1%89%D0%B5%D1%81%D1%82%D1%80%D0%BE%D0%B8%D1%82%D0%B5%D0%BB%D1%8C%D0%BD%D1%8B%D0%B5-%D1%80%D0%B0%D0%B1%D0%BE%D1%82%D1%8B",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "Комплекс отделочных работ",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%BA%D0%BE%D0%BC%D0%BF%D0%BB%D0%B5%D0%BA%D1%81-%D0%BE%D1%82%D0%B4%D0%B5%D0%BB%D0%BE%D1%87%D0%BD%D1%8B%D1%85-%D1%80%D0%B0%D0%B1%D0%BE%D1%82",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "Благоустройство территорий",
+      "href": "http://localhost:3000/showcase/8e25ix7c/services/%D0%B1%D0%BB%D0%B0%D0%B3%D0%BE%D1%83%D1%81%D1%82%D1%80%D0%BE%D0%B9%D1%81%D1%82%D0%B2%D0%BE-%D1%82%D0%B5%D1%80%D1%80%D0%B8%D1%82%D0%BE%D1%80%D0%B8%D0%B9",
+      "status": 200,
+      "classification": "VALID_INTERNAL"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "garantk@tut.by",
+      "href": "mailto:garantk@tut.by",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
+      "text": "Пригласить на тендер →",
+      "href": "mailto:garantk@tut.by?subject=%D0%9F%D1%80%D0%B8%D0%B3%D0%BB%D0%B0%D1%88%D0%B5%D0%BD%D0%B8%D0%B5%20%D0%BD%D0%B0%20%D1%82%D0%B5%D0%BD%D0%B4%D0%B5%D1%80",
+      "status": null,
+      "classification": "VALID_ACTION"
+    },
+    {
+      "page": "http://localhost:3000/showcase/8e25ix7c/news/1завершён-монтаж-металлоконструкций-производственного-корпуса-в-минской-области",
       "text": "garantk.by",
       "href": "https://garantk.by/",
       "status": null,

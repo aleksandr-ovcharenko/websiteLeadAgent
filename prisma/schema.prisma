@@ -490,11 +490,13 @@ model MenuItem {
   id        String   @id @default(cuid())
   siteId    String
   menuId    String
-  label     String
-  pageId    String?
-  url       String?
-  parentId  String?
-  sortOrder Int      @default(0)
+  label      String
+  pageId     String?
+  url        String?
+  targetType String? // HOME, HOME_SECTION, PAGE, CONTENT_DETAIL, CUSTOM_URL, EXTERNAL_URL
+  target     String? // section key, content slug, or custom target
+  parentId   String?
+  sortOrder  Int      @default(0)
   visible   Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
