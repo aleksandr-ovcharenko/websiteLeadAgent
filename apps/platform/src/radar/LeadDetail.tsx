@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Button } from '../cms/ui';
 import { LeadScoreRing, scoreHue, ScorePill } from './RadarScoreRing';
 
@@ -36,6 +36,13 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
   const [tab, setTab] = useState<'desktop' | 'mobile'>('desktop');
   const [note, setNote] = useState(lead.manualReviewNote || '');
   const [review, setReview] = useState(lead.manualReviewStatus || 'UNREVIEWED');
+  const [imgError, setImgError] = useState(false);
+
+  useEffect(() => {
+    setNote(lead.manualReviewNote || '');
+    setReview(lead.manualReviewStatus || 'UNREVIEWED');
+    setImgError(false);
+  }, [lead.id]);
 
   const visual = lead.visualAnalysis || {};
   const lh = lead.lighthouseReport || {};
@@ -43,8 +50,9 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
   const score = lead.leadScoreV2 ?? lead.leadScore ?? 0;
 
   const screenshotUrl = lead.id ? `/audit/${lead.id}/${tab}.png` : '';
+  const fullUrl = lead.id ? `/audit/${lead.id}/${tab}-full.png` : '';
   const hasWebsite = !!lead.website;
-  const auditOk = lead.auditStatus === 'SUCCESS';
+  const auditOk = lead.auditStatus === 'SUCCESS' || lead.auditStatus === 'complete';
   const lhOk = !!lead.lighthouseReport;
   const aiOk = visual?.status === 'SUCCESS';
   const scored = lead.leadScoreV2 !== null && lead.leadScoreV2 !== undefined;
@@ -83,10 +91,23 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
               </button>
             ))}
           </div>
-          <div className="aspect-[16/10] relative overflow-hidden">
+          <div className="aspect-[16/10] relative overflow-hidden bg-[#fafaf9]">
             {auditOk ? (
-              <img src={screenshotUrl} alt={`${lead.companyName} website`} className="w-full h-full object-cover object-top"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+              imgError ? (
+                <div className="w-full h-full flex flex-col items-center justify-center text-center p-6">
+                  <span className="text-[#a8a29e] text-[12px] font-mono mb-2">Screenshot unavailable</span>
+                  <span className="text-[10px] text-[#57534e] font-mono">Audit exists but image not found</span>
+                </div>
+              ) : (
+                <a href={fullUrl} target="_blank" rel="noreferrer" className="block w-full h-full">
+                  <img
+                    src={screenshotUrl}
+                    alt={`${lead.companyName} website`}
+                    className="w-full h-full object-contain object-top cursor-pointer hover:opacity-95"
+                    onError={() => setImgError(true)}
+                  />
+                </a>
+              )
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-center p-6">
                 <span className="text-[#a8a29e] text-[12px] font-mono mb-2">No screenshot yet</span>

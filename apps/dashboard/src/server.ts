@@ -5,7 +5,7 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { Request, Response } from 'express';
 import pino from 'pino';
-import { sessionMiddleware, authRouter, requireSuperAdmin } from './auth.js';
+import { sessionMiddleware, authRouter, requireAuth, requireSuperAdmin } from './auth.js';
 import { platformRouter } from './platform.js';
 import { generateSite } from '@minsk/redesign-engine';
 import { DiscoveryService, listDiscoveryProviders, getDiscoveryProvider, DISCOVERY_PRESETS } from './discovery/index.js';
@@ -365,7 +365,7 @@ const ALLOWED_AUDIT_FILES = new Set([
   'crawl.json'
 ]);
 
-app.get('/audit/:leadId/:file', requireSuperAdmin, async (req: Request, res: Response) => {
+app.get('/audit/:leadId/:file', requireAuth, async (req: Request, res: Response) => {
   const leadId = String(req.params.leadId);
   const file = String(req.params.file);
 

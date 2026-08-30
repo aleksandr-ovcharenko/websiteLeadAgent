@@ -20,6 +20,7 @@ const sorts = [
 export default function RadarFilters({ filters, onChange, quick, onQuick }: { filters: Filters; onChange: (f: Partial<Filters>) => void; quick: string; onQuick: (q: string) => void }) {
   const quicks = [
     { key: 'all', label: 'All' },
+    { key: 'ready_for_review', label: 'Ready for review' },
     { key: 'good', label: 'GOOD' },
     { key: 'needs_audit', label: 'Needs audit' },
     { key: 'needs_ai', label: 'Needs AI' },

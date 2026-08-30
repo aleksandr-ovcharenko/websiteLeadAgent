@@ -38,6 +38,7 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
     if (quick === 'good') p.manual = 'GOOD';
     if (quick === 'needs_audit') { p.websiteStatus = 'FOUND'; p.auditStatus = 'PENDING'; }
     if (quick === 'needs_ai') { p.websiteStatus = 'FOUND'; p.auditStatus = 'SUCCESS'; p.enrichmentStatus = 'SUCCESS'; }
+    if (quick === 'ready_for_review') { p.websiteStatus = 'FOUND'; p.auditStatus = 'SUCCESS'; p.manual = 'UNREVIEWED'; }
     if (quick === 'no_website') p.websiteStatus = 'NOT_FOUND';
     if (quick === 'selected') p.manual = 'GOOD';
     if (quick === 'generated') p.websiteStatus = 'FOUND';
