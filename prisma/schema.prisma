@@ -128,6 +128,7 @@ model Lead {
   website   String?
   websiteDomain String?
   websiteStatus LeadWebsiteStatus @default(UNKNOWN)
+  websiteIneligibilityReason String?
 
   phone     String?
   sourceUrl String?

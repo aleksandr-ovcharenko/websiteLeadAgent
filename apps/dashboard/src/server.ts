@@ -48,6 +48,7 @@ app.get('/api/leads', requireSuperAdmin, async (req: Request, res: Response) => 
   const websiteStatus = typeof req.query.websiteStatus === 'string' ? req.query.websiteStatus : '';
   const enrichmentStatus = typeof req.query.enrichmentStatus === 'string' ? req.query.enrichmentStatus : '';
   const auditStatus = typeof req.query.auditStatus === 'string' ? req.query.auditStatus : '';
+  const includeExcluded = req.query.includeExcluded === '1';
   const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   const sort = typeof req.query.sort === 'string' ? req.query.sort : 'lead_desc';
   const discoveryRunId = typeof req.query.discoveryRunId === 'string' ? req.query.discoveryRunId : '';
@@ -112,6 +113,8 @@ app.get('/api/leads', requireSuperAdmin, async (req: Request, res: Response) => 
 
   if (websiteStatus) {
     where.websiteStatus = websiteStatus;
+  } else if (!includeExcluded) {
+    where.websiteStatus = 'FOUND';
   }
 
   if (enrichmentStatus) {
@@ -184,6 +187,7 @@ app.get('/api/leads', requireSuperAdmin, async (req: Request, res: Response) => 
       businessConfidenceScore: true,
       leadScoreV2: true,
       websiteStatus: true,
+      websiteIneligibilityReason: true,
       enrichmentStatus: true,
       scoreStatus: true,
       generationStatus: true,

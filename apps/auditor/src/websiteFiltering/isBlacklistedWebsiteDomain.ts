@@ -1,12 +1,6 @@
-const BLACKLIST = [
-  'minsk.jsprav.ru',
-  'rubrikator.org',
-  'spisok.by',
-  'spr.by',
-  'by.spr.ru'
-];
+import { evaluateWebsiteEligibility } from '../../../collector/src/utils/evaluateWebsiteEligibility.js';
 
 export function isBlacklistedWebsiteDomain(domain: string): boolean {
-  const d = domain.toLowerCase();
-  return BLACKLIST.some((b) => d === b || d.endsWith(`.${b}`));
+  const result = evaluateWebsiteEligibility(domain);
+  return !result.eligible;
 }

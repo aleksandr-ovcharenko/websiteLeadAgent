@@ -1,6 +1,6 @@
 import type { DgisItem } from './fetch2gisItems.js';
 import type { Prisma } from '@prisma/client';
-import { normalizeWebsiteDomain } from '../../utils/normalizeWebsiteDomain.js';
+import { evaluateWebsiteEligibility } from '../../utils/evaluateWebsiteEligibility.js';
 
 export function map2gisItemToLeadUpsert(input: {
   city: string;
@@ -18,9 +18,16 @@ export function map2gisItemToLeadUpsert(input: {
     .filter((x: string | undefined): x is string => Boolean(x));
 
   const phone = (item.contacts ?? []).find((c: { type?: string; value?: string }) => c.type === 'phone')?.value;
-  const website = (item.contacts ?? []).find((c: { type?: string; value?: string }) => c.type === 'website')?.value;
+  const rawWebsite = (item.contacts ?? []).find((c: { type?: string; value?: string }) => c.type === 'website')?.value;
 
-  const websiteDomain = website ? normalizeWebsiteDomain(website) : null;
+  const eligibility = rawWebsite
+    ? evaluateWebsiteEligibility(rawWebsite)
+    : { eligible: false, canonicalUrl: null, canonicalDomain: null, reason: 'NO_WEBSITE' as const, matchedRule: null };
+
+  const website = eligibility.eligible ? eligibility.canonicalUrl : null;
+  const websiteDomain = eligibility.eligible ? eligibility.canonicalDomain : null;
+  const websiteStatus = eligibility.eligible ? 'FOUND' : 'UNKNOWN';
+  const websiteIneligibilityReason = eligibility.eligible ? null : eligibility.reason;
 
   const create: Prisma.LeadCreateInput = {
     source: 'dgis',
@@ -31,9 +38,10 @@ export function map2gisItemToLeadUpsert(input: {
     categories,
     latitude: item.point?.lat ?? null,
     longitude: item.point?.lon ?? null,
-    website: website ?? null,
+    website,
     websiteDomain,
-    websiteStatus: website ? 'FOUND' : 'UNKNOWN',
+    websiteStatus,
+    websiteIneligibilityReason,
     phone: phone ?? null,
     sourceUrl: item.url ?? null
   };
@@ -44,9 +52,10 @@ export function map2gisItemToLeadUpsert(input: {
     categories,
     latitude: item.point?.lat ?? null,
     longitude: item.point?.lon ?? null,
-    website: website ?? null,
+    website,
     websiteDomain,
-    websiteStatus: website ? 'FOUND' : 'UNKNOWN',
+    websiteStatus,
+    websiteIneligibilityReason,
     phone: phone ?? null,
     sourceUrl: item.url ?? null
   };

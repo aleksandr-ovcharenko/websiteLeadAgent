@@ -8,6 +8,7 @@ export function normalizeWebsiteDomain(input: string): string | null {
 
     const normalized = host.startsWith('www.') ? host.slice(4) : host;
     if (!normalized || normalized === 'localhost') return null;
+    if (!normalized.includes('.')) return null;
 
     return normalized;
   } catch {

@@ -4,6 +4,7 @@ import { OSMEnrichmentProvider } from './providers/osm/osmEnrichmentProvider.js'
 import { SerpApiEnrichmentProvider } from './providers/serpapi/serpApiEnrichmentProvider.js';
 import { DDGEnrichmentProvider } from './providers/ddg/ddgEnrichmentProvider.js';
 import { normalizeWebsiteDomain } from '../utils/normalizeWebsiteDomain.js';
+import { evaluateWebsiteEligibility } from '../utils/evaluateWebsiteEligibility.js';
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -41,14 +42,23 @@ export async function enrichLeads(input: {
       let phone: string | null = null;
       let source: string | undefined;
 
+      let lastReason: string | null = lead.websiteIneligibilityReason ?? 'NO_WEBSITE';
+
       for (const provider of providers) {
         const result = await provider.enrich({ lead });
         source = result.source;
-
-        website = result.website ?? null;
         phone = result.phone ?? null;
 
-        if (website || phone) break;
+        if (result.website) {
+          const eligibility = evaluateWebsiteEligibility(result.website);
+          if (eligibility.eligible) {
+            website = eligibility.canonicalUrl;
+            lastReason = null;
+            break;
+          } else {
+            lastReason = eligibility.reason;
+          }
+        }
       }
 
       enriched++;
@@ -64,11 +74,12 @@ export async function enrichLeads(input: {
           websiteDomain,
           phone,
           enrichmentStatus: 'SUCCESS',
-          websiteStatus: website ? 'FOUND' : 'NOT_FOUND'
+          websiteStatus: website ? 'FOUND' : 'NOT_FOUND',
+          websiteIneligibilityReason: website ? null : lastReason,
         }
       });
 
-      logger.info({ runId, leadId: lead.id, websiteFound: Boolean(website), source }, 'enrichment.lead');
+      logger.info({ runId, leadId: lead.id, websiteFound: Boolean(website), source, reason: lastReason }, 'enrichment.lead');
     } catch (err) {
       await prisma.lead.update({
         where: { id: lead.id },
