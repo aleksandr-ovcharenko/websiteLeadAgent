@@ -1,7 +1,7 @@
 import express, { type Request, type Response } from 'express';
 import { prisma, requireSuperAdmin } from './auth.js';
 import { captureSitePreview, getScreenshotStoragePath, getScreenshotUrl } from '../../../packages/screenshot/src/index.js';
-import { getPipelineStageLabel } from '@minsk/redesign-engine';
+import { getPipelineStageLabel, generateSite } from '@minsk/redesign-engine';
 
 const router = express.Router();
 router.use(express.json());
@@ -76,6 +76,25 @@ async function toPlatformSite(site: any): Promise<any> {
   };
 }
 
+router.get('/api/hub/stats', requireSuperAdmin, async (_req: Request, res: Response) => {
+  const [totalLeads, goodLeads, totalSites, activeRuns, runningRuns] = await Promise.all([
+    prisma.lead.count(),
+    prisma.lead.count({ where: { manualReviewStatus: 'GOOD' } }),
+    prisma.site.count({ where: { status: { not: 'ARCHIVED' } } }),
+    prisma.redesignRun.count(),
+    prisma.redesignRun.count({
+      where: { stage: { notIn: ['NOT_SELECTED', 'READY_TO_CONTACT', 'DEMO_APPROVED'] } }
+    }),
+  ]);
+  res.json({
+    totalLeads,
+    goodLeads,
+    totalSites,
+    activeRuns,
+    runningRuns,
+  });
+});
+
 router.get('/api/platform/sites', async (_req: Request, res: Response) => {
   const sites = await prisma.site.findMany({
     include: {
@@ -139,6 +158,86 @@ router.get('/site-screenshots/:siteId/preview.png', async (req: Request, res: Re
   } catch {
     res.status(404).send();
   }
+});
+
+router.get('/api/factory/runs', requireSuperAdmin, async (_req: Request, res: Response) => {
+  const raw = await prisma.redesignRun.findMany({
+    orderBy: { createdAt: 'desc' },
+    include: {
+      lead: { select: { id: true, companyName: true } },
+      site: { select: { id: true, name: true, domain: true, templateId: true, previewToken: true, status: true } }
+    }
+  });
+
+  const stageOrder = [
+    'NOT_SELECTED',
+    'SELECTED_FOR_REDESIGN',
+    'CONTENT_EXTRACTED',
+    'CONTENT_TRANSFORMED',
+    'CMS_IMPORTED',
+    'SITE_RENDERED',
+    'AUDIT_DONE',
+    'DEMO_GENERATED',
+    'DEMO_APPROVED',
+    'READY_TO_CONTACT'
+  ];
+
+  const stageIndex = (stage: string) => stageOrder.indexOf(stage || '');
+
+  const runs = raw.map((run: any, i: number) => {
+    const totalStages = 8;
+    const idx = stageIndex(run.stage);
+    const isFailed = !!run.errorMessage;
+    const isCompleted = ['DEMO_APPROVED', 'READY_TO_CONTACT'].includes(run.stage);
+    const isQueued = ['NOT_SELECTED', 'SELECTED_FOR_REDESIGN'].includes(run.stage) && !isFailed;
+    const isRunning = !isFailed && !isCompleted && !isQueued;
+
+    let status: 'queued' | 'running' | 'failed' | 'completed' = isCompleted ? 'completed' : isFailed ? 'failed' : isQueued ? 'queued' : 'running';
+    let stagesDone = Math.max(0, Math.min(idx - 1, totalStages));
+    if (status === 'completed') stagesDone = totalStages;
+    if (status === 'queued') stagesDone = 0;
+
+    const startedAt = run.createdAt ? new Date(run.createdAt).toLocaleString('ru-RU', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+    const currentStage = getPipelineStageLabel(run.stage);
+
+    return {
+      id: run.id,
+      runNumber: raw.length - i,
+      company: run.lead?.companyName || run.site?.name || '—',
+      domain: run.site?.domain || '—',
+      status,
+      currentStage,
+      stagesDone,
+      stagesTotal: totalStages,
+      started: startedAt,
+      duration: '—',
+      failedStage: isFailed ? currentStage : undefined,
+      failedReason: run.errorMessage || undefined,
+      leadId: run.leadId,
+      siteId: run.site?.id,
+      forgeId: run.site?.id,
+      previewToken: run.site?.previewToken,
+    };
+  });
+
+  res.json({ runs });
+});
+
+router.post('/api/factory/runs/:runId/retry', requireSuperAdmin, async (req: Request, res: Response) => {
+  const runId = String(req.params.runId);
+  const run = await prisma.redesignRun.findUnique({
+    where: { id: runId },
+    include: { site: { select: { id: true, templateId: true } } }
+  });
+  if (!run) { res.status(404).json({ error: 'not_found' }); return; }
+
+  const result = await generateSite({
+    leadId: run.leadId,
+    templateId: run.site?.templateId || 'construction-modern-v1',
+    force: true,
+    prisma,
+  });
+  res.json({ ok: true, ...result });
 });
 
 export { router as platformRouter };

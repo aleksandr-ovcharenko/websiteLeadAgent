@@ -1,6 +1,10 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import RadarView from "./Radar";
 import Studio from "./cms/Studio";
+import ProductHeader from "./cms/ProductHeader";
+import type { ProductArea } from "./cms/ProductHeader";
+import Hub from "./Hub";
+import Factory from "./Factory";
 
 type Status =
   | "DRAFT"
@@ -1002,58 +1006,26 @@ function ForgeView() {
   );
 }
 
-// ── Product Router ─────────────────────────────────────────────────────────────
-
-function HubView({ onRadar, onForge }: { onRadar: () => void; onForge: () => void }) {
-  return (
-    <div className="min-h-screen bg-[#F4F4F3] font-sans flex items-center justify-center">
-      <div className="max-w-md w-full mx-auto px-6">
-        <div className="bg-white border border-stone-200 rounded-xl shadow-sm p-8">
-          <div className="flex items-center gap-2 mb-6">
-            <div className="w-5 h-5 bg-green-600 rounded-sm flex items-center justify-center">
-              <svg width="11" height="11" viewBox="0 0 11 11" fill="white">
-                <rect x="1" y="1" width="4" height="4" rx="0.5" />
-                <rect x="6" y="1" width="4" height="4" rx="0.5" />
-                <rect x="1" y="6" width="4" height="4" rx="0.5" />
-                <rect x="6" y="6" width="4" height="4" rx="0.5" />
-              </svg>
-            </div>
-            <h1 className="text-lg font-semibold text-stone-900">WebsiteLeadAgent</h1>
-          </div>
-          <p className="text-xs text-stone-500 mb-4">Choose a product area</p>
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={onRadar}
-              className="text-left p-4 border border-stone-200 rounded-lg hover:border-green-600 hover:bg-green-50/30 transition-colors"
-            >
-              <div className="text-sm font-semibold text-stone-900">Radar</div>
-              <div className="text-xs text-stone-500 mt-0.5">Find and qualify leads</div>
-            </button>
-            <button
-              onClick={onForge}
-              className="text-left p-4 border border-stone-200 rounded-lg hover:border-green-600 hover:bg-green-50/30 transition-colors"
-            >
-              <div className="text-sm font-semibold text-stone-900">Forge</div>
-              <div className="text-xs text-stone-500 mt-0.5">Generated Sites</div>
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
+function viewPath(view: ProductArea, siteId?: string) {
+  if (view === 'hub') return '/';
+  if (view === 'studio' && siteId) return `/studio/${siteId}`;
+  return `/${view}`;
 }
 
 export default function App({ user }: { user?: any }) {
   const parse = () => {
     const p = window.location.pathname.replace(/\/$/, '');
-    if (p === '/radar' || p.startsWith('/radar/') || p === '/leads' || p.startsWith('/leads/')) return { view: 'radar' as const };
-    if (p === '/forge' || p.startsWith('/forge/') || p === '/sites' || p.startsWith('/sites/')) return { view: 'forge' as const };
-    if (p.startsWith('/studio/')) return { view: 'studio' as const, siteId: p.split('/')[2] };
-    return { view: 'hub' as const };
+    if (p === '/radar' || p.startsWith('/radar/')) return { view: 'radar' as ProductArea };
+    if (p === '/factory' || p.startsWith('/factory/')) return { view: 'factory' as ProductArea };
+    if (p === '/forge' || p.startsWith('/forge/')) return { view: 'forge' as ProductArea };
+    if (p.startsWith('/studio/')) return { view: 'studio' as ProductArea, siteId: p.split('/')[2] };
+    return { view: 'hub' as ProductArea };
   };
   const initial = parse();
-  const [view, setView] = useState<string>(initial.view);
+  const [view, setView] = useState<ProductArea>(initial.view);
   const [studioSiteId, setStudioSiteId] = useState<string | undefined>(initial.siteId);
+  const isSuperAdmin = user?.globalRole === 'SUPER_ADMIN';
+
   useEffect(() => {
     const onPop = () => {
       const v = parse();
@@ -1063,14 +1035,39 @@ export default function App({ user }: { user?: any }) {
     window.addEventListener('popstate', onPop);
     return () => window.removeEventListener('popstate', onPop);
   }, []);
-  function navigate(v: string, siteId?: string) {
-    window.history.pushState(null, '', '/' + v);
+
+  function navigate(v: ProductArea, siteId?: string) {
+    const url = viewPath(v, siteId);
+    if (v === 'studio' && siteId) {
+      window.location.href = url;
+      return;
+    }
+    window.history.pushState(null, '', url);
     setView(v);
     if (siteId) setStudioSiteId(siteId);
   }
-  if (view === 'studio' && studioSiteId) return <Studio siteId={studioSiteId} user={user} />;
-  if (user?.globalRole !== 'SUPER_ADMIN' && view === 'hub') return <ForgeView />;
-  if (view === 'forge') return <ForgeView />;
-  if (view === 'radar') return <RadarView onForge={() => navigate('forge')} />;
-  return <HubView onRadar={() => navigate('radar')} onForge={() => navigate('forge')} />;
+
+  const renderContent = () => {
+    const common = 'flex-1';
+    switch (view) {
+      case 'studio':
+        return studioSiteId ? <Studio siteId={studioSiteId} user={user} /> : <div className={common} />;
+      case 'radar':
+        return <div className={`${common} overflow-y-auto`}><RadarView onForge={() => navigate('forge')} /></div>;
+      case 'factory':
+        return <div className={common}><Factory onNavigate={navigate} /></div>;
+      case 'forge':
+        return <div className={`${common} overflow-y-auto`}><ForgeView /></div>;
+      case 'hub':
+      default:
+        return isSuperAdmin ? <div className={common}><Hub onNavigate={navigate} /></div> : <div className={`${common} overflow-y-auto`}><ForgeView /></div>;
+    }
+  };
+
+  return (
+    <div className="h-screen flex flex-col overflow-hidden bg-[#f4f5f7]">
+      <ProductHeader productArea={view} siteId={view === 'studio' ? studioSiteId : undefined} user={user} onNavigate={navigate} />
+      {renderContent()}
+    </div>
+  );
 }

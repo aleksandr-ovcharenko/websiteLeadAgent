@@ -34,6 +34,11 @@ export const api = {
   // Site
   getSite: (siteId: string) => request(`/api/cms/sites/${siteId}`) as Promise<any>,
   getSites: () => request('/api/cms/sites') as Promise<{ sites: any[] }>,
+  getHubStats: () => request('/api/hub/stats') as Promise<any>,
+
+  // Factory
+  getFactoryRuns: () => request('/api/factory/runs') as Promise<{ runs: any[] }>,
+  retryFactoryRun: (runId: string) => request(`/api/factory/runs/${runId}/retry`, { method: 'POST' }) as Promise<any>,
 
   // Settings
   saveSettings: (siteId: string, data: any) => request(`/api/cms/sites/${siteId}/settings`, {
