@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../cms/api';
 import { Button } from '../cms/ui';
+import { OperationConsole } from './OperationConsole';
 
 interface Provider {
   id: string;
@@ -28,6 +29,8 @@ export default function RadarProviders({ onNewDiscovery, onOpenPresets }: RadarP
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Provider | null>(null);
   const [testing, setTesting] = useState<string | null>(null);
+  const [activeRunId, setActiveRunId] = useState<string | null>(null);
+  const [activeRunTitle, setActiveRunTitle] = useState('');
 
   const refresh = async () => {
     setLoading(true);
@@ -53,11 +56,16 @@ export default function RadarProviders({ onNewDiscovery, onOpenPresets }: RadarP
     }
   }
 
-  async function testProvider(id: string) {
-    setTesting(id);
+  async function testProvider(p: Provider) {
+    setTesting(p.id);
     try {
-      await api.testDiscoveryProvider(id);
-      await refresh();
+      const { run } = await api.startOperation({
+        operationId: 'TEST_PROVIDER',
+        input: { providerId: p.id },
+        entityType: 'DiscoveryProviderConfig',
+      });
+      setActiveRunId(run.id);
+      setActiveRunTitle(`Test provider: ${p.name}`);
     } catch (e: any) {
       setError(e.message || 'Test failed');
     } finally {
@@ -141,7 +149,7 @@ export default function RadarProviders({ onNewDiscovery, onOpenPresets }: RadarP
 
               <div className="mt-auto flex flex-wrap gap-2">
                 <Button size="sm" onClick={() => setSelected(p)}>Configure</Button>
-                <Button variant="secondary" size="sm" onClick={() => testProvider(p.id)} disabled={testing === p.id}>
+                <Button variant="secondary" size="sm" onClick={() => testProvider(p)} disabled={testing === p.id}>
                   {testing === p.id ? '…' : 'Test'}
                 </Button>
                 <Button variant="secondary" size="sm" onClick={() => onNewDiscovery(p.id)} disabled={!p.configured || p.status === 'DISABLED'}>
@@ -155,6 +163,12 @@ export default function RadarProviders({ onNewDiscovery, onOpenPresets }: RadarP
           ))}
         </div>
       </div>
+
+      {activeRunId && (
+        <div className="p-6 pt-0">
+          <OperationConsole runId={activeRunId} title={activeRunTitle} onClose={() => setActiveRunId(null)} />
+        </div>
+      )}
 
       {selected && (
         <ProviderConfigModal

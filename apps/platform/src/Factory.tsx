@@ -3,6 +3,7 @@ import { ProductArea } from './cms/ProductHeader'
 import { Button } from './cms/ui'
 import { IconX, IconCheck, IconChevronRight } from './cms/icons'
 import { api } from './cms/api'
+import { OperationConsole } from './radar/OperationConsole'
 
 type RunStatus = 'queued' | 'running' | 'failed' | 'completed'
 
@@ -19,6 +20,7 @@ interface PipelineRun {
   duration: string
   failedStage?: string
   failedReason?: string
+  leadId?: string
   forgeId?: string
   previewToken?: string
 }
@@ -104,6 +106,8 @@ export default function Factory({ onNavigate }: FactoryProps) {
   const [error, setError] = useState<string | null>(null)
   const [selectedRunId, setSelectedRunId] = useState<string | null>(null)
   const [retrying, setRetrying] = useState<string | null>(null)
+  const [activeRunId, setActiveRunId] = useState<string | null>(null)
+  const [activeTitle, setActiveTitle] = useState('')
   const { toast, show } = useToast()
 
   const refresh = async () => {
@@ -122,11 +126,18 @@ export default function Factory({ onNavigate }: FactoryProps) {
   useEffect(() => { refresh() }, [])
 
   const handleRetry = async (run: PipelineRun) => {
+    if (!run.leadId) { show('No leadId for this run'); return; }
     setRetrying(run.id)
     try {
-      await api.retryFactoryRun(run.id)
+      const { run: op } = await api.startOperation({
+        operationId: 'GENERATE_SITE',
+        input: { leadId: run.leadId, force: true },
+        entityType: 'RedesignRun',
+        entityId: run.id,
+      })
+      setActiveRunId(op.id)
+      setActiveTitle(`Generate site: ${run.company}`)
       show(`Run #${run.runNumber} queued for retry`)
-      await refresh()
     } catch (e: any) {
       show(e.message || 'Retry failed')
     } finally {
@@ -265,6 +276,12 @@ export default function Factory({ onNavigate }: FactoryProps) {
                     {retrying === selectedRun.id ? 'Retrying…' : 'Retry'}
                   </Button>
                 </div>
+              </div>
+            )}
+
+            {activeRunId && (
+              <div className="px-5 py-3 border-b border-gray-100">
+                <OperationConsole runId={activeRunId} title={activeTitle} onClose={() => setActiveRunId(null)} />
               </div>
             )}
 

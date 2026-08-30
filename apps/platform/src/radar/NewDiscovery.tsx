@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../cms/ui';
 import { api } from '../cms/api';
+import { OperationConsole } from './OperationConsole';
 
 interface NewDiscoveryProps {
   open: boolean;
@@ -40,6 +41,7 @@ export default function NewDiscovery({ open, onClose, onStarted, initialData }: 
   const [manualEntries, setManualEntries] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [operationRunId, setOperationRunId] = useState<string | null>(null);
 
   const selectedProvider = useMemo(() => providers.find((p) => p.id === provider), [providers, provider]);
   const selectedPreset = useMemo(() => presets.find((p) => p.id === topic), [presets, topic]);
@@ -104,11 +106,13 @@ export default function NewDiscovery({ open, onClose, onStarted, initialData }: 
       if (topic) payload.topic = topic;
       if (provider === 'manual') payload.manualEntries = manualEntries.trim();
 
-      await api.startDiscoveryRun(payload);
-      setQuery('');
-      setManualEntries('');
-      onStarted();
-      onClose();
+      const { run } = await api.startOperation({
+        operationId: 'DISCOVER_BUSINESSES',
+        input: payload,
+        entityType: 'DiscoveryRun',
+      });
+      setOperationRunId(run.id);
+      onStarted(run.id);
     } catch (e: any) {
       setError(e.message || 'Discovery failed');
     } finally {
@@ -118,17 +122,25 @@ export default function NewDiscovery({ open, onClose, onStarted, initialData }: 
 
   if (!open) return null;
 
+  const handleClose = () => {
+    setOperationRunId(null);
+    setError(null);
+    onClose();
+  };
+
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30">
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-5">
+      <div className={`bg-white rounded-lg shadow-xl w-full mx-4 p-5 ${operationRunId ? 'max-w-2xl' : 'max-w-lg'}`}>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-[15px] font-semibold text-[#1c1917]">New discovery</h2>
-          <button onClick={onClose} className="text-[#a8a29e] hover:text-[#57534e]">×</button>
+          <button onClick={handleClose} className="text-[#a8a29e] hover:text-[#57534e]">×</button>
         </div>
 
         {error && <div className="mb-3 text-[12px] text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
 
-        {loadingProviders ? (
+        {operationRunId ? (
+          <OperationConsole runId={operationRunId} title="Discovery run" onClose={handleClose} />
+        ) : loadingProviders ? (
           <div className="text-[13px] text-[#a8a29e] py-6 text-center">Loading discovery options…</div>
         ) : (
           <div className="space-y-3">
@@ -238,14 +250,17 @@ export default function NewDiscovery({ open, onClose, onStarted, initialData }: 
         )}
 
         <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-[#e5e3df]">
-          <Button variant="secondary" onClick={onClose}>Cancel</Button>
-          <Button
-            variant="primary"
-            disabled={!selectedProvider?.configured || submitting}
-            onClick={handleSubmit}
-          >
-            {submitting ? 'Starting…' : 'Start discovery'}
-          </Button>
+          {!operationRunId && <Button variant="secondary" onClick={handleClose}>Cancel</Button>}
+          {!operationRunId && (
+            <Button
+              variant="primary"
+              disabled={!selectedProvider?.configured || submitting}
+              onClick={handleSubmit}
+            >
+              {submitting ? 'Starting…' : 'Start discovery'}
+            </Button>
+          )}
+          {operationRunId && <Button variant="secondary" onClick={handleClose}>Close</Button>}
         </div>
       </div>
     </div>

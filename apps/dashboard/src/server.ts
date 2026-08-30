@@ -9,11 +9,13 @@ import { sessionMiddleware, authRouter, requireSuperAdmin } from './auth.js';
 import { platformRouter } from './platform.js';
 import { generateSite } from '@minsk/redesign-engine';
 import { DiscoveryService, listDiscoveryProviders, getDiscoveryProvider, DISCOVERY_PRESETS } from './discovery/index.js';
+import { OperationService } from './operations/index.js';
 
 const prisma = new PrismaClient();
 const app = express();
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 const discovery = new DiscoveryService({ prisma, logger, env: process.env });
+const operations = new OperationService({ prisma, logger, env: process.env, discovery });
 
 app.use(sessionMiddleware);
 app.use(express.json());
@@ -419,6 +421,41 @@ app.get('/api/discovery/runs/:runId/duplicate', requireSuperAdmin, async (req: R
     maxPages: existing.maxPages,
     providerOptions: existing.providerOptions,
   });
+});
+
+app.get('/api/operations/definitions', requireSuperAdmin, async (_req: Request, res: Response) => {
+  res.json({ operations: operations.getDefinitions() });
+});
+
+app.post('/api/operations', requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const result = await operations.execute(req.body);
+    res.json(result);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/operations', requireSuperAdmin, async (req: Request, res: Response) => {
+  const take = Math.min(100, Math.max(1, Number(req.query.take ?? 50)));
+  const skip = Math.max(0, Number(req.query.skip ?? 0));
+  res.json(await operations.listRuns(take, skip));
+});
+
+app.get('/api/operations/:runId', requireSuperAdmin, async (req: Request, res: Response) => {
+  const run = await operations.getRun(String(req.params.runId));
+  if (!run) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json({ run });
+});
+
+app.get('/api/operations/:runId/events', requireSuperAdmin, async (req: Request, res: Response) => {
+  const events = await operations.listEvents(String(req.params.runId));
+  res.json({ events });
+});
+
+app.post('/api/operations/:runId/cancel', requireSuperAdmin, async (req: Request, res: Response) => {
+  const run = await operations.cancel(String(req.params.runId));
+  res.json({ run });
 });
 
 app.use('/api/auth', authRouter);

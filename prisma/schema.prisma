@@ -625,3 +625,41 @@ model DiscoverySetting {
   value Json?
   updatedAt DateTime @updatedAt
 }
+
+model OperationRun {
+  id            String   @id @default(cuid())
+  operationId   String
+  status        String   @default("PENDING")
+  entityType    String?
+  entityId      String?
+  leadId        String?
+  startedAt     DateTime @default(now())
+  finishedAt    DateTime?
+  createdBy     String?
+  result        Json?
+  error         Json?
+  metadata      Json?    @default("{}")
+  events        OperationEvent[]
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([operationId])
+  @@index([status])
+  @@index([entityType, entityId])
+  @@index([leadId])
+  @@index([createdAt])
+}
+
+model OperationEvent {
+  id             String   @id @default(cuid())
+  operationRunId String
+  level          String   @default("INFO")
+  stage          String?
+  message        String
+  metadata       Json?    @default("{}")
+  createdAt      DateTime @default(now())
+  operation      OperationRun @relation(fields: [operationRunId], references: [id], onDelete: Cascade)
+
+  @@index([operationRunId])
+  @@index([createdAt])
+}

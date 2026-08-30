@@ -2,15 +2,17 @@ import { useEffect, useState } from 'react';
 import RadarProviders from './RadarProviders';
 import RadarPresets from './RadarPresets';
 import RadarHistory from './RadarHistory';
+import RadarLeads from './RadarLeads';
 import NewDiscovery from './NewDiscovery';
 
 function getView(path: string) {
+  if (path === '/radar' || path === '/radar/leads') return 'leads';
   if (path === '/radar/providers') return 'providers';
   if (path === '/radar/presets') return 'presets';
   if (path === '/radar/discoveries' || path === '/radar/history') return 'history';
   if (path === '/radar/audit-queue') return 'audit';
   if (path === '/radar/selected') return 'selected';
-  return 'providers';
+  return 'leads';
 }
 
 function NavItem({ label, active, onClick, cta }: { label: string; active: boolean; onClick: () => void; cta?: boolean }) {
@@ -31,7 +33,7 @@ function Sidebar({ view, onNew, go }: { view: string; onNew: (p?: string) => voi
         <div className="text-[13px] font-semibold text-[#1c1917] mt-0.5">Super Admin</div>
       </div>
       <nav className="p-2.5 space-y-px">
-        <NavItem label="Leads" active={false} onClick={() => go('/radar')} />
+        <NavItem label="Leads" active={view === 'leads'} onClick={() => go('/radar')} />
         <NavItem label="New discovery" active={false} onClick={() => onNew()} cta />
         <NavItem label="Discovery history" active={view === 'history'} onClick={() => go('/radar/discoveries')} />
         <NavItem label="Audit queue" active={view === 'audit'} onClick={() => go('/radar/audit-queue')} />
@@ -73,11 +75,12 @@ export default function RadarConfiguration() {
   return (
     <div className="min-h-full bg-[#f5f4f2] flex">
       <Sidebar view={view} onNew={openNew} go={go} />
+      {view === 'leads' && <RadarLeads mode="all" />}
+      {view === 'audit' && <RadarLeads mode="audit" />}
+      {view === 'selected' && <RadarLeads mode="selected" />}
       {view === 'providers' && <RadarProviders onNewDiscovery={openNew} onOpenPresets={() => go('/radar/presets')} />}
       {view === 'presets' && <RadarPresets onBack={() => go('/radar/providers')} />}
       {view === 'history' && <RadarHistory onNewDiscovery={openNew} onDuplicate={(run) => { setPrefill(run); setNewOpen(true); }} />}
-      {view === 'audit' && <div className="flex-1 p-6 text-[13px] text-[#a8a29e]">Audit queue view coming soon.</div>}
-      {view === 'selected' && <div className="flex-1 p-6 text-[13px] text-[#a8a29e]">Selected leads view coming soon.</div>}
       <NewDiscovery open={newOpen} onClose={() => setNewOpen(false)} onStarted={reload} initialData={prefill} />
     </div>
   );

@@ -1,0 +1,32 @@
+{
+  "results": [
+    {
+      "name": "radar-unified-shell",
+      "ok": true
+    },
+    {
+      "name": "provider-test-console",
+      "ok": true
+    },
+    {
+      "name": "provider-test-final",
+      "ok": true
+    },
+    {
+      "name": "discovery-console-running",
+      "ok": true
+    },
+    {
+      "name": "discovery-console-final",
+      "ok": true
+    },
+    {
+      "name": "lead-operation-console",
+      "ok": true
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+}

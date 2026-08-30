@@ -36,6 +36,9 @@ export const api = {
   getSites: () => request('/api/cms/sites') as Promise<{ sites: any[] }>,
   getHubStats: () => request('/api/hub/stats') as Promise<any>,
 
+  // Leads
+  getLeads: (limit = 500, offset = 0) => request(`/api/leads?limit=${limit}&offset=${offset}`) as Promise<{ items: any[] }>,
+
   // Factory
   getFactoryRuns: () => request('/api/factory/runs') as Promise<{ runs: any[] }>,
   retryFactoryRun: (runId: string) => request(`/api/factory/runs/${runId}/retry`, { method: 'POST' }) as Promise<any>,
@@ -56,6 +59,15 @@ export const api = {
   startDiscoveryRun: (data: any) => request('/api/discovery/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) as Promise<{ run: any; warning?: string }>,
   runDiscoveryAgain: (runId: string) => request(`/api/discovery/runs/${runId}/run-again`, { method: 'POST' }) as Promise<{ run: any; warning?: string }>,
   duplicateDiscoveryRun: (runId: string) => request(`/api/discovery/runs/${runId}/duplicate`) as Promise<any>,
+
+  // Operations
+  getOperationDefinitions: () => request('/api/operations/definitions') as Promise<{ operations: any[] }>,
+  listOperations: (take = 50, skip = 0) => request(`/api/operations?take=${take}&skip=${skip}`) as Promise<{ items: any[]; count: number }>,
+  getOperation: (runId: string) => request(`/api/operations/${runId}`) as Promise<{ run: any }>,
+  getOperationEvents: (runId: string) => request(`/api/operations/${runId}/events`) as Promise<{ events: any[] }>,
+  startOperation: (data: { operationId: string; input?: Record<string, any>; entityType?: string; entityId?: string; leadId?: string }) =>
+    request('/api/operations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) as Promise<{ run: any }>,
+  cancelOperation: (runId: string) => request(`/api/operations/${runId}/cancel`, { method: 'POST' }) as Promise<{ run: any }>,
 
   // Settings
   saveSettings: (siteId: string, data: any) => request(`/api/cms/sites/${siteId}/settings`, {
