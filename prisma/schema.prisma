@@ -8,6 +8,10 @@ datasource db {
 
 enum LeadSource {
   dgis
+  manual
+  osm
+  ddg
+  yandex
 }
 
 enum LeadWebsiteStatus {
@@ -558,4 +562,66 @@ model SitePreviewScreenshot {
   updatedAt DateTime @updatedAt
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+}
+
+model DiscoveryRun {
+  id        String   @id @default(cuid())
+  provider  String
+  requestedProvider String?
+  query     String
+  topic     String?
+  location  String?
+  limit     Int      @default(50)
+  maxPages  Int?
+  providerOptions Json?    @default("{}")
+  status    String   @default("PENDING")
+  leadIds   String[]
+  collected Int      @default(0)
+  createdCount Int   @default(0)
+  duplicateCount Int @default(0)
+  errorMessage String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([provider])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model DiscoveryProviderConfig {
+  id            String   @id @default(cuid())
+  providerId    String   @unique
+  enabled       Boolean  @default(true)
+  defaults      Json?    @default("{}")
+  lastTestAt    DateTime?
+  lastTestStatus String?
+  lastTestMessage String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([providerId])
+  @@index([enabled])
+}
+
+model DiscoveryPreset {
+  id              String   @id @default(cuid())
+  name            String
+  category        String?
+  enabled         Boolean  @default(true)
+  defaultProvider String   @default("dgis")
+  query           String
+  queries         String[]
+  defaultLocation String?
+  defaultLimit    Int      @default(50)
+  defaultMaxPages Int      @default(5)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([enabled])
+}
+
+model DiscoverySetting {
+  id    String @id
+  value Json?
+  updatedAt DateTime @updatedAt
 }

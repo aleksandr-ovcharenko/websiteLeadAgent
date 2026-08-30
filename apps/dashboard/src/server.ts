@@ -4,12 +4,16 @@ import { PrismaClient } from '@prisma/client';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { Request, Response } from 'express';
+import pino from 'pino';
 import { sessionMiddleware, authRouter, requireSuperAdmin } from './auth.js';
 import { platformRouter } from './platform.js';
 import { generateSite } from '@minsk/redesign-engine';
+import { DiscoveryService, listDiscoveryProviders, getDiscoveryProvider, DISCOVERY_PRESETS } from './discovery/index.js';
 
 const prisma = new PrismaClient();
 const app = express();
+const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const discovery = new DiscoveryService({ prisma, logger, env: process.env });
 
 app.use(sessionMiddleware);
 app.use(express.json());
@@ -286,6 +290,135 @@ app.get('/audit/:leadId/:file', requireSuperAdmin, async (req: Request, res: Res
   } catch {
     res.status(404).json({ error: 'not_found' });
   }
+});
+
+app.get('/api/discovery/providers', requireSuperAdmin, async (_req: Request, res: Response) => {
+  const providers = await discovery.listProviders();
+  res.json({ providers });
+});
+
+app.get('/api/discovery/providers/:providerId', requireSuperAdmin, async (req: Request, res: Response) => {
+  const providers = await discovery.listProviders();
+  const p = providers.find((x: any) => x.id === req.params.providerId);
+  if (!p) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json({ provider: p });
+});
+
+app.put('/api/discovery/providers/:providerId/config', requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const updated = await discovery.updateProviderConfig(String(req.params.providerId), req.body);
+    res.json({ config: updated });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.post('/api/discovery/providers/:providerId/test', requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const result = await discovery.testProvider(String(req.params.providerId));
+    res.json(result);
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/discovery/presets', requireSuperAdmin, async (_req: Request, res: Response) => {
+  const presets = await discovery.listPresets();
+  res.json({ presets });
+});
+
+app.post('/api/discovery/presets', requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const preset = await discovery.createPreset(req.body);
+    res.json({ preset });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.put('/api/discovery/presets/:id', requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const preset = await discovery.updatePreset(String(req.params.id), req.body);
+    res.json({ preset });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.delete('/api/discovery/presets/:id', requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    await discovery.deletePreset(String(req.params.id));
+    res.json({ ok: true });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/discovery/settings', requireSuperAdmin, async (_req: Request, res: Response) => {
+  const settings = await discovery.getSettings();
+  res.json({ settings });
+});
+
+app.put('/api/discovery/settings', requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const settings = await discovery.setSettings(req.body);
+    res.json({ settings });
+  } catch (err: any) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+app.get('/api/discovery/runs', requireSuperAdmin, async (req: Request, res: Response) => {
+  const take = Math.min(100, Math.max(1, Number(req.query.take ?? 50)));
+  const skip = Math.max(0, Number(req.query.skip ?? 0));
+  const result = await discovery.listRuns(take, skip);
+  res.json(result);
+});
+
+app.get('/api/discovery/runs/:runId', requireSuperAdmin, async (req: Request, res: Response) => {
+  const run = await discovery.getRun(String(req.params.runId));
+  if (!run) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json({ run });
+});
+
+app.post('/api/discovery/runs', requireSuperAdmin, async (req: Request, res: Response) => {
+  try {
+    const { run, warning } = await discovery.start(req.body);
+    res.json({ run, warning });
+  } catch (err: any) {
+    const status = err?.error ? 400 : 500;
+    res.status(status).json({ error: err?.error || err?.message || 'discovery_failed' });
+  }
+});
+
+app.post('/api/discovery/runs/:runId/run-again', requireSuperAdmin, async (req: Request, res: Response) => {
+  const existing = await discovery.getRun(String(req.params.runId));
+  if (!existing) { res.status(404).json({ error: 'not_found' }); return; }
+  const { run, warning } = await discovery.start({
+    provider: existing.provider,
+    query: existing.query,
+    topic: existing.topic ?? undefined,
+    location: existing.location ?? undefined,
+    limit: existing.limit,
+    maxPages: existing.maxPages ?? undefined,
+    providerOptions: (existing.providerOptions as Record<string, any>) ?? undefined,
+    requestedProvider: existing.provider,
+  });
+  res.json({ run, warning });
+});
+
+app.get('/api/discovery/runs/:runId/duplicate', requireSuperAdmin, async (req: Request, res: Response) => {
+  const existing = await discovery.getRun(String(req.params.runId));
+  if (!existing) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json({
+    provider: existing.provider,
+    query: existing.query,
+    topic: existing.topic,
+    location: existing.location,
+    limit: existing.limit,
+    maxPages: existing.maxPages,
+    providerOptions: existing.providerOptions,
+  });
 });
 
 app.use('/api/auth', authRouter);

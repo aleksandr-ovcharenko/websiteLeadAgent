@@ -1,0 +1,253 @@
+import { useEffect, useMemo, useState } from 'react';
+import { Button } from '../cms/ui';
+import { api } from '../cms/api';
+
+interface NewDiscoveryProps {
+  open: boolean;
+  onClose: () => void;
+  onStarted: () => void;
+  initialData?: any;
+}
+
+interface Provider {
+  id: string;
+  name: string;
+  configured: boolean;
+  capabilities: Record<string, boolean>;
+  config?: { helpText?: string };
+}
+
+interface Preset {
+  id: string;
+  name: string;
+  category: string;
+  defaultQuery: string;
+  defaultProvider: string;
+  defaultLimit: number;
+}
+
+export default function NewDiscovery({ open, onClose, onStarted, initialData }: NewDiscoveryProps) {
+  const [providers, setProviders] = useState<Provider[]>([]);
+  const [presets, setPresets] = useState<Preset[]>([]);
+  const [loadingProviders, setLoadingProviders] = useState(true);
+
+  const [provider, setProvider] = useState('dgis');
+  const [topic, setTopic] = useState('');
+  const [query, setQuery] = useState('');
+  const [location, setLocation] = useState('Минск');
+  const [limit, setLimit] = useState(50);
+  const [maxPages, setMaxPages] = useState(5);
+  const [manualEntries, setManualEntries] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const selectedProvider = useMemo(() => providers.find((p) => p.id === provider), [providers, provider]);
+  const selectedPreset = useMemo(() => presets.find((p) => p.id === topic), [presets, topic]);
+
+  useEffect(() => {
+    if (open && initialData) {
+      setProvider(initialData.provider || 'dgis');
+      setTopic(initialData.topic || '');
+      setQuery(initialData.query || '');
+      setLocation(initialData.location || 'Минск');
+      setLimit(initialData.limit || 50);
+      setMaxPages(initialData.maxPages || 5);
+      setManualEntries('');
+    }
+  }, [open, initialData]);
+
+  useEffect(() => {
+    if (!open) return;
+    setLoadingProviders(true);
+    Promise.all([api.getDiscoveryProviders(), api.getDiscoveryPresets()])
+      .then(([p, s]) => {
+        setProviders(p.providers || []);
+        setPresets(s.presets || []);
+        if (!provider && p.providers?.[0]) setProvider(p.providers[0].id);
+      })
+      .catch(() => setError('Failed to load discovery options'))
+      .finally(() => setLoadingProviders(false));
+  }, [open]);
+
+  useEffect(() => {
+    if (selectedPreset) {
+      setQuery(selectedPreset.defaultQuery);
+      if (!provider || provider === 'dgis') setProvider(selectedPreset.defaultProvider);
+      setLimit(selectedPreset.defaultLimit);
+    }
+  }, [selectedPreset]);
+
+  async function handleSubmit() {
+    if (!selectedProvider || !selectedProvider.configured) {
+      setError(`${selectedProvider?.name || 'Provider'} is not configured`);
+      return;
+    }
+    if (provider !== 'manual' && !query.trim()) {
+      setError('Enter a search query');
+      return;
+    }
+    if (provider === 'manual' && !manualEntries.trim()) {
+      setError('Paste at least one website or company|website');
+      return;
+    }
+
+    setSubmitting(true);
+    setError(null);
+    try {
+      const payload: any = {
+        provider,
+        query: query.trim(),
+        location: location.trim() || undefined,
+        limit,
+        maxPages,
+      };
+      if (topic) payload.topic = topic;
+      if (provider === 'manual') payload.manualEntries = manualEntries.trim();
+
+      await api.startDiscoveryRun(payload);
+      setQuery('');
+      setManualEntries('');
+      onStarted();
+      onClose();
+    } catch (e: any) {
+      setError(e.message || 'Discovery failed');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 p-5">
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-[15px] font-semibold text-[#1c1917]">New discovery</h2>
+          <button onClick={onClose} className="text-[#a8a29e] hover:text-[#57534e]">×</button>
+        </div>
+
+        {error && <div className="mb-3 text-[12px] text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
+
+        {loadingProviders ? (
+          <div className="text-[13px] text-[#a8a29e] py-6 text-center">Loading discovery options…</div>
+        ) : (
+          <div className="space-y-3">
+            <label className="block text-[12px] font-medium text-[#57534e]">Source</label>
+            <select
+              name="provider"
+              className="w-full h-9 px-2 text-[13px] border border-[#e5e3df] rounded"
+              value={provider}
+              onChange={(e) => { setProvider(e.target.value); setError(null); }}
+            >
+              {providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name} {p.configured ? '● Ready' : '○ Not configured'}
+                </option>
+              ))}
+            </select>
+
+            {selectedProvider && !selectedProvider.configured && (
+              <div className="text-[12px] text-[#92600a] bg-[#fdf8ee] border border-[#e8d5a3] rounded px-3 py-2 space-y-2">
+                <div>{selectedProvider.config?.helpText || `${selectedProvider.name} is not configured`}</div>
+                <a
+                  href="/radar/providers"
+                  onClick={(e) => { e.preventDefault(); window.location.href = '/radar/providers'; }}
+                  className="inline-flex items-center px-2.5 py-1 bg-white border border-[#e8d5a3] rounded text-[11px] font-medium text-[#92600a] hover:bg-[#fffdf5]"
+                >
+                  Configure provider
+                </a>
+              </div>
+            )}
+
+            {provider !== 'manual' && (
+              <>
+                <label className="block text-[12px] font-medium text-[#57534e]">Topic preset</label>
+                <select
+                  name="topic"
+                  className="w-full h-9 px-2 text-[13px] border border-[#e5e3df] rounded"
+                  value={topic}
+                  onChange={(e) => { setTopic(e.target.value); }}
+                >
+                  <option value="">— none —</option>
+                  {presets.map((s) => (
+                    <option key={s.id} value={s.id}>{s.name}</option>
+                  ))}
+                </select>
+
+                <label className="block text-[12px] font-medium text-[#57534e]">Search query</label>
+                <input
+                  type="text"
+                  name="query"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className="w-full h-9 px-3 text-[13px] border border-[#e5e3df] rounded"
+                  placeholder="строительные компании"
+                />
+
+                <label className="block text-[12px] font-medium text-[#57534e]">Location</label>
+                <input
+                  type="text"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  className="w-full h-9 px-3 text-[13px] border border-[#e5e3df] rounded"
+                  placeholder="Минск"
+                />
+
+                <div className="flex gap-3">
+                  <div className="flex-1">
+                    <label className="block text-[12px] font-medium text-[#57534e]">Limit</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={200}
+                      value={limit}
+                      onChange={(e) => setLimit(Math.max(1, Math.min(200, Number(e.target.value) || 1)))}
+                      className="w-full h-9 px-3 text-[13px] border border-[#e5e3df] rounded"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <label className="block text-[12px] font-medium text-[#57534e]">Max pages</label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      value={maxPages}
+                      onChange={(e) => setMaxPages(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+                      className="w-full h-9 px-3 text-[13px] border border-[#e5e3df] rounded"
+                    />
+                  </div>
+                </div>
+              </>
+            )}
+
+            {provider === 'manual' && (
+              <>
+                <label className="block text-[12px] font-medium text-[#57534e]">Websites / domains (one per line)</label>
+                <textarea
+                  name="manualEntries"
+                  rows={5}
+                  value={manualEntries}
+                  onChange={(e) => setManualEntries(e.target.value)}
+                  className="w-full px-3 py-2 text-[13px] border border-[#e5e3df] rounded"
+                  placeholder="garantk.by&#10;Company Name;https://example.by&#10;company2.by"
+                />
+                <p className="text-[11px] text-[#a8a29e]">Each line may be a domain, a full URL, or `Company Name;https://website`.</p>
+              </>
+            )}
+          </div>
+        )}
+
+        <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-[#e5e3df]">
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
+          <Button
+            variant="primary"
+            disabled={!selectedProvider?.configured || submitting}
+            onClick={handleSubmit}
+          >
+            {submitting ? 'Starting…' : 'Start discovery'}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}

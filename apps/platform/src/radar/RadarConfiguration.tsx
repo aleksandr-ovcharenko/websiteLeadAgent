@@ -1,0 +1,84 @@
+import { useEffect, useState } from 'react';
+import RadarProviders from './RadarProviders';
+import RadarPresets from './RadarPresets';
+import RadarHistory from './RadarHistory';
+import NewDiscovery from './NewDiscovery';
+
+function getView(path: string) {
+  if (path === '/radar/providers') return 'providers';
+  if (path === '/radar/presets') return 'presets';
+  if (path === '/radar/discoveries' || path === '/radar/history') return 'history';
+  if (path === '/radar/audit-queue') return 'audit';
+  if (path === '/radar/selected') return 'selected';
+  return 'providers';
+}
+
+function NavItem({ label, active, onClick, cta }: { label: string; active: boolean; onClick: () => void; cta?: boolean }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`w-full text-left px-3 py-2 rounded-[5px] text-[13px] transition-colors duration-150 ${active ? "bg-[#f0f9f4] text-[#276749] font-medium" : cta ? "bg-[#276749] text-white hover:bg-[#15803d]" : "text-[#57534e] hover:bg-[#f5f4f2]"}`}>
+      {label}
+    </button>
+  );
+}
+
+function Sidebar({ view, onNew, go }: { view: string; onNew: (p?: string) => void; go: (path: string) => void }) {
+  return (
+    <div className="w-[216px] shrink-0 bg-white border-r border-[#e5e3df] flex flex-col">
+      <div className="px-5 py-[18px] border-b border-[#e5e3df]">
+        <div className="text-[10px] font-mono font-medium text-[#c0bdb8] uppercase tracking-widest">WebsiteLeadAgent</div>
+        <div className="text-[13px] font-semibold text-[#1c1917] mt-0.5">Super Admin</div>
+      </div>
+      <nav className="p-2.5 space-y-px">
+        <NavItem label="Leads" active={false} onClick={() => go('/radar')} />
+        <NavItem label="New discovery" active={false} onClick={() => onNew()} cta />
+        <NavItem label="Discovery history" active={view === 'history'} onClick={() => go('/radar/discoveries')} />
+        <NavItem label="Audit queue" active={view === 'audit'} onClick={() => go('/radar/audit-queue')} />
+        <NavItem label="Selected" active={view === 'selected'} onClick={() => go('/radar/selected')} />
+        <NavItem label="Discovery providers" active={view === 'providers'} onClick={() => go('/radar/providers')} />
+        <NavItem label="Search presets" active={view === 'presets'} onClick={() => go('/radar/presets')} />
+      </nav>
+      <div className="mt-auto p-4 border-t border-[#e5e3df] space-y-2">
+        <div className="text-[10px] font-mono text-[#a8a29e]">admin@system.internal</div>
+        <div className="text-[10px] font-mono text-[#ddd9d4]">g · u · b · j · k</div>
+      </div>
+    </div>
+  );
+}
+
+export default function RadarConfiguration() {
+  const [view, setView] = useState(getView(window.location.pathname));
+  const [newOpen, setNewOpen] = useState(false);
+  const [prefill, setPrefill] = useState<any>(null);
+
+  useEffect(() => {
+    const onPop = () => setView(getView(window.location.pathname));
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  const go = (path: string) => {
+    window.history.pushState(null, '', path);
+    setView(getView(path));
+  };
+
+  const openNew = (providerId?: string) => {
+    setPrefill(providerId ? { provider: providerId } : null);
+    setNewOpen(true);
+  };
+
+  const reload = () => {};
+
+  return (
+    <div className="min-h-full bg-[#f5f4f2] flex">
+      <Sidebar view={view} onNew={openNew} go={go} />
+      {view === 'providers' && <RadarProviders onNewDiscovery={openNew} onOpenPresets={() => go('/radar/presets')} />}
+      {view === 'presets' && <RadarPresets onBack={() => go('/radar/providers')} />}
+      {view === 'history' && <RadarHistory onNewDiscovery={openNew} onDuplicate={(run) => { setPrefill(run); setNewOpen(true); }} />}
+      {view === 'audit' && <div className="flex-1 p-6 text-[13px] text-[#a8a29e]">Audit queue view coming soon.</div>}
+      {view === 'selected' && <div className="flex-1 p-6 text-[13px] text-[#a8a29e]">Selected leads view coming soon.</div>}
+      <NewDiscovery open={newOpen} onClose={() => setNewOpen(false)} onStarted={reload} initialData={prefill} />
+    </div>
+  );
+}

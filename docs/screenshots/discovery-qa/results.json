@@ -1,0 +1,40 @@
+{
+  "results": [
+    {
+      "name": "provider-list",
+      "ok": true,
+      "note": "2gis=true, manual=true, yandex=true"
+    },
+    {
+      "name": "topic-preset",
+      "ok": true,
+      "note": "строительные компании"
+    },
+    {
+      "name": "manual-start",
+      "ok": true,
+      "note": "status=200"
+    },
+    {
+      "name": "history-list",
+      "ok": true
+    },
+    {
+      "name": "duplicate-prefill",
+      "ok": true,
+      "note": "manual:"
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)",
+    "Failed to load resource: the server responded with a status of 404 (Not Found)"
+  ]
+}

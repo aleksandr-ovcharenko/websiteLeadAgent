@@ -1,0 +1,42 @@
+{
+  "results": [
+    {
+      "name": "providers-loaded",
+      "ok": true,
+      "note": "2gis=true, manual=true, osm=true, ddg=true, yandex=true"
+    },
+    {
+      "name": "2gis-ready",
+      "ok": true
+    },
+    {
+      "name": "configure-modal",
+      "ok": true
+    },
+    {
+      "name": "provider-test",
+      "ok": true
+    },
+    {
+      "name": "new-discovery-preselected",
+      "ok": true,
+      "note": "dgis"
+    },
+    {
+      "name": "unconfigured-cta",
+      "ok": true
+    },
+    {
+      "name": "presets-loaded",
+      "ok": true
+    },
+    {
+      "name": "create-preset",
+      "ok": true
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+}

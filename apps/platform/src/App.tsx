@@ -5,6 +5,7 @@ import ProductHeader from "./cms/ProductHeader";
 import type { ProductArea } from "./cms/ProductHeader";
 import Hub from "./Hub";
 import Factory from "./Factory";
+import RadarConfiguration from './radar/RadarConfiguration';
 
 type Status =
   | "DRAFT"
@@ -1052,8 +1053,12 @@ export default function App({ user }: { user?: any }) {
     switch (view) {
       case 'studio':
         return studioSiteId ? <Studio siteId={studioSiteId} user={user} /> : <div className={common} />;
-      case 'radar':
-        return <div className={`${common} overflow-y-auto`}><RadarView onForge={() => navigate('forge')} /></div>;
+      case 'radar': {
+        const isConfig = window.location.pathname !== '/radar' && window.location.pathname.startsWith('/radar/');
+        return isConfig
+          ? <div className={`${common} overflow-y-auto`}><RadarConfiguration /></div>
+          : <div className={`${common} overflow-y-auto`}><RadarView onForge={() => navigate('forge')} /></div>;
+      }
       case 'factory':
         return <div className={common}><Factory onNavigate={navigate} /></div>;
       case 'forge':

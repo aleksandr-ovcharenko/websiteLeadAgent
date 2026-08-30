@@ -40,6 +40,23 @@ export const api = {
   getFactoryRuns: () => request('/api/factory/runs') as Promise<{ runs: any[] }>,
   retryFactoryRun: (runId: string) => request(`/api/factory/runs/${runId}/retry`, { method: 'POST' }) as Promise<any>,
 
+  // Discovery
+  getDiscoveryProviders: () => request('/api/discovery/providers') as Promise<{ providers: any[] }>,
+  getDiscoveryProvider: (id: string) => request(`/api/discovery/providers/${id}`) as Promise<{ provider: any }>,
+  testDiscoveryProvider: (id: string) => request(`/api/discovery/providers/${id}/test`, { method: 'POST' }) as Promise<{ status: string; message: string }>,
+  updateDiscoveryProviderConfig: (id: string, data: any) => request(`/api/discovery/providers/${id}/config`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) as Promise<{ config: any }>,
+  getDiscoveryPresets: () => request('/api/discovery/presets') as Promise<{ presets: any[] }>,
+  createDiscoveryPreset: (data: any) => request('/api/discovery/presets', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) as Promise<{ preset: any }>,
+  updateDiscoveryPreset: (id: string, data: any) => request(`/api/discovery/presets/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) as Promise<{ preset: any }>,
+  deleteDiscoveryPreset: (id: string) => request(`/api/discovery/presets/${id}`, { method: 'DELETE' }) as Promise<{ ok: boolean }>,
+  getDiscoverySettings: () => request('/api/discovery/settings') as Promise<{ settings: any }>,
+  saveDiscoverySettings: (data: any) => request('/api/discovery/settings', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) as Promise<{ settings: any }>,
+  getDiscoveryRuns: (take = 50, skip = 0) => request(`/api/discovery/runs?take=${take}&skip=${skip}`) as Promise<{ items: any[]; count: number }>,
+  getDiscoveryRun: (runId: string) => request(`/api/discovery/runs/${runId}`) as Promise<{ run: any }>,
+  startDiscoveryRun: (data: any) => request('/api/discovery/runs', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) as Promise<{ run: any; warning?: string }>,
+  runDiscoveryAgain: (runId: string) => request(`/api/discovery/runs/${runId}/run-again`, { method: 'POST' }) as Promise<{ run: any; warning?: string }>,
+  duplicateDiscoveryRun: (runId: string) => request(`/api/discovery/runs/${runId}/duplicate`) as Promise<any>,
+
   // Settings
   saveSettings: (siteId: string, data: any) => request(`/api/cms/sites/${siteId}/settings`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
