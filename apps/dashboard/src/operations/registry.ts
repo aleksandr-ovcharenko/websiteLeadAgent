@@ -332,5 +332,63 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
         return result;
       },
     },
+
+    QUALIFY_DISCOVERY_RUN: {
+      label: 'Qualify discovery run',
+      category: 'workflow',
+      description: 'Run full qualification (audit, Lighthouse, AI, score) for eligible leads from a discovery run.',
+      requiredRole: 'SUPER_ADMIN',
+      inputSchema: { discoveryRunId: 'string', concurrency: 'number' },
+      supportsCancel: false,
+      handler: async (ctx, input) => {
+        const run = await deps.prisma.discoveryRun.findUnique({ where: { id: input.discoveryRunId } });
+        if (!run) throw new Error('Discovery run not found');
+        const ids = run.leadIds ?? [];
+        const concurrency = Math.max(1, Math.min(5, Math.floor(Number(input.concurrency ?? 2))));
+
+        const all = await deps.prisma.lead.findMany({
+          where: { id: { in: ids } },
+          select: { id: true, website: true, websiteDomain: true, websiteStatus: true, auditStatus: true, lighthouseReport: true, visualAnalysis: true, leadScoreV2: true }
+        });
+
+        const eligible = all.filter((l: any) => {
+          if (l.websiteStatus !== 'FOUND' && l.websiteStatus !== 'UNKNOWN') return false;
+          if (!l.website) return false;
+          if (!l.websiteDomain) return false;
+          return true;
+        });
+
+        if (eligible.length === 0) {
+          await ctx.warn('No eligible leads with usable websites found');
+          return { qualified: 0, skipped: all.length };
+        }
+
+        const already = all.filter((l: any) => l.leadScoreV2 != null).length;
+        const todo = eligible.filter((l: any) => l.leadScoreV2 == null);
+
+        await ctx.info(`Discovery run has ${all.length} leads, ${eligible.length} with websites. Qualifying ${todo.length} unqualified with concurrency ${concurrency}.`, { stage: 'eligibility' });
+
+        const registry = createRegistry(deps);
+        const qualify = registry.RUN_FULL_QUALIFICATION.handler;
+
+        let index = 0;
+        const workers = Array.from({ length: concurrency }, async () => {
+          while (index < todo.length) {
+            const i = index++;
+            const lead = todo[i];
+            try {
+              await qualify(ctx, { leadId: lead.id, force: false, skipEnrich: true });
+              await ctx.info(`Qualified ${i + 1}/${todo.length}: ${lead.id}`, { stage: 'progress' });
+            } catch (err: any) {
+              await ctx.warn(`Qualification failed for ${lead.id}: ${err.message}`, { stage: 'progress' });
+            }
+          }
+        });
+
+        await Promise.all(workers);
+        await ctx.success(`Discovery run qualified ${todo.length} eligible leads`, { stage: 'complete', metadata: { total: all.length, eligible: eligible.length, qualified: todo.length, alreadyQualified: already } });
+        return { total: all.length, eligible: eligible.length, qualified: todo.length, already };
+      },
+    },
   };
 }

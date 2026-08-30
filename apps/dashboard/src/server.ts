@@ -45,8 +45,12 @@ app.get('/api/leads', requireSuperAdmin, async (req: Request, res: Response) => 
   const maxV2 = numParam(req.query.maxV2, 100);
   const aiStatus = typeof req.query.aiStatus === 'string' ? req.query.aiStatus : '';
   const manual = typeof req.query.manual === 'string' ? req.query.manual : '';
+  const websiteStatus = typeof req.query.websiteStatus === 'string' ? req.query.websiteStatus : '';
+  const enrichmentStatus = typeof req.query.enrichmentStatus === 'string' ? req.query.enrichmentStatus : '';
+  const auditStatus = typeof req.query.auditStatus === 'string' ? req.query.auditStatus : '';
   const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   const sort = typeof req.query.sort === 'string' ? req.query.sort : 'lead_desc';
+  const discoveryRunId = typeof req.query.discoveryRunId === 'string' ? req.query.discoveryRunId : '';
 
   const orderBy = (() => {
     const stable = [{ id: 'asc' as const }];
@@ -106,6 +110,27 @@ app.get('/api/leads', requireSuperAdmin, async (req: Request, res: Response) => 
     where.manualReviewStatus = manual;
   }
 
+  if (websiteStatus) {
+    where.websiteStatus = websiteStatus;
+  }
+
+  if (enrichmentStatus) {
+    where.enrichmentStatus = enrichmentStatus;
+  }
+
+  if (auditStatus) {
+    where.auditStatus = auditStatus;
+  }
+
+  if (discoveryRunId) {
+    const run = await prisma.discoveryRun.findUnique({ where: { id: discoveryRunId }, select: { leadIds: true } });
+    if (run?.leadIds?.length) {
+      where.id = { in: run.leadIds };
+    } else {
+      where.id = { in: [] };
+    }
+  }
+
   if (q.length > 0) {
     const tokens = q
       .split(/[\s,;]+/g)
@@ -158,6 +183,10 @@ app.get('/api/leads', requireSuperAdmin, async (req: Request, res: Response) => 
       visualQualityScore: true,
       businessConfidenceScore: true,
       leadScoreV2: true,
+      websiteStatus: true,
+      enrichmentStatus: true,
+      scoreStatus: true,
+      generationStatus: true,
       manualReviewStatus: true,
       manualReviewNote: true,
       reviewedAt: true,
@@ -202,7 +231,64 @@ app.get('/api/leads', requireSuperAdmin, async (req: Request, res: Response) => 
     } as any
   });
 
-  res.json({ items: leads, meta: { limit, offset, q, sort } });
+  res.json({ items: leads, meta: { limit, offset, q, sort, discoveryRunId, websiteStatus, enrichmentStatus } });
+});
+
+app.get('/api/leads/stats', requireSuperAdmin, async (req: Request, res: Response) => {
+  const discoveryRunId = typeof req.query.discoveryRunId === 'string' ? req.query.discoveryRunId : '';
+  const where: any = {};
+  if (discoveryRunId) {
+    const run = await prisma.discoveryRun.findUnique({ where: { id: discoveryRunId }, select: { leadIds: true } });
+    if (run?.leadIds?.length) where.id = { in: run.leadIds };
+    else where.id = { in: [] };
+  }
+  const [
+    total,
+    withWebsite,
+    withoutWebsite,
+    enriched,
+    audited,
+    lighthoused,
+    aiAnalyzed,
+    scored,
+    good,
+    selected,
+    generated,
+    failed
+  ] = await Promise.all([
+    prisma.lead.count({ where }),
+    prisma.lead.count({ where: { ...where, websiteStatus: 'FOUND' } }),
+    prisma.lead.count({ where: { ...where, websiteStatus: { in: ['UNKNOWN', 'NOT_FOUND'] } } }),
+    prisma.lead.count({ where: { ...where, enrichmentStatus: 'SUCCESS' } }),
+    prisma.lead.count({ where: { ...where, auditStatus: 'SUCCESS' } }),
+    prisma.lead.count({ where: { ...where, lighthouseReport: { isNot: null } } }),
+    prisma.lead.count({ where: { ...where, visualAnalysis: { status: 'SUCCESS' } } }),
+    prisma.lead.count({ where: { ...where, leadScoreV2: { not: null } } }),
+    prisma.lead.count({ where: { ...where, manualReviewStatus: 'GOOD' } }),
+    prisma.lead.count({ where: { ...where, redesignStage: 'SELECTED_FOR_REDESIGN' } }),
+    prisma.lead.count({ where: { ...where, site: { isNot: null } } }),
+    prisma.lead.count({ where: { ...where, auditStatus: 'FAILED' } })
+  ]);
+  res.json({
+    total,
+    withWebsite,
+    withoutWebsite,
+    enriched,
+    audited,
+    lighthoused,
+    aiAnalyzed,
+    scored,
+    good,
+    selected,
+    generated,
+    failed
+  });
+});
+
+app.get('/api/discovery/runs/:runId/stats', requireSuperAdmin, async (req: Request, res: Response) => {
+  const run = await prisma.discoveryRun.findUnique({ where: { id: String(req.params.runId) }, include: { _count: { select: { leadIds: true } } } });
+  if (!run) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json(await discovery.getRunFunnel(run.id));
 });
 
 app.post('/api/leads/:leadId/redesign', requireSuperAdmin, async (req: Request, res: Response) => {

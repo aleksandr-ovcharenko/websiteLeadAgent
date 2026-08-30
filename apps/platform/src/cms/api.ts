@@ -37,7 +37,26 @@ export const api = {
   getHubStats: () => request('/api/hub/stats') as Promise<any>,
 
   // Leads
-  getLeads: (limit = 500, offset = 0) => request(`/api/leads?limit=${limit}&offset=${offset}`) as Promise<{ items: any[] }>,
+  getLeads: (params: { limit?: number; offset?: number; q?: string; sort?: string; manual?: string; websiteStatus?: string; enrichmentStatus?: string; auditStatus?: string; discoveryRunId?: string } = {}) => {
+    const qs = new URLSearchParams();
+    qs.set('limit', String(params.limit ?? 200));
+    qs.set('offset', String(params.offset ?? 0));
+    if (params.q) qs.set('q', params.q);
+    if (params.sort) qs.set('sort', params.sort);
+    if (params.manual) qs.set('manual', params.manual);
+    if (params.websiteStatus) qs.set('websiteStatus', params.websiteStatus);
+    if (params.enrichmentStatus) qs.set('enrichmentStatus', params.enrichmentStatus);
+    if (params.auditStatus) qs.set('auditStatus', params.auditStatus);
+    if (params.discoveryRunId) qs.set('discoveryRunId', params.discoveryRunId);
+    return request(`/api/leads?${qs.toString()}`) as Promise<{ items: any[]; meta: any }>;
+  },
+  getLeadStats: (discoveryRunId?: string) => {
+    const qs = discoveryRunId ? `?discoveryRunId=${discoveryRunId}` : '';
+    return request(`/api/leads/stats${qs}`) as Promise<any>;
+  },
+  getDiscoveryRunStats: (runId: string) => request(`/api/discovery/runs/${runId}/stats`) as Promise<any>,
+  reviewLead: (leadId: string, status: string, note?: string) => request(`/api/leads/${leadId}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, note }) }) as Promise<{ ok: boolean; lead: any }>,
+  setRedesignStage: (leadId: string, stage: string) => request(`/api/leads/${leadId}/redesign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage }) }) as Promise<{ ok: boolean; lead: any }>,
 
   // Factory
   getFactoryRuns: () => request('/api/factory/runs') as Promise<{ runs: any[] }>,

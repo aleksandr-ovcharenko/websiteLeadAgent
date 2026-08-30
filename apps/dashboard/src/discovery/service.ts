@@ -353,4 +353,60 @@ export class DiscoveryService {
     });
     return value;
   }
+
+  async getRunFunnel(runId: string) {
+    const run = await this.prisma.discoveryRun.findUnique({ where: { id: runId } });
+    if (!run) return null;
+    const ids = run.leadIds ?? [];
+    const where: any = ids.length ? { id: { in: ids } } : { id: { in: [] } };
+    const [
+      total,
+      withWebsite,
+      withoutWebsite,
+      enriched,
+      audited,
+      lighthoused,
+      aiAnalyzed,
+      scored,
+      good,
+      selected,
+      generated,
+      failed
+    ] = await Promise.all([
+      this.prisma.lead.count({ where }),
+      this.prisma.lead.count({ where: { ...where, websiteStatus: 'FOUND' } }),
+      this.prisma.lead.count({ where: { ...where, websiteStatus: { in: ['UNKNOWN', 'NOT_FOUND'] } } }),
+      this.prisma.lead.count({ where: { ...where, enrichmentStatus: 'SUCCESS' } }),
+      this.prisma.lead.count({ where: { ...where, auditStatus: 'SUCCESS' } }),
+      this.prisma.lead.count({ where: { ...where, lighthouseReport: { isNot: null } } }),
+      this.prisma.lead.count({ where: { ...where, visualAnalysis: { status: 'SUCCESS' } } }),
+      this.prisma.lead.count({ where: { ...where, leadScoreV2: { not: null } } }),
+      this.prisma.lead.count({ where: { ...where, manualReviewStatus: 'GOOD' } }),
+      this.prisma.lead.count({ where: { ...where, redesignStage: 'SELECTED_FOR_REDESIGN' } }),
+      this.prisma.lead.count({ where: { ...where, site: { isNot: null } } }),
+      this.prisma.lead.count({ where: { ...where, auditStatus: 'FAILED' } })
+    ]);
+    return {
+      runId: run.id,
+      provider: run.provider,
+      query: run.query,
+      location: run.location,
+      limit: run.limit,
+      collected: run.collected,
+      createdCount: run.createdCount,
+      duplicateCount: run.duplicateCount,
+      total,
+      withWebsite,
+      withoutWebsite,
+      enriched,
+      audited,
+      lighthoused,
+      aiAnalyzed,
+      scored,
+      good,
+      selected,
+      generated,
+      failed
+    };
+  }
 }

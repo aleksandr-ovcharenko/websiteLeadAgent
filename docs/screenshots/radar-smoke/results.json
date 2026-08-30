@@ -1,0 +1,21 @@
+{
+  "results": [
+    {
+      "name": "radar-loaded",
+      "ok": true
+    },
+    {
+      "name": "leads-table",
+      "ok": true,
+      "note": "table visible"
+    },
+    {
+      "name": "lead-detail",
+      "ok": true
+    }
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
+    "Failed to load resource: the server responded with a status of 401 (Unauthorized)"
+  ]
+}
