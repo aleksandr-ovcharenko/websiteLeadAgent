@@ -86,12 +86,12 @@ websiteLeadAgent/
 | --- | --- | --- |
 | `apps/gateway` | Express | Single-port reverse proxy. Routes `/api/*`, `/showcase/*`, `/template-assets/*`, `/site-media/*` and the SPA to the right backend. |
 | `apps/cms` | Express | Headless CMS API. Auth, CRUD for `Site`, `Page`, `NewsPost`, `Project`, `Service`, `Vacancy`, `MenuItem`, `Media`, `User`. |
-| `apps/platform` | Vite/React | Customer-facing platform: `Login`, `Radar`, `Forge`, `Studio` (`apps/platform/src/cms/`). |
+| `apps/platform` | Vite/React | Customer-facing platform: `Login`, `Radar` (leads, providers, presets, history), `Forge`, `Studio`. |
 | `apps/site-renderer` | Express | Fetches a site, CMS entities and the correct template, then renders `window.__CMS__` into `packages/templates/.../index.html`. |
 | `apps/collector` | Node CLI | Scrapes 2GIS for leads. Outputs `output/leads.json` and `output/leads.csv`. |
 | `apps/auditor` | Node CLI | Audits/scores sites and leads (`lighthouse`, `score`, `visual-analyze`). |
 | `apps/redesign` | Node CLI | CLI wrapper around `packages/redesign-engine`. |
-| `apps/dashboard` | Express | Health/status dashboard. |
+| `apps/dashboard` | Express | Platform API / CORE. Auth, discovery provider/preset management, discovery runs, webhooks and platform health. |
 
 ### 4. Packages (`packages/`)
 
@@ -116,6 +116,7 @@ websiteLeadAgent/
   - `Media` — uploaded images.
   - `MenuItem` — navigation tree (label, url, pageId, sortOrder, visible).
   - `Lead`, `SiteUser`, `User` — auth and lead management.
+  - `DiscoveryProviderConfig`, `DiscoveryPreset`, `DiscoveryRun`, `DiscoverySetting` — discovery sources, presets, runs and defaults.
 
 ### 6. Template rendering pipeline
 
@@ -151,6 +152,31 @@ websiteLeadAgent/
 | `scripts/project-service-qa.ts` | Round-trip for Projects and Services. |
 | `scripts/edit-roundtrip.ts` | Basic multi-site edit verification. |
 | `scripts/screenshot-qa.ts` | Captures visual smoke tests. |
+| `scripts/discovery-qa.ts` | End-to-end test for New Discovery, presets and discovery history. |
+| `scripts/providers-qa.ts` | Verifies provider cards, configuration, test flow, presets CRUD and unconfigured CTA. |
+
+### 10. Discovery & provider configuration flow
+
+Discovery is driven by **BusinessDiscoveryProvider** implementations registered in `apps/dashboard/src/discovery/registry.ts`. Each provider exposes `meta` (capabilities, credentials), `isConfigured(env)` and `search(request, context)`.
+
+```
+Radar UI ──/radar/providers──> CORE (apps/dashboard)
+CORE ──> DiscoveryService
+DiscoveryService ──> Prisma: DiscoveryProviderConfig / DiscoveryPreset
+DiscoveryService ──> BusinessDiscoveryProvider.search()
+BusinessDiscoveryProvider ──> 2GIS / Yandex / DuckDuckGo / OSM / manual input
+```
+
+- **Status & configuration**: `DiscoveryService.listProviders()` computes `READY`, `NOT_CONFIGURED`, `DISABLED`, `ERROR` or `UNAVAILABLE` by checking the persisted `DiscoveryProviderConfig`, the provider's `isConfigured(env)` result and recent test results.
+- **Testing**: `POST /api/discovery/providers/:id/test` runs a safe search on the server, records `lastTestStatus`/`lastTestMessage` and never returns secrets to the browser.
+- **Presets**: `DiscoveryPreset` rows replace hard-coded topic presets; the UI at `/radar/presets` supports create, edit, delete, enable/disable and default provider/location/limit.
+- **New Discovery**: `/radar/providers` and the `NewDiscovery` modal pre-select the chosen provider. If it is not configured, the UI shows a **Configure provider** CTA.
+
+### 11. Security notes
+
+- Provider credentials are stored only in `process.env` on CORE.
+- The `DiscoveryProviderConfig` model persists `enabled`, `defaults` and test metadata, but never the secret itself.
+- Auth and super-admin checks on `/api/discovery/*` live in `apps/dashboard/src/server.ts` middleware.
 
 ## Requirements
 
