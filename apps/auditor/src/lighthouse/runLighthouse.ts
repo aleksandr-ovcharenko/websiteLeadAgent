@@ -1,7 +1,26 @@
 import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import lighthouse from 'lighthouse';
 import * as chromeLauncher from 'chrome-launcher';
+
+// tsx/esbuild keepNames injects __name calls into lighthouse page functions, but the
+// evaluated browser string is missing the esbuild wrapper definition. Patch the
+// BenchmarkIndex function to declare the wrapper before its first __name call.
+let _lighthouse: any = null;
+async function getLighthouse() {
+  if (_lighthouse) return _lighthouse;
+  const { default: lighthouse } = await import('lighthouse');
+  _lighthouse = lighthouse;
+
+  const { pageFunctions } = await import('lighthouse/core/lib/page-functions.js');
+  const original = pageFunctions.computeBenchmarkIndex.toString.bind(pageFunctions.computeBenchmarkIndex);
+  const originalString = original();
+  const wrapperMatch = originalString.match(/\b([\w$]+)\([\w$]+,\s*["']/);
+  const wrapperName = wrapperMatch ? wrapperMatch[1] : '__name';
+  const wrapperDef = `var ${wrapperName}=(fn,value)=>Object.defineProperty(fn,"name",{value,configurable:true});`;
+  pageFunctions.computeBenchmarkIndex.toString = () =>
+    originalString.replace(/^\s*(function\s+[\w$]+\s*\(\)\s*\{)/, `$1${wrapperDef}`);
+  return _lighthouse;
+}
 
 export interface LighthouseSummary {
   performance: number;
@@ -31,6 +50,7 @@ export async function runLighthouseForLead(input: { leadId: string; url: string 
   });
 
   try {
+    const lighthouse = await getLighthouse();
     const result = await lighthouse(url, {
       port: chrome.port,
       output: 'json',
