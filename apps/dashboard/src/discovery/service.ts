@@ -76,7 +76,7 @@ export class DiscoveryService {
         limit: request.limit,
         maxPages: request.maxPages,
         providerOptions: request.providerOptions ?? {},
-        status: 'RUNNING',
+        status: 'DISCOVERING',
         leadIds: [],
         collected: 0,
         createdCount: 0,
@@ -121,10 +121,10 @@ export class DiscoveryService {
         });
       }
 
-      const updated = await this.prisma.discoveryRun.update({
+      await this.prisma.discoveryRun.update({
         where: { id: run.id },
         data: {
-          status: 'COMPLETED',
+          status: 'ENRICHING',
           leadIds,
           collected: leadIds.length,
           createdCount: created,
@@ -134,14 +134,18 @@ export class DiscoveryService {
       });
 
       if (leadIds.length) {
-        setImmediate(() => {
-          enrichLeads({ prisma: this.prisma, logger: this.logger, runId: run.id, leadIds }).catch((err: any) => {
-            this.logger.warn({ err, runId: run.id }, 'discovery.enrichment.failed');
-          });
-        });
+        await enrichLeads({ prisma: this.prisma, logger: this.logger, runId: run.id, leadIds });
       }
 
-      return { run: updated, warning: result.warning };
+      const completed = await this.prisma.discoveryRun.update({
+        where: { id: run.id },
+        data: {
+          status: 'COMPLETED',
+          errorMessage: result.warning || null,
+        },
+      });
+
+      return { run: completed, warning: result.warning };
     } catch (err: any) {
       const failed = await this.prisma.discoveryRun.update({
         where: { id: run.id },
@@ -411,6 +415,8 @@ export class DiscoveryService {
       collected: run.collected,
       createdCount: run.createdCount,
       duplicateCount: run.duplicateCount,
+      newLeadCount: run.createdCount,
+      reusedLeadCount: run.duplicateCount,
       total,
       withWebsite,
       withoutWebsite,

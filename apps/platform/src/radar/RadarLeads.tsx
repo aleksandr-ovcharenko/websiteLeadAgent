@@ -57,7 +57,11 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
     }
   };
 
-  useEffect(() => { refresh(); }, [filters, quick, discoveryRunId, mode]);
+  useEffect(() => {
+    refresh();
+    const interval = setInterval(refresh, 10000);
+    return () => clearInterval(interval);
+  }, [mode, discoveryRunId, filters.q, filters.websiteStatus, filters.auditStatus, filters.manual, quick, filters.sort]);
 
   const handleQuick = (key: string) => {
     setQuick(key);

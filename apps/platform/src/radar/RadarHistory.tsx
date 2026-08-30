@@ -40,7 +40,11 @@ export default function RadarHistory({ onNewDiscovery, onDuplicate }: RadarHisto
     }
   };
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    refresh();
+    const interval = setInterval(refresh, 3000);
+    return () => clearInterval(interval);
+  }, []);
 
   async function runAgain(id: string) {
     setBusy(id);
@@ -67,6 +71,8 @@ export default function RadarHistory({ onNewDiscovery, onDuplicate }: RadarHisto
     const map: Record<string, string> = {
       PENDING: 'bg-gray-100 text-gray-500',
       RUNNING: 'bg-amber-50 text-amber-700',
+      DISCOVERING: 'bg-amber-50 text-amber-700',
+      ENRICHING: 'bg-blue-50 text-blue-700',
       COMPLETED: 'bg-emerald-50 text-emerald-700',
       FAILED: 'bg-red-50 text-red-700',
     };
@@ -113,7 +119,7 @@ export default function RadarHistory({ onNewDiscovery, onDuplicate }: RadarHisto
                       <span className={`text-[10px] px-1.5 py-0.5 rounded ${statusClass(run.status)}`}>{run.status}</span>
                     </td>
                     <td className="py-2.5 px-3 text-[12px] text-[#57534e]">
-                      {run.createdCount} new · {run.duplicateCount} dup
+                      {run.collected} found · {run.createdCount} new leads · {run.duplicateCount} known
                     </td>
                     <td className="py-2.5 px-3 text-[12px] text-[#a8a29e]">
                       {new Date(run.createdAt).toLocaleString()}
