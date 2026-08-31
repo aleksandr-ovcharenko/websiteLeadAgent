@@ -674,6 +674,7 @@ app.use(platformRouter);
 app.listen(PORT, async () => {
   // eslint-disable-next-line no-console
   console.log(`[CORE] ready on http://localhost:${PORT}`);
+  await operations.reconcileAll();
   const { checkBrowserReadiness } = await import('./activity/browserCheck.js');
   const browser = await checkBrowserReadiness();
   if (!browser.ok) {

@@ -6,7 +6,7 @@ import type { OperationDefinition } from './registry.js';
 import type { DiscoveryService } from '../discovery/service.js';
 import { ActivityService } from '../activity/ActivityService.js';
 
-export type OperationStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
+export type OperationStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'INTERRUPTED';
 
 export interface RunContext {
   runId: string;
@@ -262,5 +262,44 @@ export class OperationService {
 
   getDefinitions() {
     return Object.entries(this.registry).map(([id, def]) => ({ id, ...def }));
+  }
+
+  async reconcileAll() {
+    const now = new Date();
+    const [interruptedRuns] = await this.prisma.$transaction([
+      this.prisma.operationRun.updateMany({
+        where: { status: { in: ['RUNNING', 'PENDING'] } },
+        data: { status: 'INTERRUPTED', finishedAt: now, error: { message: 'Server restarted or process terminated before completion' } },
+      }),
+    ]);
+    if (interruptedRuns.count > 0) {
+      this.logger.warn({ count: interruptedRuns.count }, 'operation.reconcile.interrupted');
+    }
+
+    // Reconcile lead qualification statuses that are PENDING but already have results.
+    await this.prisma.$transaction([
+      this.prisma.lead.updateMany({
+        where: { auditStatus: 'PENDING', auditErrorMessage: { not: null } },
+        data: { auditStatus: 'FAILED' },
+      }),
+      this.prisma.lead.updateMany({
+        where: { scoreStatus: 'PENDING', leadScoreV2: { not: null } },
+        data: { scoreStatus: 'SUCCESS', scoredAt: now },
+      }),
+    ]);
+
+    // Reconcile visual analysis records.
+    await this.prisma.$transaction([
+      this.prisma.visualAnalysis.updateMany({
+        where: { status: 'PENDING', errorMessage: { not: null } },
+        data: { status: 'FAILED' },
+      }),
+      this.prisma.visualAnalysis.updateMany({
+        where: { status: 'PENDING', errorMessage: null, summary: { not: '' } },
+        data: { status: 'SUCCESS' },
+      }),
+    ]);
+
+    this.logger.info('operation.reconcile.complete');
   }
 }
