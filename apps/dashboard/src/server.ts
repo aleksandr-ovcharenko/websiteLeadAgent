@@ -35,7 +35,7 @@ app.get('/health', (_req: Request, res: Response) => {
   res.json({ service: 'platform-api', status: 'ok' });
 });
 
-app.get('/api/leads', requireSuperAdmin, async (req: Request, res: Response) => {
+app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
   const limit = Math.min(200, Math.max(1, Math.floor(numParam(req.query.limit, 50))));
   const offset = Math.max(0, Math.floor(numParam(req.query.offset, 0)));
   const minLead = numParam(req.query.minLead, 0);
@@ -238,7 +238,7 @@ app.get('/api/leads', requireSuperAdmin, async (req: Request, res: Response) => 
   res.json({ items: leads, meta: { limit, offset, q, sort, discoveryRunId, websiteStatus, enrichmentStatus } });
 });
 
-app.get('/api/leads/stats', requireSuperAdmin, async (req: Request, res: Response) => {
+app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => {
   const discoveryRunId = typeof req.query.discoveryRunId === 'string' ? req.query.discoveryRunId : '';
   const where: any = {};
   if (discoveryRunId) {
@@ -295,7 +295,7 @@ app.get('/api/discovery/runs/:runId/stats', requireSuperAdmin, async (req: Reque
   res.json(await discovery.getRunFunnel(run.id));
 });
 
-app.post('/api/leads/:leadId/redesign', requireSuperAdmin, async (req: Request, res: Response) => {
+app.post('/api/leads/:leadId/redesign', requireAuth, async (req: Request, res: Response) => {
   const leadId = String(req.params.leadId);
   const stage = typeof req.body?.stage === 'string' ? String(req.body.stage) : '';
   const stages = new Set([
@@ -328,7 +328,7 @@ app.post('/api/leads/:leadId/generate', requireSuperAdmin, async (req: Request, 
   }
 });
 
-app.post('/api/leads/:leadId/review', requireSuperAdmin, async (req: Request, res: Response) => {
+app.post('/api/leads/:leadId/review', requireAuth, async (req: Request, res: Response) => {
   const leadId = String(req.params.leadId);
   const status = typeof req.body?.status === 'string' ? String(req.body.status) : '';
   const note = typeof req.body?.note === 'string' ? String(req.body.note) : null;
