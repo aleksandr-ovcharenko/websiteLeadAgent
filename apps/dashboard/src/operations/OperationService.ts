@@ -143,7 +143,7 @@ export class OperationService {
       fail: (error) => {
         throw error instanceof Error ? error : new Error(String(error));
       },
-      cancelled: () => this.cancellations.has(runId),
+      cancelled: () => this.cancellations.has(run.id),
     };
     return ctx;
   }
@@ -202,7 +202,8 @@ export class OperationService {
         data: { status: 'FAILED', finishedAt: new Date(), error: { message } },
       });
       try {
-        const ctx = this.createContext(def, run);
+        const failedRun = await this.prisma.operationRun.findUnique({ where: { id: runId } });
+        const ctx = this.createContext(def, failedRun || { id: runId });
         await ctx.error(message, { stage: 'error', metadata: { error: { message } } });
       } catch {}
     }

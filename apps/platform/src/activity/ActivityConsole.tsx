@@ -25,6 +25,27 @@ function StatusDot({ status }: { status: string }) {
   return <span className="flex items-center gap-1 text-[10px] font-mono text-red-700"><span className="w-2 h-2 rounded-full bg-red-500" />OFFLINE</span>;
 }
 
+function ContextChips({ event }: { event: ActivityEvent }) {
+  const chips: { label: string; href?: string }[] = [];
+  if (event.details.leadName) chips.push({ label: `Lead: ${event.details.leadName}`, href: `/radar` });
+  else if (event.leadId) chips.push({ label: `Lead: ${event.leadId.slice(0, 8)}...` });
+  if (event.details.siteName) chips.push({ label: `Site: ${event.details.siteName}`, href: `/forge` });
+  else if (event.siteId) chips.push({ label: `Site: ${event.siteId.slice(0, 8)}...` });
+  if (event.details.demoVariantName) chips.push({ label: `Variant: ${event.details.demoVariantName}` });
+  else if (event.demoVariantId) chips.push({ label: `Variant: ${event.demoVariantId.slice(0, 8)}...` });
+  if (event.runId) chips.push({ label: `Run: ${event.runId.slice(0, 8)}...` });
+  if (chips.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-1.5">
+      {chips.map((c, i) => c.href ? (
+        <a key={i} href={c.href} onClick={(e) => { e.stopPropagation(); }} className="text-[10px] font-mono text-stone-500 bg-stone-100 border border-stone-200 px-1.5 py-0.5 rounded hover:bg-stone-200">{c.label}</a>
+      ) : (
+        <span key={i} className="text-[10px] font-mono text-stone-500 bg-stone-100 border border-stone-200 px-1.5 py-0.5 rounded">{c.label}</span>
+      ))}
+    </div>
+  );
+}
+
 function EventRow({ event, onToggle }: { event: ActivityEvent; onToggle: (id: string) => void }) {
   const [open, setOpen] = useState(false);
   const hasDetails = event.errorCode || event.rawError || Object.keys(event.details || {}).length > 0;
@@ -40,6 +61,7 @@ function EventRow({ event, onToggle }: { event: ActivityEvent; onToggle: (id: st
         <span className={`flex-1 break-words pt-0.5 ${event.level === 'ERROR' ? 'text-red-800' : 'text-stone-700'}`}>
           {event.errorMessage || event.message}
           {hasDetails && <span className="ml-2 text-stone-400 text-[10px]">[Details]</span>}
+          <ContextChips event={event} />
         </span>
       </div>
       {open && hasDetails && (
