@@ -61,22 +61,32 @@ export async function auditLeadWebsite(input: {
 
     const crawl = await crawlPage(page);
 
+    const httpStatus = response?.status() ?? null;
     const payload = {
       leadId,
       inputUrl: website,
       finalUrl,
-      httpStatus: response?.status() ?? null,
+      httpStatus,
       crawl
     };
 
     await writeFile(join(outDir, 'crawl.json'), JSON.stringify(payload, null, 2), 'utf-8');
+
+    if (httpStatus != null && httpStatus >= 400) {
+      await prisma.lead.update({
+        where: { id: leadId },
+        data: { auditStatus: 'FAILED' }
+      });
+      throw new Error(`Website returned HTTP ${httpStatus} for ${website}`);
+    }
 
     await prisma.lead.update({
       where: { id: leadId },
       data: { auditStatus: 'SUCCESS' }
     });
 
-    logger.info({ runId, leadId, finalUrl, httpStatus: payload.httpStatus }, 'audit.lead.success');
+    logger.info({ runId, leadId, finalUrl, httpStatus }, 'audit.lead.success');
+    return { ok: true, httpStatus };
   } catch (err) {
     await prisma.lead.update({
       where: { id: leadId },

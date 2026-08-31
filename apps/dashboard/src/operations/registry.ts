@@ -206,6 +206,7 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
             select: {
               id: true,
               businessScore: true,
+              businessConfidenceScore: true,
               websiteQualityScore: true,
               technicalQualityScore: true,
               visualQualityScore: true,
@@ -214,25 +215,44 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
           if (!lead) throw new Error('Lead not found');
           const visual = await (deps.prisma as any).visualAnalysis.findUnique({
             where: { leadId: lead.id },
-            select: { redesignPotential: true },
+            select: { redesignPotential: true, visualQuality: true, trust: true },
+          });
+          const lighthouse = await deps.prisma.lighthouseReport.findUnique({
+            where: { leadId: lead.id },
+            select: { performance: true, accessibility: true, seo: true, bestPractices: true },
           });
           const redesignPotentialNormalized = Math.max(0, Math.min(100, (visual?.redesignPotential ?? 0) * 10));
+          const technicalQualityScore = Math.round(
+            (lighthouse
+              ? (lighthouse.performance + lighthouse.accessibility + lighthouse.seo + lighthouse.bestPractices) / 4
+              : lead.technicalQualityScore) ?? 0
+          );
+          const visualQualityScore = Math.round(
+            visual?.visualQuality != null ? visual.visualQuality * 10 : lead.visualQualityScore ?? 0
+          );
+          const businessConfidenceScore = Math.round(
+            visual?.trust != null ? visual.trust * 10 : lead.businessConfidenceScore ?? lead.businessScore ?? 0
+          );
           const v2 = computeLeadScoreV2({
             scores: {
-              technicalQualityScore: lead.technicalQualityScore ?? 0,
-              visualQualityScore: lead.visualQualityScore ?? 0,
-              businessConfidenceScore: lead.businessScore ?? 0,
+              technicalQualityScore,
+              visualQualityScore,
+              businessConfidenceScore,
               redesignPotentialNormalized,
             },
           });
           const scoreDetailsV2 = {
             ...(lead as any).scoreDetailsV2 || {},
+            inputs: { technicalQualityScore, visualQualityScore, businessConfidenceScore, redesignPotentialNormalized },
             parts: v2.parts,
             reasons: v2.reasons,
           } as any;
           await deps.prisma.lead.update({
             where: { id: lead.id },
             data: {
+              technicalQualityScore,
+              visualQualityScore,
+              businessConfidenceScore,
               leadScoreV2: v2.leadScoreV2,
               scoreDetailsV2,
               scoreStatus: 'SUCCESS',
@@ -289,6 +309,10 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
             leadId: lead.id,
             website: refreshed.website,
           });
+          const afterAudit = await deps.prisma.lead.findUnique({ where: { id: lead.id }, select: { auditStatus: true } });
+          if (afterAudit?.auditStatus !== 'SUCCESS') {
+            throw new Error(`Audit did not complete successfully for ${lead.id}`);
+          }
         } else {
           await ctx.info('Skipping audit', { stage: 'audit' });
         }
