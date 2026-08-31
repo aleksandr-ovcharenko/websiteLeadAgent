@@ -245,6 +245,7 @@ model Site {
   slug      String   @unique
   domain    String?
   previewToken String @unique
+  preferredDemoVariantId String?
   templateId String
   templateVersion String?
   themeConfig Json?    @default("{}")
@@ -267,6 +268,39 @@ model Site {
   redesignRuns RedesignRun[]
   builds     SiteBuild[]
   screenshot SitePreviewScreenshot?
+  demoVariants DemoVariant[]
+}
+
+model DemoVariant {
+  id        String   @id @default(cuid())
+  siteId    String
+  templateId String
+  templateVersion String?
+  name      String?
+  previewToken String @unique
+  status    SiteStatus @default(DRAFT)
+  themeConfig Json?    @default("{}")
+  isPreferred Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  builds SiteBuild[]
+  screenshot DemoVariantScreenshot?
+}
+
+model DemoVariantScreenshot {
+  id            String   @id @default(cuid())
+  demoVariantId String   @unique
+  storagePath   String
+  url           String
+  capturedAt    DateTime @default(now())
+  siteUpdatedAt DateTime
+  buildId       String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  demoVariant DemoVariant @relation(fields: [demoVariantId], references: [id], onDelete: Cascade)
 }
 
 model SiteSettings {
@@ -537,6 +571,7 @@ model RedesignRun {
 model SiteBuild {
   id        String   @id @default(cuid())
   siteId    String
+  demoVariantId String?
   templateId String
   templateVersion String?
   status    SiteBuildStatus @default(PENDING)
@@ -547,8 +582,10 @@ model SiteBuild {
   updatedAt DateTime @updatedAt
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  demoVariant DemoVariant? @relation(fields: [demoVariantId], references: [id], onDelete: SetNull)
 
   @@index([siteId])
+  @@index([demoVariantId])
 }
 
 model SitePreviewScreenshot {
