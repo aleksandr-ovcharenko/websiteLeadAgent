@@ -4,6 +4,7 @@ import { setTimeout } from 'node:timers/promises';
 import { existsSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import path from 'node:path';
+import { chromium } from 'playwright';
 
 const DEFAULTS: Record<string, string> = {
   DATABASE_URL: 'postgresql://postgres:postgres@localhost:5433/minsk_lead_agent?schema=public',
@@ -150,6 +151,18 @@ async function waitForHealth(port: number, path: string, label: string, timeout 
   throw new Error(`${label} did not become ready on port ${port}`);
 }
 
+async function checkChromium() {
+  try {
+    const executable = chromium.executablePath();
+    if (!existsSync(executable)) throw new Error('missing');
+    console.log(`[PLAYWRIGHT] Chromium found at ${executable}`);
+  } catch (err) {
+    console.error('\nPlaywright Chromium is missing.');
+    console.error('Run: npm run setup:browsers\n');
+    process.exit(1);
+  }
+}
+
 function isDbReachable(timeout = 1000): Promise<boolean> {
   return new Promise((resolve) => {
     const c = createConnection({ port: 5433, host: 'localhost' });
@@ -216,6 +229,7 @@ async function main() {
   if (!help) checkNode();
   console.log('WebsiteLeadAgent dev launcher\n');
 
+  await checkChromium();
   await startInfra();
   await prepareDatabase();
   await buildTemplates();

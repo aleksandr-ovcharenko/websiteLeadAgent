@@ -24,6 +24,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:discovery:2gis": "tsx scripts/test-discovery-2gis.ts",
+    "setup": "npm install && npm run setup:browsers && npm run db:generate",
+    "setup:browsers": "npx playwright install chromium",
     "dev": "tsx scripts/dev.ts",
     "dev:help": "tsx scripts/dev.ts --help",
     "dev:platform": "tsx scripts/dev.ts --only=platform",
