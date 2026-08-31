@@ -692,6 +692,9 @@ app.listen(PORT, async () => {
       message: 'Chromium browser is available.',
     });
   }
+
+  await activity.cleanup();
+  setInterval(() => activity.cleanup(), 1000 * 60 * 60);
 });
 
 process.on('SIGINT', async () => {
