@@ -56,6 +56,9 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
   const lhOk = !!lead.lighthouseReport;
   const aiOk = visual?.status === 'SUCCESS';
   const scored = lead.leadScoreV2 !== null && lead.leadScoreV2 !== undefined;
+  const readyForReview = !!(
+    hasWebsite && auditOk && lhOk && aiOk && scored
+  );
 
   const handleReview = (s: string) => {
     setReview(s);
@@ -148,6 +151,11 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
             <Status label="Scored" status={scored ? 'SUCCESS' : 'PENDING'} />
             <Status label="Review" status={lead.manualReviewStatus || 'UNREVIEWED'} />
           </div>
+          {!readyForReview && (
+            <div className="mt-3 p-2.5 bg-red-50 border border-red-200 rounded text-[11px] text-red-800 font-mono">
+              Qualification incomplete. Complete all steps above before review.
+            </div>
+          )}
         </div>
 
         <div className="px-5 py-4 border-b border-[#f0ede8]">
@@ -213,24 +221,31 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
 
       <div className="shrink-0 border-t border-[#e5e3df] p-4 space-y-3">
         <div className="text-[10px] font-mono text-[#a8a29e] uppercase tracking-wider">Decision</div>
-        <div className="flex rounded overflow-hidden border border-[#ddd9d4] divide-x">
-          {(['BAD', 'UNSURE', 'GOOD'] as const).map((s) => {
-            const active = review === s;
-            return (
-              <button key={s} onClick={() => handleReview(s)}
-                className={`flex-1 py-2 text-[12px] font-mono font-medium ${active ? 'text-white' : 'text-[#78716c] hover:bg-[#f5f4f2]'}`}
-                style={{ background: active ? (s === 'GOOD' ? '#276749' : s === 'BAD' ? '#9b1c1c' : '#92600a') : 'transparent' }}>
-                {s === 'GOOD' ? 'Approve' : s === 'BAD' ? 'Reject' : 'Maybe'}
-              </button>
-            );
-          })}
-        </div>
+        {readyForReview ? (
+          <div className="flex rounded overflow-hidden border border-[#ddd9d4] divide-x">
+            {(['BAD', 'UNSURE', 'GOOD'] as const).map((s) => {
+              const active = review === s;
+              return (
+                <button key={s} onClick={() => handleReview(s)}
+                  className={`flex-1 py-2 text-[12px] font-mono font-medium ${active ? 'text-white' : 'text-[#78716c] hover:bg-[#f5f4f2]'}`}
+                  style={{ background: active ? (s === 'GOOD' ? '#276749' : s === 'BAD' ? '#9b1c1c' : '#92600a') : 'transparent' }}>
+                  {s === 'GOOD' ? 'Approve' : s === 'BAD' ? 'Reject' : 'Maybe'}
+                </button>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="text-[11px] text-[#78716c] font-mono p-2 bg-[#fafaf9] border border-[#e5e3df] rounded">
+            Review disabled until qualification is complete.
+          </div>
+        )}
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          onBlur={() => { if (note !== (lead.manualReviewNote || '')) onReview(review, note); }}
-          placeholder="Review note (optional)"
-          className="w-full h-16 p-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] font-mono resize-none"
+          onBlur={() => { if (readyForReview && note !== (lead.manualReviewNote || '')) onReview(review, note); }}
+          disabled={!readyForReview}
+          placeholder={readyForReview ? 'Review note (optional)' : 'Notes disabled until ready'}
+          className={`w-full h-16 p-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] font-mono resize-none ${!readyForReview ? 'opacity-50' : ''}`}
         />
         <div className="flex gap-2">
           {action && (

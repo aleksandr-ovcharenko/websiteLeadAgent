@@ -200,43 +200,53 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
       inputSchema: { leadId: 'string' },
       supportsCancel: false,
       handler: async (ctx, input) => {
-        const lead = await deps.prisma.lead.findUnique({
-          where: { id: input.leadId },
-          select: {
-            id: true,
-            businessScore: true,
-            websiteQualityScore: true,
-            technicalQualityScore: true,
-            visualQualityScore: true,
-          },
-        });
-        if (!lead) throw new Error('Lead not found');
-        const visual = await (deps.prisma as any).visualAnalysis.findUnique({
-          where: { leadId: lead.id },
-          select: { redesignPotential: true },
-        });
-        const redesignPotentialNormalized = Math.max(0, Math.min(100, (visual?.redesignPotential ?? 0) * 10));
-        const v2 = computeLeadScoreV2({
-          scores: {
-            technicalQualityScore: lead.technicalQualityScore ?? 0,
-            visualQualityScore: lead.visualQualityScore ?? 0,
-            businessConfidenceScore: lead.businessScore ?? 0,
-            redesignPotentialNormalized,
-          },
-        });
-        await deps.prisma.lead.update({
-          where: { id: lead.id },
-          data: {
-            leadScoreV2: v2.leadScoreV2,
-            scoreDetailsV2: {
-              ...(lead as any).scoreDetailsV2,
-              parts: v2.parts,
-              reasons: v2.reasons,
-            } as any,
-          },
-        });
-        await ctx.success(`Score recalculated: ${v2.leadScoreV2}`, { stage: 'scoring', metadata: { v2 } });
-        return { leadId: lead.id, score: v2.leadScoreV2 };
+        try {
+          const lead = await deps.prisma.lead.findUnique({
+            where: { id: input.leadId },
+            select: {
+              id: true,
+              businessScore: true,
+              websiteQualityScore: true,
+              technicalQualityScore: true,
+              visualQualityScore: true,
+            },
+          });
+          if (!lead) throw new Error('Lead not found');
+          const visual = await (deps.prisma as any).visualAnalysis.findUnique({
+            where: { leadId: lead.id },
+            select: { redesignPotential: true },
+          });
+          const redesignPotentialNormalized = Math.max(0, Math.min(100, (visual?.redesignPotential ?? 0) * 10));
+          const v2 = computeLeadScoreV2({
+            scores: {
+              technicalQualityScore: lead.technicalQualityScore ?? 0,
+              visualQualityScore: lead.visualQualityScore ?? 0,
+              businessConfidenceScore: lead.businessScore ?? 0,
+              redesignPotentialNormalized,
+            },
+          });
+          const scoreDetailsV2 = {
+            ...(lead as any).scoreDetailsV2 || {},
+            parts: v2.parts,
+            reasons: v2.reasons,
+          } as any;
+          await deps.prisma.lead.update({
+            where: { id: lead.id },
+            data: {
+              leadScoreV2: v2.leadScoreV2,
+              scoreDetailsV2,
+              scoreStatus: 'SUCCESS',
+            },
+          });
+          await ctx.success(`Score recalculated: ${v2.leadScoreV2}`, { stage: 'scoring', metadata: { v2 } });
+          return { leadId: lead.id, score: v2.leadScoreV2 };
+        } catch (err: any) {
+          await deps.prisma.lead.update({
+            where: { id: input.leadId },
+            data: { scoreStatus: 'FAILED', scoreDetailsV2: { error: err?.message || 'score_failed' } },
+          });
+          throw err;
+        }
       },
     },
 

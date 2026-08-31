@@ -48,6 +48,7 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
   const websiteStatus = typeof req.query.websiteStatus === 'string' ? req.query.websiteStatus : '';
   const enrichmentStatus = typeof req.query.enrichmentStatus === 'string' ? req.query.enrichmentStatus : '';
   const auditStatus = typeof req.query.auditStatus === 'string' ? req.query.auditStatus : '';
+  const qualificationStatus = typeof req.query.qualificationStatus === 'string' ? req.query.qualificationStatus : 'READY';
   const includeExcluded = req.query.includeExcluded === '1';
   const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   const sort = typeof req.query.sort === 'string' ? req.query.sort : 'lead_desc';
@@ -123,6 +124,27 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
 
   if (auditStatus) {
     where.auditStatus = auditStatus;
+  }
+
+  const readyForReviewWhere: any = {
+    websiteStatus: 'FOUND',
+    auditStatus: 'SUCCESS',
+    lighthouseReport: { isNot: null },
+    visualAnalysis: { status: 'SUCCESS' },
+    scoreStatus: 'SUCCESS',
+  };
+
+  if (qualificationStatus === 'READY') {
+    Object.assign(where, readyForReviewWhere);
+  } else if (qualificationStatus === 'PENDING') {
+    where.websiteStatus = 'FOUND';
+    where.NOT = readyForReviewWhere;
+  } else if (qualificationStatus === 'FAILED') {
+    where.OR = [
+      { auditStatus: 'FAILED' },
+      { scoreStatus: 'FAILED' },
+      { visualAnalysis: { status: 'FAILED' } },
+    ];
   }
 
   if (discoveryRunId) {
@@ -235,7 +257,17 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
     } as any
   });
 
-  res.json({ items: leads, meta: { limit, offset, q, sort, discoveryRunId, websiteStatus, enrichmentStatus } });
+  const withReadiness = leads.map((l: any) => ({
+    ...l,
+    readyForReview: !!(
+      l.websiteStatus === 'FOUND' &&
+      l.auditStatus === 'SUCCESS' &&
+      l.lighthouseReport &&
+      l.visualAnalysis?.status === 'SUCCESS' &&
+      l.scoreStatus === 'SUCCESS'
+    ),
+  }));
+  res.json({ items: withReadiness, meta: { limit, offset, q, sort, discoveryRunId, websiteStatus, enrichmentStatus, qualificationStatus } });
 });
 
 app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => {
@@ -246,6 +278,13 @@ app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => 
     if (run?.leadIds?.length) where.id = { in: run.leadIds };
     else where.id = { in: [] };
   }
+  const readyForReviewWhere: any = {
+    websiteStatus: 'FOUND',
+    auditStatus: 'SUCCESS',
+    lighthouseReport: { isNot: null },
+    visualAnalysis: { status: 'SUCCESS' },
+    scoreStatus: 'SUCCESS',
+  };
   const [
     total,
     withWebsite,
@@ -255,6 +294,9 @@ app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => 
     lighthoused,
     aiAnalyzed,
     scored,
+    readyForReview,
+    qualificationPending,
+    qualificationFailed,
     good,
     selected,
     generated,
@@ -267,8 +309,11 @@ app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => 
     prisma.lead.count({ where: { ...where, auditStatus: 'SUCCESS' } }),
     prisma.lead.count({ where: { ...where, lighthouseReport: { isNot: null } } }),
     prisma.lead.count({ where: { ...where, visualAnalysis: { status: 'SUCCESS' } } }),
-    prisma.lead.count({ where: { ...where, leadScoreV2: { not: null } } }),
-    prisma.lead.count({ where: { ...where, manualReviewStatus: 'GOOD' } }),
+    prisma.lead.count({ where: { ...where, scoreStatus: 'SUCCESS' } }),
+    prisma.lead.count({ where: { ...where, ...readyForReviewWhere } }),
+    prisma.lead.count({ where: { ...where, websiteStatus: 'FOUND', NOT: readyForReviewWhere } }),
+    prisma.lead.count({ where: { ...where, OR: [ { auditStatus: 'FAILED' }, { scoreStatus: 'FAILED' }, { visualAnalysis: { status: 'FAILED' } } ] } }),
+    prisma.lead.count({ where: { ...where, ...readyForReviewWhere, manualReviewStatus: 'GOOD' } }),
     prisma.lead.count({ where: { ...where, redesignStage: 'SELECTED_FOR_REDESIGN' } }),
     prisma.lead.count({ where: { ...where, site: { isNot: null } } }),
     prisma.lead.count({ where: { ...where, auditStatus: 'FAILED' } })
@@ -282,6 +327,9 @@ app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => 
     lighthoused,
     aiAnalyzed,
     scored,
+    readyForReview,
+    qualificationPending,
+    qualificationFailed,
     good,
     selected,
     generated,
@@ -336,6 +384,28 @@ app.post('/api/leads/:leadId/review', requireAuth, async (req: Request, res: Res
   const allowed = new Set(['UNREVIEWED', 'GOOD', 'BAD', 'UNSURE']);
   if (!allowed.has(status)) {
     res.status(400).json({ error: 'invalid_status' });
+    return;
+  }
+
+  const lead = await prisma.lead.findUnique({
+    where: { id: leadId },
+    select: {
+      websiteStatus: true,
+      auditStatus: true,
+      scoreStatus: true,
+      lighthouseReport: { select: { id: true } },
+      visualAnalysis: { select: { status: true } },
+    }
+  });
+  const isReadyForReview = !!(
+    lead?.websiteStatus === 'FOUND' &&
+    lead?.auditStatus === 'SUCCESS' &&
+    lead?.lighthouseReport &&
+    lead?.visualAnalysis?.status === 'SUCCESS' &&
+    lead?.scoreStatus === 'SUCCESS'
+  );
+  if (!isReadyForReview) {
+    res.status(400).json({ error: 'not_ready_for_review' });
     return;
   }
 

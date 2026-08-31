@@ -37,7 +37,7 @@ export const api = {
   getHubStats: () => request('/api/hub/stats') as Promise<any>,
 
   // Leads
-  getLeads: (params: { limit?: number; offset?: number; q?: string; sort?: string; manual?: string; websiteStatus?: string; enrichmentStatus?: string; auditStatus?: string; discoveryRunId?: string } = {}) => {
+  getLeads: (params: { limit?: number; offset?: number; q?: string; sort?: string; manual?: string; websiteStatus?: string; enrichmentStatus?: string; auditStatus?: string; qualificationStatus?: string; discoveryRunId?: string } = {}) => {
     const qs = new URLSearchParams();
     qs.set('limit', String(params.limit ?? 200));
     qs.set('offset', String(params.offset ?? 0));
@@ -47,6 +47,7 @@ export const api = {
     if (params.websiteStatus) qs.set('websiteStatus', params.websiteStatus);
     if (params.enrichmentStatus) qs.set('enrichmentStatus', params.enrichmentStatus);
     if (params.auditStatus) qs.set('auditStatus', params.auditStatus);
+    if (params.qualificationStatus) qs.set('qualificationStatus', params.qualificationStatus);
     if (params.discoveryRunId) qs.set('discoveryRunId', params.discoveryRunId);
     return request(`/api/leads?${qs.toString()}`) as Promise<{ items: any[]; meta: any }>;
   },

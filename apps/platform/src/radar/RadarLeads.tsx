@@ -21,7 +21,7 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [discoveryRunId, setDiscoveryRunId] = useState('');
-  const [quick, setQuick] = useState(mode === 'audit' ? 'needs_audit' : mode === 'selected' ? 'selected' : 'all');
+  const [quick, setQuick] = useState(mode === 'audit' ? 'needs_audit' : mode === 'selected' ? 'selected' : 'ready_for_review');
   const [filters, setFilters] = useState<Filters>({ q: '', sort: 'v2_desc', websiteStatus: '', auditStatus: '', manual: '' });
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
@@ -35,17 +35,18 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
     if (filters.auditStatus) p.auditStatus = filters.auditStatus;
     if (filters.manual) p.manual = filters.manual;
     if (discoveryRunId) p.discoveryRunId = discoveryRunId;
-    if (quick === 'good') p.manual = 'GOOD';
-    if (quick === 'unsure') { p.websiteStatus = 'FOUND'; p.manual = 'UNSURE'; }
-    if (quick === 'bad') { p.websiteStatus = 'FOUND'; p.manual = 'BAD'; }
-    if (quick === 'qualification_pending') { p.websiteStatus = 'FOUND'; p.auditStatus = 'PENDING'; }
-    if (quick === 'needs_audit') { p.websiteStatus = 'FOUND'; p.auditStatus = 'PENDING'; }
-    if (quick === 'needs_ai') { p.websiteStatus = 'FOUND'; p.auditStatus = 'SUCCESS'; p.enrichmentStatus = 'SUCCESS'; }
-    if (quick === 'ready_for_review') { p.websiteStatus = 'FOUND'; p.auditStatus = 'SUCCESS'; p.manual = 'UNREVIEWED'; }
-    if (quick === 'failed') { p.websiteStatus = 'FOUND'; p.auditStatus = 'FAILED'; }
-    if (quick === 'no_website') p.websiteStatus = 'NOT_FOUND';
-    if (quick === 'selected') p.manual = 'GOOD';
-    if (quick === 'generated') p.websiteStatus = 'FOUND';
+    if (quick === 'all') { p.qualificationStatus = 'ALL'; p.websiteStatus = 'FOUND'; }
+    if (quick === 'qualification_pending') p.qualificationStatus = 'PENDING';
+    if (quick === 'ready_for_review') p.qualificationStatus = 'READY';
+    if (quick === 'failed') p.qualificationStatus = 'FAILED';
+    if (quick === 'no_website') { p.qualificationStatus = 'ALL'; p.websiteStatus = 'NOT_FOUND'; }
+    if (quick === 'needs_audit') p.qualificationStatus = 'PENDING';
+    if (quick === 'needs_ai') p.qualificationStatus = 'PENDING';
+    if (quick === 'good') { p.qualificationStatus = 'READY'; p.manual = 'GOOD'; }
+    if (quick === 'unsure') { p.qualificationStatus = 'READY'; p.manual = 'UNSURE'; }
+    if (quick === 'bad') { p.qualificationStatus = 'READY'; p.manual = 'BAD'; }
+    if (quick === 'selected') { p.qualificationStatus = 'ALL'; p.manual = 'GOOD'; }
+    if (quick === 'generated') { p.qualificationStatus = 'ALL'; p.websiteStatus = 'FOUND'; }
     return p;
   };
 

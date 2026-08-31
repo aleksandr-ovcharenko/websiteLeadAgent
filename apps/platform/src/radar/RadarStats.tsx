@@ -10,6 +10,9 @@ export interface RadarStatsData {
   lighthoused: number;
   aiAnalyzed: number;
   scored: number;
+  readyForReview: number;
+  qualificationPending: number;
+  qualificationFailed: number;
   good: number;
   selected: number;
   generated: number;
@@ -38,14 +41,12 @@ export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qua
   const cards: { label: string; value: keyof RadarStatsData; positive?: boolean; warn?: boolean }[] = [
     { label: 'Total', value: 'total' },
     { label: 'With website', value: 'withWebsite' },
-    { label: 'Without', value: 'withoutWebsite', warn: true },
-    { label: 'Audited', value: 'audited' },
-    { label: 'Lighthouse', value: 'lighthoused' },
-    { label: 'AI analyzed', value: 'aiAnalyzed' },
+    { label: 'Ready for review', value: 'readyForReview', positive: true },
+    { label: 'Pending', value: 'qualificationPending' },
+    { label: 'Failed', value: 'qualificationFailed', warn: true },
     { label: 'GOOD', value: 'good', positive: true },
     { label: 'Selected', value: 'selected', positive: true },
     { label: 'Generated', value: 'generated', positive: true },
-    { label: 'Failed', value: 'failed', warn: true },
   ];
 
   return (
