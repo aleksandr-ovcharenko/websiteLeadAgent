@@ -73,7 +73,21 @@ export class ActivityService {
     const level = input.level ?? 'INFO';
     const normalized: NormalizedError | null = input.error ? normalizeError(input.error) : null;
 
-    const details = redact(input.details ?? {});
+    const context: Record<string, any> = {};
+    if (input.leadId) {
+      const lead = await this.prisma.lead.findUnique({ where: { id: input.leadId }, select: { companyName: true } });
+      if (lead?.companyName) context.leadName = lead.companyName;
+    }
+    if (input.siteId) {
+      const site = await this.prisma.site.findUnique({ where: { id: input.siteId }, select: { name: true } });
+      if (site?.name) context.siteName = site.name;
+    }
+    if (input.demoVariantId) {
+      const variant = await this.prisma.demoVariant.findUnique({ where: { id: input.demoVariantId }, select: { name: true } });
+      if (variant?.name) context.demoVariantName = variant.name;
+    }
+
+    const details = redact({ ...input.details, ...context });
 
     const event = await this.prisma.activityEvent.create({
       data: {
