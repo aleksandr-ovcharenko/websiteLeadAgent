@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { RenderContext } from '../types.js';
+import { constructionModernV1Manifest } from './manifest.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -190,22 +191,31 @@ export function constructionModernV1(ctx: RenderContext): string {
     return '#';
   }
 
-  const rawNav = defaultNav.map((item: any, i: number) => ({
-    id: item.id || `nav_${i}`,
-    label: item.label || item.title || 'Item',
-    href: resolveNavHref(item),
-    external: !!item.url && /^https?:\/\//.test(item.url),
-    targetType: item.targetType,
-    target: item.target,
-    pageId: item.pageId,
-    sortOrder: item.sortOrder ?? i,
-    showInHeader: item.showInHeader !== false,
-    showInFooter: item.showInFooter !== false,
-    showOnHomepage: item.showOnHomepage !== false
-  }));
+  function buildNav(items: any[], prefix = 'nav_', start = 0): any[] {
+    return items.map((item: any, i: number) => {
+      const id = item.id || `${prefix}${start + i}`;
+      const children = item.children?.length ? buildNav(item.children, `${id}_`, 0) : undefined;
+      return {
+        id,
+        label: item.label || item.title || 'Item',
+        href: resolveNavHref(item),
+        external: !!item.url && /^https?:\/\//.test(item.url),
+        targetType: item.targetType,
+        target: item.target,
+        pageId: item.pageId,
+        sortOrder: item.sortOrder ?? (start + i),
+        showInHeader: item.showInHeader !== false,
+        showInFooter: item.showInFooter !== false,
+        showOnHomepage: item.showOnHomepage !== false,
+        children
+      };
+    });
+  }
+
+  const rawNav = buildNav(defaultNav);
 
   const seen = new Set<string>();
-  const nav = rawNav.filter((n) => n.href !== '#').filter((n) => {
+  const nav = rawNav.filter((n: any) => n.href !== '#').filter((n: any) => {
     if (seen.has(n.label)) return false;
     seen.add(n.label);
     return true;
@@ -225,12 +235,22 @@ export function constructionModernV1(ctx: RenderContext): string {
     img: mediaUrl(ctx, s.imageId)
   }));
 
+  function mapBlock(b: any) {
+    return {
+      ...b,
+      type: b.type || 'text',
+      imageUrl: b.imageUrl ?? mediaUrl(ctx, b.imageId),
+      imageUrls: b.imageUrls ?? (b.imageIds ? b.imageIds.map((id: string) => mediaUrl(ctx, id)).filter(Boolean) : undefined)
+    };
+  }
+
   const pages = (ctx.pages || []).map((p) => ({
     id: p.id,
     slug: p.slug,
     title: p.title || 'Страница',
     isHomepage: p.isHomepage || false,
     content: textFrom(p),
+    blocks: (p.blocks || []).map(mapBlock),
     seoTitle: p.seoTitle || '',
     seoDescription: p.seoDescription || ''
   }));
@@ -309,6 +329,7 @@ export function constructionModernV1(ctx: RenderContext): string {
     subRoute: ctx.subRoute,
     PREVIEW_TOKEN: token,
     SITE_ID: ctx.site?.id || '',
+    MANIFEST: constructionModernV1Manifest,
     THEME: theme,
     THEME_CSS: themeStyle,
     SETTINGS: ctx.settings,

@@ -45,9 +45,12 @@ async function renderPreview(req: Request, res: Response) {
   const news = await (prisma as any).newsPost.findMany({ where: { siteId: site.id, status: 'PUBLISHED' } });
   const vacancies = await (prisma as any).vacancy.findMany({ where: { siteId: site.id, status: 'PUBLISHED' } });
   const menu = await (prisma as any).menuItem.findMany({
-    where: { siteId: site.id, visible: true },
-    include: { page: { select: { slug: true } } },
-    orderBy: { sortOrder: 'asc' }
+    where: { siteId: site.id, visible: true, parentId: null },
+    include: {
+      page: { select: { slug: true } },
+      children: { include: { page: { select: { slug: true } }, children: { include: { page: { select: { slug: true } } } } } }
+    },
+    orderBy: { sortOrder: 'asc' },
   });
   const media = await (prisma as any).media.findMany({ where: { siteId: site.id } });
   const mediaMap = new Map<string, any>();

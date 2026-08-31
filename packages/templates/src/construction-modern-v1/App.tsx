@@ -12,11 +12,12 @@ const DEFAULT_CMS: any = {
   SITE_ID: '',
   route: '',
   subRoute: '',
+  MANIFEST: { id: 'construction-modern-v1', name: 'Construction Modern v1', supportedSectionTypes: [], sectionRendererMap: {}, collectionRendererMap: {} },
   THEME: {},
   THEME_CSS: '',
   SETTINGS: {},
   COMPANY: {
-    name: 'Компания',
+    name: '',
     legalName: '',
     unp: '',
     founded: '',
@@ -35,20 +36,13 @@ const DEFAULT_CMS: any = {
     subtitle: '',
     image: '',
     buttonLabel: 'Связаться',
-    buttonUrl: '#contacts',
+    buttonUrl: '',
     location: '',
-    industry: 'Компания'
+    industry: ''
   },
-  ABOUT: { heading: 'О компании', content: '', image: '' },
-  CTA: { title: 'Обсудим ваш проект', description: '', buttonLabel: 'Связаться', buttonUrl: '#contacts' },
-  HOME_SECTIONS: [
-    { type: 'about', enabled: true, sortOrder: 1, title: 'О компании' },
-    { type: 'services', enabled: true, sortOrder: 2, title: 'Услуги' },
-    { type: 'projects', enabled: true, sortOrder: 3, title: 'Объекты' },
-    { type: 'news', enabled: true, sortOrder: 4, title: 'Новости' },
-    { type: 'vacancies', enabled: true, sortOrder: 5, title: 'Вакансии' },
-    { type: 'contacts', enabled: true, sortOrder: 6, title: 'Контакты' },
-  ],
+  ABOUT: { heading: '', content: '', image: '' },
+  CTA: { title: '', description: '', buttonLabel: 'Связаться', buttonUrl: '' },
+  HOME_SECTIONS: [],
   NAV: [],
   PAGES: [],
   SERVICES: [],
@@ -66,6 +60,7 @@ function getCmsData() {
   if (incoming.HERO) merged.HERO = { ...DEFAULT_CMS.HERO, ...incoming.HERO };
   if (incoming.ABOUT) merged.ABOUT = { ...DEFAULT_CMS.ABOUT, ...incoming.ABOUT };
   if (incoming.CTA) merged.CTA = { ...DEFAULT_CMS.CTA, ...incoming.CTA };
+  if (incoming.MANIFEST) merged.MANIFEST = { ...DEFAULT_CMS.MANIFEST, ...incoming.MANIFEST };
   return merged;
 }
 
@@ -82,6 +77,19 @@ const HOME_SECTION_TYPES = (HOME_SECTIONS || [])
   .filter((s: any) => s.enabled !== false)
   .map((s: any) => s.type)
   .filter((t: string) => !COLLECTION_ROUTES.includes(t));
+
+function flattenNav(items: any[]): any[] {
+  const out: any[] = [];
+  for (const item of items || []) {
+    out.push(item);
+    if (item.children?.length) {
+      out.push(...flattenNav(item.children));
+    }
+  }
+  return out;
+}
+
+const FLAT_NAV = flattenNav(NAV);
 
 function sectionConfig(type: string) {
   return (HOME_SECTIONS || []).find((s: any) => s.type === type && s.enabled !== false);
@@ -233,7 +241,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
 
         {/* Desktop nav */}
         <nav className="hidden lg:flex items-center gap-7">
-          {(NAV || []).filter((n: any) => n.showInHeader).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any) => (
+          {(FLAT_NAV || []).filter((n: any) => n.showInHeader).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any) => (
             <a
               key={n.id}
               href={n.href}
@@ -315,7 +323,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
         }}
       >
         <nav className="flex flex-col px-6 pt-2 pb-6">
-          {(NAV || []).filter((n: any) => n.showInHeader).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any, i: number) => (
+          {(FLAT_NAV || []).filter((n: any) => n.showInHeader).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any, i: number) => (
             <a
               key={n.id}
               href={n.href}
@@ -1527,7 +1535,12 @@ function PageView({ slug }: { slug: string }) {
     <section id={slug} className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[900px] mx-auto px-6 md:px-10">
         <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-6" style={{ ...GEO, color: 'var(--fg)' }}>{page.title}</h1>
-        <div className="text-base leading-relaxed" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{page.content}</div>
+        {page.content ? (
+          <div className="text-base leading-relaxed mb-6" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{page.content}</div>
+        ) : null}
+        {(page.blocks || []).map((b: any, i: number) => (
+          <SectionResolver key={`pageblock-${slug}-${i}`} item={b} />
+        ))}
       </div>
     </section>
   )
@@ -1835,48 +1848,32 @@ function Footer() {
 
           {/* Navigation */}
           <div>
-            <FooterHeading>Компания</FooterHeading>
+            <FooterHeading>Навигация</FooterHeading>
             <nav className="flex flex-col gap-3">
-              {(NAV || []).filter((n: any) => n.showInFooter).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any) => (
+              {(FLAT_NAV || []).filter((n: any) => n.showInFooter).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any) => (
                 <FooterLink key={n.id} href={n.href} target={n.external ? '_blank' : undefined} rel={n.external ? 'noopener noreferrer' : undefined}>{n.label}</FooterLink>
-              ))}
-            </nav>
-          </div>
-
-          {/* Services */}
-          <div>
-            <FooterHeading>Услуги</FooterHeading>
-            <nav className="flex flex-col gap-3">
-              {SERVICES.slice(0, 6).map(s => (
-                <FooterLink key={s.id} href={serviceHref(s.slug)}>{s.title}</FooterLink>
               ))}
             </nav>
           </div>
 
           {/* Contacts — general */}
           <div>
-            <FooterHeading>Приёмная</FooterHeading>
+            <FooterHeading>Контакты</FooterHeading>
             <div className="flex flex-col gap-2 mb-6">
-              {COMPANY.contacts.general.map(c => (
-                <div key={c.phone}>
-                  <a
-                    href={c.href}
-                    className="text-sm transition-colors block"
-                    style={{ color: FOOTER_DIM }}
-                    onMouseEnter={e => (e.currentTarget.style.color = 'white')}
-                    onMouseLeave={e => (e.currentTarget.style.color = FOOTER_DIM)}
-                  >
-                    {c.phone}
-                  </a>
-                  {c.label && (
-                    <span className="text-[10px]" style={{ color: FOOTER_MUTED }}>{c.label}</span>
-                  )}
-                </div>
-              ))}
+              {COMPANY.phone ? (
+                <a href={COMPANY.phoneHref} className="text-sm transition-colors block" style={{ color: FOOTER_DIM }} onMouseEnter={e => (e.currentTarget.style.color = 'white')} onMouseLeave={e => (e.currentTarget.style.color = FOOTER_DIM)}>
+                  {COMPANY.phone}
+                </a>
+              ) : null}
+              {COMPANY.email ? (
+                <a href={`mailto:${COMPANY.email}`} className="text-sm transition-colors block" style={{ color: FOOTER_DIM }} onMouseEnter={e => (e.currentTarget.style.color = 'white')} onMouseLeave={e => (e.currentTarget.style.color = FOOTER_DIM)}>
+                  {COMPANY.email}
+                </a>
+              ) : null}
             </div>
             <FooterHeading>Email</FooterHeading>
             <a
-              href={`mailto:${COMPANY.contacts.email}`}
+              href={`mailto:${COMPANY.contacts.email || COMPANY.email || ''}`}
               className="text-sm transition-colors"
               style={{ color: FOOTER_DIM }}
               onMouseEnter={e => (e.currentTarget.style.color = 'white')}
@@ -1956,11 +1953,35 @@ const SECTION_COMPONENTS: Record<string, () => JSX.Element | null> = {
   cta: () => <CallToAction />,
 }
 
+function GenericSection({ section }: { section: any }) {
+  if (!section) return null;
+  const title = section.title || section.heading || section.label || '';
+  const body = section.subtitle || section.content || section.description || '';
+  const images: string[] = (section.imageUrls || (section.imageUrl ? [section.imageUrl] : [])).filter(Boolean);
+  if (!title && !body && images.length === 0) return null;
+  const id = (section.type || section.target || '').toLowerCase();
+  return (
+    <section id={id} className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[900px] mx-auto px-6 md:px-10">
+        {title ? <h2 className="text-3xl md:text-4xl font-bold mb-4" style={{ ...GEO, color: 'var(--fg)' }}>{title}</h2> : null}
+        {body ? <p className="text-base leading-relaxed mb-6" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{body}</p> : null}
+        {images.length ? (
+          <div className={`grid gap-4 ${images.length > 1 ? 'grid-cols-2 md:grid-cols-3' : 'grid-cols-1'}`}>
+            {images.map((img: string, i: number) => (
+              <img key={i} src={img} alt={title} className="w-full object-cover rounded" style={{ aspectRatio: '16/10' }} />
+            ))}
+          </div>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
 function SectionResolver({ item }: { item: any }) {
-  const key = (item.type || item.target || '').toLowerCase()
+  const key = (item.sectionType || item.type || item.target || '').toLowerCase()
   const Comp = SECTION_COMPONENTS[key]
-  if (!Comp) return null
-  return <Comp />
+  if (Comp) return <Comp />
+  return <GenericSection section={item} />
 }
 
 function Home({ activeSection }: { activeSection?: string }) {
@@ -1977,7 +1998,7 @@ function Home({ activeSection }: { activeSection?: string }) {
   }, [activeSection])
 
   const homeSections = (HOME_SECTIONS || [])
-    .filter((s: any) => s.enabled !== false && s.type !== 'hero' && SECTION_COMPONENTS[s.type])
+    .filter((s: any) => s.enabled !== false && s.type !== 'hero')
     .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
 
   return (
@@ -1998,29 +2019,29 @@ export default function App() {
   const sub = (cms as any).subRoute || ''
   const isHomeSection = HOME_SECTION_TYPES.includes(route) && !sub
   const isCollection = COLLECTION_ROUTES.includes(route) && !sub
+  const isDetail = COLLECTION_ROUTES.includes(route) && !!sub
   const matchedPage = route ? PAGES.find((p: any) => p.slug === route) : null
 
   return (
     <div style={{ fontFamily: "'Inter', sans-serif", background: 'var(--bg)', color: 'var(--fg)' }}>
       <Header menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
       <main>
-        {!route || isHomeSection ? (
-          <Home activeSection={isHomeSection ? route : undefined} />
+        {!route ? (
+          <Home />
+        ) : isDetail ? (
+          route === 'news' ? <NewsDetail slug={sub} /> :
+          route === 'projects' ? <ProjectDetail slug={sub} /> :
+          route === 'services' ? <ServiceDetail slug={sub} /> :
+          route === 'vacancies' ? <VacancyDetail slug={sub} /> : null
         ) : isCollection ? (
           route === 'news' ? <NewsList /> :
           route === 'projects' ? <ProjectList /> :
           route === 'services' ? <ServiceList /> :
           route === 'vacancies' ? <VacancyList /> : null
-        ) : route === 'news' && sub ? (
-          <NewsDetail slug={sub} />
-        ) : route === 'projects' && sub ? (
-          <ProjectDetail slug={sub} />
-        ) : route === 'services' && sub ? (
-          <ServiceDetail slug={sub} />
-        ) : route === 'vacancies' && sub ? (
-          <VacancyDetail slug={sub} />
         ) : matchedPage ? (
           <PageView slug={route} />
+        ) : isHomeSection ? (
+          <Home activeSection={route} />
         ) : (
           <PageView slug={route} />
         )}
