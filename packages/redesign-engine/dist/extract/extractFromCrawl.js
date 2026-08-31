@@ -550,7 +550,8 @@ export function extractFromCrawl(pages, baseUrl, navigation) {
         branding: {
             companyName,
             logo: logoSrc ? { filename: filenameFromUrl(logoSrc), sourceUrl: logoSrc, mimeType: mimeFromFilename(logoSrc) } : undefined,
-            favicon: logoSrc ? { filename: filenameFromUrl(logoSrc), sourceUrl: logoSrc, mimeType: mimeFromFilename(logoSrc) } : undefined,
+            favicon: homepage?.favicon ? { filename: filenameFromUrl(homepage.favicon), sourceUrl: homepage.favicon, mimeType: mimeFromFilename(homepage.favicon) } :
+                logoSrc ? { filename: filenameFromUrl(logoSrc), sourceUrl: logoSrc, mimeType: mimeFromFilename(logoSrc) } : undefined,
             primaryColor: theme.primaryColor,
             secondaryColor: theme.secondaryColor,
             defaultSeoTitle: homepage?.title || companyName,

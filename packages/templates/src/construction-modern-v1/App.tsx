@@ -1986,6 +1986,9 @@ function SectionResolver({ item }: { item: any }) {
 
 function Home({ activeSection }: { activeSection?: string }) {
   useEffect(() => {
+    if (typeof document !== 'undefined') {
+      document.title = COMPANY.name || 'Website';
+    }
     if (typeof document === 'undefined') return
     if (activeSection) {
       const el = document.getElementById(activeSection)

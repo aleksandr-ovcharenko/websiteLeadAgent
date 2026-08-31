@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Screen } from './types'
-import { StudioProvider, type StudioUser } from './context'
+import { StudioProvider, useStudio, type StudioUser } from './context'
 import Sidebar from './Sidebar'
 import TopBar from './TopBar'
 import Dashboard from './Dashboard'
@@ -16,6 +16,35 @@ import SiteSettings from './SiteSettings'
 import Users from './Users'
 
 const EDITOR_SCREENS: Screen[] = ['page-editor', 'project-editor', 'news-editor', 'service-editor', 'vacancy-editor']
+
+const SCREEN_LABELS: Record<Screen, string> = {
+  dashboard: 'Dashboard',
+  pages: 'Pages',
+  'page-editor': 'Page Editor',
+  projects: 'Projects',
+  'project-editor': 'Project Editor',
+  news: 'News',
+  'news-editor': 'News Editor',
+  services: 'Services',
+  'service-editor': 'Service Editor',
+  vacancies: 'Vacancies',
+  'vacancy-editor': 'Vacancy Editor',
+  media: 'Media',
+  navigation: 'Navigation',
+  contacts: 'Contacts',
+  'site-settings': 'Site Settings',
+  users: 'Users'
+};
+
+function StudioInner({ screen }: { screen: Screen }) {
+  const { site, settings } = useStudio();
+  const siteName = site?.name || settings?.companyName || 'Studio';
+  useEffect(() => {
+    const part = SCREEN_LABELS[screen] || 'Studio';
+    document.title = `${part} — ${siteName} — WebsiteLeadAgent`;
+  }, [screen, siteName]);
+  return null;
+}
 
 export default function Studio({ siteId, user }: { siteId: string; user?: any }) {
   const [screen, setScreen] = useState<Screen>('dashboard')
@@ -33,6 +62,7 @@ export default function Studio({ siteId, user }: { siteId: string; user?: any })
 
   return (
     <StudioProvider siteId={siteId} user={(user ?? null) as StudioUser | null}>
+      <StudioInner screen={screen} />
       <div className="flex h-full bg-[#f4f5f7] overflow-hidden">
         <Sidebar current={screen} onNavigate={navigate} />
 

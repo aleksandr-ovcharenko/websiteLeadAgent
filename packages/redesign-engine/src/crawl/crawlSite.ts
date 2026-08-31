@@ -106,6 +106,7 @@ type ExtractedNav = {
   text: string;
   html: string;
   logo: string | null;
+  favicon: string | null;
   heroImage: string | null;
   themeColors: PageThemeColors;
   links: RawLink[];
@@ -346,9 +347,30 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
               const logoImg = area.querySelector('img[alt*="logo" i], img[class*="logo" i], a[href="/"] img, a[href="./"] img') as HTMLImageElement | null;
               if (logoImg?.src) return new URL(logoImg.getAttribute('src') || logoImg.src, baseHref).toString();
             }
-            const linkIcon = document.querySelector('link[rel*="icon" i]') as HTMLLinkElement | null;
-            if (linkIcon?.href) return new URL(linkIcon.href, baseHref).toString();
             return null;
+          }
+
+          function parseIconSize(sizes?: string): number {
+            if (!sizes) return 0;
+            const match = sizes.match(/(\d+)\s*x\s*(\d+)/);
+            return match ? parseInt(match[1], 10) : 0;
+          }
+
+          function extractFavicon(): string | null {
+            const rels = ['icon', 'shortcut icon', 'apple-touch-icon'];
+            const candidates: { href: string; size: number }[] = [];
+            for (const rel of rels) {
+              const links = document.querySelectorAll(`link[rel="${rel}" i], link[rel*="${rel}" i]`);
+              for (const el of Array.from(links)) {
+                const link = el as HTMLLinkElement;
+                if (link.href) {
+                  const size = parseIconSize(link.getAttribute('sizes') || undefined);
+                  candidates.push({ href: new URL(link.href, baseHref).toString(), size });
+                }
+              }
+            }
+            candidates.sort((a, b) => b.size - a.size);
+            return candidates[0]?.href || null;
           }
 
           function resolveSrc(src: string): string {
@@ -475,6 +497,7 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
           const allLinks = [...navFlat, ...bodyLinks];
 
           const logo = extractLogo();
+          const favicon = extractFavicon();
           const heroImage = extractHeroImage();
           const images = extractImages();
           const themeColors = extractThemeColors();
@@ -486,6 +509,7 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
             text: body.slice(0, 12000),
             html,
             logo,
+            favicon,
             heroImage,
             themeColors,
             links: allLinks,
@@ -505,6 +529,7 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
           links: data.links,
           images: data.images,
           logo: data.logo || undefined,
+          favicon: data.favicon || undefined,
           heroImage: data.heroImage || undefined,
           themeColors: data.themeColors,
           headerNav: data.headerNav,

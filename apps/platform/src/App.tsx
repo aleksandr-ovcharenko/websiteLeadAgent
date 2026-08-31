@@ -1078,6 +1078,17 @@ export default function App({ user }: { user?: any }) {
     if (siteId) setStudioSiteId(siteId);
   }
 
+  useEffect(() => {
+    const titles: Record<ProductArea, string> = {
+      hub: 'WebsiteLeadAgent',
+      radar: 'Radar — WebsiteLeadAgent',
+      factory: 'Factory — WebsiteLeadAgent',
+      forge: 'Forge — WebsiteLeadAgent',
+      studio: 'Studio — WebsiteLeadAgent'
+    };
+    document.title = titles[view] || 'WebsiteLeadAgent';
+  }, [view]);
+
   const renderContent = () => {
     const common = 'flex-1';
     switch (view) {

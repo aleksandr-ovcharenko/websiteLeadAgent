@@ -28,6 +28,7 @@ export interface CrawledPage {
   links: { text: string; href: string; source?: 'header' | 'footer' | 'body' }[];
   images: CrawledImage[];
   logo?: string;
+  favicon?: string;
   heroImage?: string;
   themeColors?: CrawledThemeColors;
   headerNav?: NavigationNode[];
