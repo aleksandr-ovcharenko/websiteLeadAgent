@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Button } from '../cms/ui';
 import { LeadScoreRing, scoreHue, ScorePill } from './RadarScoreRing';
+import { computeQualification, STAGE_LABELS, STAGE_ICONS, stageColor } from './qualification';
 
 type Lead = any;
 
@@ -39,6 +40,8 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
   const [imgError, setImgError] = useState(false);
   const [selecting, setSelecting] = useState(false);
   const [generating, setGenerating] = useState(false);
+  const [optimistic, setOptimistic] = useState<Record<string, 'RUNNING' | 'PENDING'>>({});
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     setNote(lead.manualReviewNote || '');
@@ -46,6 +49,7 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
     setImgError(false);
     setSelecting(false);
     setGenerating(false);
+    setOptimistic({});
   }, [lead.id]);
 
   const visual = lead.visualAnalysis || {};
@@ -56,17 +60,45 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
   const screenshotUrl = lead.id ? `/audit/${lead.id}/${tab}.png` : '';
   const fullUrl = lead.id ? `/audit/${lead.id}/${tab}-full.png` : '';
   const hasWebsite = !!lead.website;
-  const auditOk = lead.auditStatus === 'SUCCESS' || lead.auditStatus === 'complete';
-  const lhOk = !!lead.lighthouseReport;
-  const aiOk = visual?.status === 'SUCCESS';
-  const scored = lead.leadScoreV2 !== null && lead.leadScoreV2 !== undefined;
-  const readyForReview = !!(
-    hasWebsite && auditOk && lhOk && aiOk && scored
-  );
+
+  const { stages, firstBlocking, firstBlockingIndex, readyForReview } = computeQualification(lead, optimistic);
+  const auditStatus = (optimistic.audit || lead.auditStatus || 'PENDING') as string;
+  const scoreStatus = (optimistic.scoring || lead.scoreStatus || 'PENDING') as string;
 
   const handleReview = (s: string) => {
     setReview(s);
     Promise.resolve(onReview(s, note)).catch(() => {});
+  };
+
+  const setRunning = (stage: string) => {
+    setOptimistic(prev => ({ ...prev, [stage]: 'RUNNING' }));
+  };
+
+  const handleRetryStage = (stageId: string) => {
+    const input = { leadId: lead.id, force: true };
+    if (stageId === 'audit' || stageId === 'screenshots') {
+      onStart('AUDIT_WEBSITE', { leadId: lead.id, website: lead.website });
+      setRunning('audit');
+      setRunning('screenshots');
+    } else if (stageId === 'lighthouse') {
+      onStart('RUN_LIGHTHOUSE', input);
+      setRunning('lighthouse');
+    } else if (stageId === 'ai') {
+      onStart('RUN_VISUAL_ANALYSIS', { leadId: lead.id, force: true });
+      setRunning('ai');
+    } else if (stageId === 'scoring') {
+      onStart('RECALCULATE_SCORE', { leadId: lead.id });
+      setRunning('scoring');
+    }
+  };
+
+  const handleRunFullQualification = (force = false) => {
+    onStart('RUN_FULL_QUALIFICATION', { leadId: lead.id, force });
+    setRunning('audit');
+    setRunning('screenshots');
+    setRunning('lighthouse');
+    setRunning('ai');
+    setRunning('scoring');
   };
 
   const handleSelect = async () => {
@@ -85,8 +117,15 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
 
   const primaryAction = () => {
     if (!hasWebsite) return null;
-    if (!auditOk) return { label: 'Qualify', action: () => onStart('RUN_FULL_QUALIFICATION', { leadId: lead.id, force: false }) };
-    if (!scored) return { label: 'Qualify', action: () => onStart('RUN_FULL_QUALIFICATION', { leadId: lead.id, force: false }) };
+    const anyRunning = stages.some(s => s.status === 'RUNNING');
+    if (anyRunning) return { label: 'Qualifying…', disabled: true };
+    if (firstBlocking) {
+      const label = ['FAILED', 'NOT_FOUND'].includes(firstBlocking.status) ? `Retry ${firstBlocking.label}` : 'Run qualification';
+      const action = ['FAILED', 'NOT_FOUND'].includes(firstBlocking.status)
+        ? () => handleRetryStage(firstBlocking.id)
+        : () => handleRunFullQualification(false);
+      return { label, action, variant: 'primary' as const };
+    }
     if (lead.site) return { label: 'Open site', action: () => { if (lead.site) window.open(`/showcase/${lead.site.previewToken}`, '_blank'); } };
     if (review === 'GOOD' && lead.redesignStage === 'NOT_SELECTED') return { label: selecting ? 'Selecting…' : 'Select for redesign', action: handleSelect, disabled: selecting };
     if (review === 'GOOD' && ['SELECTED_FOR_REDESIGN', 'CONTENT_EXTRACTED', 'CONTENT_TRANSFORMED', 'CMS_IMPORTED'].includes(lead.redesignStage || '')) return { label: generating ? 'Generating…' : 'Generate demo', action: handleGenerate, disabled: generating };
@@ -117,7 +156,7 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
             ))}
           </div>
           <div className="aspect-[16/10] relative overflow-hidden bg-[#fafaf9]">
-            {auditOk ? (
+            {auditStatus === 'SUCCESS' ? (
               imgError ? (
                 <div className="w-full h-full flex flex-col items-center justify-center text-center p-6">
                   <span className="text-[#a8a29e] text-[12px] font-mono mb-2">Screenshot unavailable</span>
@@ -164,41 +203,112 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
         </div>
 
         <div className="px-5 py-4 border-b border-[#f0ede8]">
-          <div className="text-[10px] font-mono text-[#a8a29e] uppercase tracking-wider mb-2">Qualification completeness</div>
-          <div className="grid grid-cols-2 gap-2">
-            <Status label="Website" status={hasWebsite ? 'FOUND' : 'NOT_FOUND'} />
-            <Status label="Audit" status={lead.auditStatus || 'PENDING'} />
-            <Status label="Lighthouse" status={lhOk ? 'SUCCESS' : 'PENDING'} />
-            <Status label="AI analysis" status={visual?.status || 'PENDING'} />
-            <Status label="Scored" status={scored ? 'SUCCESS' : 'PENDING'} />
-            <Status label="Review" status={lead.manualReviewStatus || 'UNREVIEWED'} />
-            <Status label="Pipeline" status={pipelineStage ? 'SUCCESS' : 'PENDING'} />
+          <div className="text-[10px] font-mono text-[#a8a29e] uppercase tracking-wider mb-2">Qualification summary</div>
+          <div className="space-y-1">
+            {stages.map((s, i) => {
+              const isBlocking = firstBlocking?.id === s.id;
+              const isPending = !['SUCCESS', 'SKIPPED', 'FOUND'].includes(s.status) && s.status !== 'RUNNING' && !isBlocking;
+              const waitingFor = isPending ? firstBlocking : null;
+              const status = isBlocking ? s.status : s.status;
+              return (
+                <div key={s.id} className={`rounded border px-2.5 py-2 ${isBlocking ? 'border-red-200 bg-red-50' : 'border-transparent hover:bg-stone-50'}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[12px] font-mono w-4 ${s.status === 'FAILED' || s.status === 'NOT_FOUND' ? 'text-red-600' : s.status === 'RUNNING' ? 'text-blue-600' : ['SUCCESS', 'FOUND'].includes(s.status) ? 'text-emerald-600' : 'text-amber-600'}`}>
+                        {STAGE_ICONS[s.status] || s.status[0]}
+                      </span>
+                      <span className="text-[12px] font-medium text-[#44403c]">{s.label}</span>
+                    </div>
+                    <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border ${stageColor(s.status)}`}>
+                      {STATUS_LABELS[s.status] || s.status}
+                    </span>
+                  </div>
+                  {isBlocking && s.reason && (
+                    <div className="mt-1.5 text-[11px] text-red-800 font-mono pl-6">
+                      {s.reason}
+                      {s.reason.length > 80 && (
+                        <button
+                          onClick={() => setExpanded(prev => ({ ...prev, [s.id]: !prev[s.id] }))}
+                          className="ml-2 text-[10px] text-red-600 underline"
+                        >
+                          {expanded[s.id] ? 'Hide details' : 'Details'}
+                        </button>
+                      )}
+                      {expanded[s.id] && (
+                        <div className="mt-1 p-1.5 bg-white/60 border border-red-100 rounded text-[10px] whitespace-pre-wrap">{s.reason}</div>
+                      )}
+                    </div>
+                  )}
+                  {isBlocking && (
+                    <div className="mt-1.5 text-[11px] text-red-800 font-mono pl-6">
+                      <button onClick={() => handleRetryStage(s.id)} className="px-2 h-6 border border-red-300 rounded text-[10px] hover:bg-red-100">
+                        Retry {s.label}
+                      </button>
+                    </div>
+                  )}
+                  {waitingFor && (
+                    <div className="mt-1 text-[11px] text-amber-700 font-mono pl-6">
+                      Waiting for {waitingFor.label}.
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            <div className={`rounded border px-2.5 py-2 ${readyForReview ? 'border-emerald-200 bg-emerald-50' : 'border-stone-200 bg-stone-50'}`}>
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className={`text-[12px] font-mono w-4 ${readyForReview ? 'text-emerald-600' : 'text-stone-500'}`}>{readyForReview ? '✓' : '🔒'}</span>
+                  <span className="text-[12px] font-medium text-[#44403c]">Review</span>
+                </div>
+                <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border ${readyForReview ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-stone-600 bg-stone-100 border-stone-200'}`}>
+                  {readyForReview ? (lead.manualReviewStatus || 'UNREVIEWED') : 'LOCKED'}
+                </span>
+              </div>
+              {!readyForReview && firstBlocking && (
+                <div className="mt-1.5 text-[11px] text-stone-600 font-mono pl-6">
+                  Review is unavailable because {firstBlocking.label.toLowerCase()} {['FAILED', 'NOT_FOUND'].includes(firstBlocking.status) ? 'failed' : 'is not complete'}.
+                </div>
+              )}
+            </div>
           </div>
-          {!readyForReview && (
+          {!readyForReview && firstBlocking && (
             <div className="mt-3 p-2.5 bg-red-50 border border-red-200 rounded text-[11px] text-red-800 font-mono">
-              Qualification incomplete. Complete all steps above before review.
+              <p className="font-medium">Qualification is not ready for review.</p>
+              <p className="mt-1">Blocking step: {firstBlocking.label} {firstBlocking.status}.</p>
+              {stages.slice(firstBlockingIndex + 1).some(s => !['SUCCESS', 'SKIPPED', 'FOUND'].includes(s.status)) && (
+                <p className="mt-1">Because {firstBlocking.label} did not complete, the following stages are blocked:</p>
+              )}
+              <ul className="mt-1 ml-4 list-disc">
+                {stages.slice(firstBlockingIndex + 1).filter(s => !['SUCCESS', 'SKIPPED', 'FOUND'].includes(s.status)).map(s => <li key={s.id}>{s.label}</li>)}
+              </ul>
             </div>
           )}
         </div>
 
         <div className="px-5 py-4 border-b border-[#f0ede8]">
           <div className="text-[10px] font-mono text-[#a8a29e] uppercase tracking-wider mb-2">Scores</div>
-          <div className="space-y-2">
-            {[
-              { l: 'Visual opportunity', v: 100 - (lead.visualQualityScore ?? 0) },
-              { l: 'Technical opportunity', v: 100 - (lead.technicalQualityScore ?? 0) },
-              { l: 'Business confidence', v: lead.businessConfidenceScore ?? lead.businessScore ?? 0 },
-              { l: 'Redesign potential', v: (visual.redesignPotential ?? 0) * 10 },
-            ].map(({ l, v }) => (
-              <div key={l} className="flex items-center gap-2">
-                <span className="text-[11px] font-mono text-[#a8a29e] w-[116px] shrink-0">{l}</span>
-                <div className="flex-1 h-[3px] rounded-full bg-[#ebe9e5] overflow-hidden">
-                  <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, v))}%`, background: scoreHue(v).ring }} />
+          {scoreStatus === 'SUCCESS' ? (
+            <div className="space-y-2">
+              {[
+                { l: 'Visual opportunity', v: 100 - (lead.visualQualityScore ?? 0) },
+                { l: 'Technical opportunity', v: 100 - (lead.technicalQualityScore ?? 0) },
+                { l: 'Business confidence', v: lead.businessConfidenceScore ?? lead.businessScore ?? 0 },
+                { l: 'Redesign potential', v: (visual.redesignPotential ?? 0) * 10 },
+              ].map(({ l, v }) => (
+                <div key={l} className="flex items-center gap-2">
+                  <span className="text-[11px] font-mono text-[#a8a29e] w-[116px] shrink-0">{l}</span>
+                  <div className="flex-1 h-[3px] rounded-full bg-[#ebe9e5] overflow-hidden">
+                    <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, v))}%`, background: scoreHue(v).ring }} />
+                  </div>
+                  <ScorePill value={v} />
                 </div>
-                <ScorePill value={v} />
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <div className="p-2.5 bg-stone-50 border border-stone-200 rounded text-[11px] font-mono text-stone-500">
+              Not calculated. Complete scoring to see scores.
+            </div>
+          )}
         </div>
 
         {visual?.summary && (
@@ -258,8 +368,15 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
             })}
           </div>
         ) : (
-          <div className="text-[11px] text-[#78716c] font-mono p-2 bg-[#fafaf9] border border-[#e5e3df] rounded">
-            Review disabled until qualification is complete.
+          <div className="text-[11px] text-stone-600 font-mono p-2 bg-stone-50 border border-stone-200 rounded">
+            {firstBlocking ? (
+              <>
+                <p className="font-medium">Review is unavailable because qualification is incomplete.</p>
+                <p className="mt-1">Blocking step: {firstBlocking.label} {['FAILED', 'NOT_FOUND'].includes(firstBlocking.status) ? 'failed' : 'is not complete'}.</p>
+              </>
+            ) : (
+              <p>Review disabled until qualification is complete.</p>
+            )}
           </div>
         )}
         <textarea
@@ -276,11 +393,11 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
               {action.label}
             </Button>
           )}
-          {hasWebsite && !auditOk && (
-            <Button size="sm" variant="secondary" onClick={() => onStart('AUDIT_WEBSITE', { leadId: lead.id })}>Audit</Button>
+          {hasWebsite && !['SUCCESS'].includes(auditStatus) && !stages.some(s => s.status === 'RUNNING') && (
+            <Button size="sm" variant="secondary" onClick={() => handleRetryStage('audit')}>Audit</Button>
           )}
-          {auditOk && (
-            <Button size="sm" variant="secondary" onClick={() => onStart('RUN_FULL_QUALIFICATION', { leadId: lead.id, force: true })}>Re-qualify</Button>
+          {auditStatus === 'SUCCESS' && !stages.some(s => s.status === 'RUNNING') && (
+            <Button size="sm" variant="secondary" onClick={() => handleRunFullQualification(true)}>Re-qualify</Button>
           )}
           {lead.website && (
             <a href={lead.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-2 py-1 text-[11px] font-mono text-[#57534e] border border-[#e5e3df] rounded hover:bg-[#f5f4f2]">Open original ↗</a>

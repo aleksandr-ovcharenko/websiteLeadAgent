@@ -217,6 +217,7 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
       manualReviewNote: true,
       reviewedAt: true,
       auditStatus: true,
+      auditErrorMessage: true,
       redesignStage: true,
       site: {
         select: {

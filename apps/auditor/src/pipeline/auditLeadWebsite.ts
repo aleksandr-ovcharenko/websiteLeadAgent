@@ -26,6 +26,7 @@ export async function auditLeadWebsite(input: {
   const browser = await chromium.launch();
 
   try {
+    await prisma.lead.update({ where: { id: leadId }, data: { auditErrorMessage: null } });
     const context = await browser.newContext();
 
     const page = await context.newPage();
@@ -88,9 +89,10 @@ export async function auditLeadWebsite(input: {
     logger.info({ runId, leadId, finalUrl, httpStatus }, 'audit.lead.success');
     return { ok: true, httpStatus };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
     await prisma.lead.update({
       where: { id: leadId },
-      data: { auditStatus: 'FAILED' }
+      data: { auditStatus: 'FAILED', auditErrorMessage: message }
     });
 
     logger.warn({ runId, leadId, err }, 'audit.lead.failed');

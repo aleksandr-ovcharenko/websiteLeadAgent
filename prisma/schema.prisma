@@ -135,6 +135,7 @@ model Lead {
 
   enrichmentStatus LeadEnrichmentStatus @default(PENDING)
   auditStatus      LeadAuditStatus      @default(PENDING)
+  auditErrorMessage String?
   scoreStatus      LeadScoreStatus      @default(PENDING)
   generationStatus LeadGenerationStatus @default(PENDING)
 
