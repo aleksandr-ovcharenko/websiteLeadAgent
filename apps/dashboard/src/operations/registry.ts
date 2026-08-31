@@ -145,10 +145,11 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
         const url = input.url || lead.website;
         if (!url) throw new Error('Lead has no URL for Lighthouse');
         await ctx.stage('lighthouse', `Running Lighthouse on ${url}`);
-        const { summary } = await runLighthouseForLead({ leadId: lead.id, url });
-        await deps.prisma.lead.update({
-          where: { id: lead.id },
-          data: { lighthouseReport: summary as any },
+        const { reportPath, summary } = await runLighthouseForLead({ leadId: lead.id, url });
+        await deps.prisma.lighthouseReport.upsert({
+          where: { leadId: lead.id },
+          create: { leadId: lead.id, reportPath, ...summary },
+          update: { reportPath, ...summary },
         });
         await ctx.success(
           `Lighthouse: performance ${summary.performance}, accessibility ${summary.accessibility}, seo ${summary.seo}, best-practices ${summary.bestPractices}`,
@@ -286,8 +287,12 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
           await ctx.stage('lighthouse', 'Running Lighthouse');
           const refreshed = await deps.prisma.lead.findUnique({ where: { id: lead.id }, select: { website: true } });
           if (!refreshed?.website) throw new Error('No website for Lighthouse');
-          const { summary } = await runLighthouseForLead({ leadId: lead.id, url: refreshed.website });
-          await deps.prisma.lead.update({ where: { id: lead.id }, data: { lighthouseReport: summary as any } });
+          const { reportPath, summary } = await runLighthouseForLead({ leadId: lead.id, url: refreshed.website });
+          await deps.prisma.lighthouseReport.upsert({
+            where: { leadId: lead.id },
+            create: { leadId: lead.id, reportPath, ...summary },
+            update: { reportPath, ...summary },
+          });
         } else {
           await ctx.info('Skipping Lighthouse', { stage: 'lighthouse' });
         }

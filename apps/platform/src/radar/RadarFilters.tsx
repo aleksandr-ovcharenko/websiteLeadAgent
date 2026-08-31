@@ -19,11 +19,15 @@ const sorts = [
 
 export default function RadarFilters({ filters, onChange, quick, onQuick }: { filters: Filters; onChange: (f: Partial<Filters>) => void; quick: string; onQuick: (q: string) => void }) {
   const quicks = [
-    { key: 'all', label: 'All' },
+    { key: 'all', label: 'All eligible' },
+    { key: 'qualification_pending', label: 'Qualification pending' },
     { key: 'ready_for_review', label: 'Ready for review' },
     { key: 'good', label: 'GOOD' },
+    { key: 'unsure', label: 'UNSURE' },
+    { key: 'bad', label: 'BAD' },
     { key: 'needs_audit', label: 'Needs audit' },
     { key: 'needs_ai', label: 'Needs AI' },
+    { key: 'failed', label: 'Failed' },
     { key: 'no_website', label: 'No website' },
     { key: 'selected', label: 'Selected' },
     { key: 'generated', label: 'Generated' },

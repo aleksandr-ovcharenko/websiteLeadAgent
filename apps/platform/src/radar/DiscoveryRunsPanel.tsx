@@ -111,6 +111,9 @@ function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     PENDING: 'bg-gray-100 text-gray-500',
     RUNNING: 'bg-amber-50 text-amber-700',
+    DISCOVERING: 'bg-amber-50 text-amber-700',
+    ENRICHING: 'bg-blue-50 text-blue-700',
+    QUALIFYING: 'bg-purple-50 text-purple-700',
     COMPLETED: 'bg-emerald-50 text-emerald-700',
     FAILED: 'bg-red-50 text-red-700',
   };
