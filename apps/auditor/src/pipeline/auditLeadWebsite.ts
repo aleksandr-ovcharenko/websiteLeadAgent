@@ -6,23 +6,34 @@ import { chromium } from 'playwright';
 import { crawlPage } from '../crawl/crawlPage.js';
 import { handleCookieConsent } from '../cookies/handleCookieConsent.js';
 
+export type ActivityCallback = (event: { level?: 'INFO' | 'WARN' | 'ERROR'; module: string; eventType: string; message: string; details?: Record<string, any> }) => Promise<void>;
+
 export async function auditLeadWebsite(input: {
   prisma: PrismaClient;
   logger: pino.Logger;
   runId: string;
   leadId: string;
   website: string;
+  onActivity?: ActivityCallback;
 }) {
-  const { prisma, logger, runId, leadId, website } = input;
+  const { prisma, logger, runId, leadId, website, onActivity } = input;
+
+  const emit = async (level: 'INFO' | 'WARN' | 'ERROR', eventType: string, message: string, details?: Record<string, any>) => {
+    if (onActivity) {
+      await onActivity({ level, module: 'AUDIT', eventType, message, details: { runId, leadId, website, ...details } }).catch(() => {});
+    }
+  };
 
   await prisma.lead.update({
     where: { id: leadId },
     data: { auditStatus: 'PENDING' }
   });
+  await emit('INFO', 'AUDIT_STARTED', 'Auditing website', { website });
 
   const outDir = join('data', 'audit', leadId);
   await mkdir(outDir, { recursive: true });
 
+  await emit('INFO', 'BROWSER_LAUNCH', 'Launching browser');
   const browser = await chromium.launch();
 
   try {
@@ -45,6 +56,7 @@ export async function auditLeadWebsite(input: {
 
     await page.screenshot({ path: join(outDir, 'desktop.png'), fullPage: false });
     await page.screenshot({ path: join(outDir, 'desktop-full.png'), fullPage: true });
+    await emit('INFO', 'SCREENSHOTS_DESKTOP', 'Desktop screenshots captured');
 
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(500);
@@ -54,6 +66,7 @@ export async function auditLeadWebsite(input: {
 
     await page.screenshot({ path: join(outDir, 'mobile.png'), fullPage: false });
     await page.screenshot({ path: join(outDir, 'mobile-full.png'), fullPage: true });
+    await emit('INFO', 'SCREENSHOTS_MOBILE', 'Mobile screenshots captured');
 
     await page.evaluate(() => {
       // tsx/esbuild helper used in bundled code; define it in browser context to avoid ReferenceError.
@@ -61,6 +74,7 @@ export async function auditLeadWebsite(input: {
     });
 
     const crawl = await crawlPage(page);
+    await emit('INFO', 'CRAWL_COMPLETED', 'Crawled website', { links: crawl.counts?.links ?? 0 });
 
     const httpStatus = response?.status() ?? null;
     const payload = {
@@ -85,6 +99,7 @@ export async function auditLeadWebsite(input: {
       where: { id: leadId },
       data: { auditStatus: 'SUCCESS' }
     });
+    await emit('INFO', 'AUDIT_COMPLETED', 'Audit completed successfully', { finalUrl, httpStatus });
 
     logger.info({ runId, leadId, finalUrl, httpStatus }, 'audit.lead.success');
     return { ok: true, httpStatus };
@@ -94,6 +109,7 @@ export async function auditLeadWebsite(input: {
       where: { id: leadId },
       data: { auditStatus: 'FAILED', auditErrorMessage: message }
     });
+    await emit('ERROR', 'AUDIT_FAILED', 'Audit failed', { error: message });
 
     logger.warn({ runId, leadId, err }, 'audit.lead.failed');
   } finally {

@@ -10,6 +10,7 @@ import { computeLeadScoreV2 } from '../../../auditor/src/scoring/scoreLeadV2.js'
 import { enrichLeads } from '../../../collector/src/enrichment/enrichLeads.js';
 import { generateSite } from '@minsk/redesign-engine';
 import type { RunContext } from './OperationService.js';
+import { ActivityService } from '../activity/ActivityService.js';
 
 export interface OperationDefinition {
   label: string;
@@ -26,6 +27,7 @@ interface RegistryDeps {
   logger: pino.Logger;
   env: Record<string, string | undefined>;
   discovery: DiscoveryService;
+  activity: ActivityService;
 }
 
 function visualProvider(env: Record<string, string | undefined>) {
@@ -123,6 +125,17 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
           runId: ctx.runId,
           leadId: lead.id,
           website,
+          onActivity: async (event) => {
+            await deps.activity.log({
+              level: event.level ?? 'INFO',
+              module: 'AUDIT',
+              eventType: event.eventType,
+              message: event.message,
+              runId: ctx.runId,
+              leadId: lead.id,
+              details: event.details,
+            });
+          },
         });
         await ctx.success('Audit complete', { stage: 'audit', metadata: { leadId: lead.id } });
         return { leadId: lead.id, website };

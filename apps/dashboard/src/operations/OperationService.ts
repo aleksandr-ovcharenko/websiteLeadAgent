@@ -87,6 +87,7 @@ export class OperationService {
       logger: input.logger,
       env: input.env,
       discovery: input.discovery,
+      activity: input.activity,
     });
   }
 
