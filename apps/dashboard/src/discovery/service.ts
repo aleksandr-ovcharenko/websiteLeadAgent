@@ -5,6 +5,7 @@ import { getDiscoveryProvider, listDiscoveryProviders } from './registry.js';
 import { DISCOVERY_PRESETS } from './presets.js';
 import type { DiscoveryRequest, DiscoveryContext } from './types.js';
 import { enrichLeads } from '../../../collector/src/enrichment/enrichLeads.js';
+import { createRegistry } from '../operations/registry.js';
 
 export interface DiscoveryServiceInput {
   prisma: PrismaClient;
@@ -137,6 +138,13 @@ export class DiscoveryService {
         await enrichLeads({ prisma: this.prisma, logger: this.logger, runId: run.id, leadIds });
       }
 
+      await this.prisma.discoveryRun.update({
+        where: { id: run.id },
+        data: { status: 'QUALIFYING' },
+      });
+
+      await this.qualifyRun(run.id, 2, onProgress);
+
       const completed = await this.prisma.discoveryRun.update({
         where: { id: run.id },
         data: {
@@ -153,6 +161,52 @@ export class DiscoveryService {
       });
       throw { run: failed, error: err?.message || 'Unknown discovery error' };
     }
+  }
+
+  private async qualifyRun(runId: string, concurrency: number, onProgress?: DiscoveryContext['onProgress']) {
+    const run = await this.prisma.discoveryRun.findUnique({ where: { id: runId } });
+    if (!run) return;
+    const registry = createRegistry({
+      prisma: this.prisma,
+      logger: this.logger,
+      env: this.env,
+      discovery: this,
+    });
+    const ctx: any = {
+      runId,
+      prisma: this.prisma,
+      logger: this.logger,
+      env: this.env,
+      currentStage: null as string | null,
+      stage: async (name: string, message?: string) => {
+        ctx.currentStage = name;
+        this.logger.info({ runId, stage: name }, message ?? name);
+        onProgress?.(message ?? name, { stage: name });
+      },
+      info: async (message: string, options?: any) => {
+        this.logger.info({ runId, ...options?.metadata, stage: options?.stage ?? ctx.currentStage }, message);
+        onProgress?.(message, options);
+      },
+      warn: async (message: string, options?: any) => {
+        this.logger.warn({ runId, ...options?.metadata, stage: options?.stage ?? ctx.currentStage }, message);
+        onProgress?.(message, options);
+      },
+      success: async (message: string, options?: any) => {
+        this.logger.info({ runId, ...options?.metadata, stage: options?.stage ?? ctx.currentStage }, message);
+        onProgress?.(message, options);
+      },
+      error: async (message: string, options?: any) => {
+        this.logger.error({ runId, ...options?.metadata, stage: options?.stage ?? ctx.currentStage }, message);
+        onProgress?.(message, options);
+      },
+      log: async (level: string, message: string, options?: any) => {
+        this.logger[level.toLowerCase()]({ runId, ...options?.metadata, stage: options?.stage ?? ctx.currentStage }, message);
+      },
+      result: () => {},
+      fail: (e: any) => { throw e; },
+      cancelled: () => false,
+    };
+    await registry.QUALIFY_DISCOVERY_RUN.handler(ctx, { discoveryRunId: runId, concurrency });
   }
 
   async getRun(id: string) {
