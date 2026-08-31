@@ -2454,6 +2454,8 @@ export declare const contentHeroSchema: z.ZodObject<{
     imageId: z.ZodOptional<z.ZodString>;
     buttonLabel: z.ZodOptional<z.ZodString>;
     buttonUrl: z.ZodOptional<z.ZodString>;
+    secondaryCtaLabel: z.ZodOptional<z.ZodString>;
+    secondaryCtaTarget: z.ZodOptional<z.ZodString>;
     location: z.ZodOptional<z.ZodString>;
     industry: z.ZodOptional<z.ZodString>;
 }, "strip", z.ZodTypeAny, {
@@ -2463,6 +2465,8 @@ export declare const contentHeroSchema: z.ZodObject<{
     buttonLabel?: string | undefined;
     buttonUrl?: string | undefined;
     location?: string | undefined;
+    secondaryCtaLabel?: string | undefined;
+    secondaryCtaTarget?: string | undefined;
     industry?: string | undefined;
 }, {
     title?: string | undefined;
@@ -2471,6 +2475,8 @@ export declare const contentHeroSchema: z.ZodObject<{
     buttonLabel?: string | undefined;
     buttonUrl?: string | undefined;
     location?: string | undefined;
+    secondaryCtaLabel?: string | undefined;
+    secondaryCtaTarget?: string | undefined;
     industry?: string | undefined;
 }>;
 export declare const extractedContentSchema: z.ZodObject<{
@@ -2572,6 +2578,8 @@ export declare const extractedContentSchema: z.ZodObject<{
         imageId: z.ZodOptional<z.ZodString>;
         buttonLabel: z.ZodOptional<z.ZodString>;
         buttonUrl: z.ZodOptional<z.ZodString>;
+        secondaryCtaLabel: z.ZodOptional<z.ZodString>;
+        secondaryCtaTarget: z.ZodOptional<z.ZodString>;
         location: z.ZodOptional<z.ZodString>;
         industry: z.ZodOptional<z.ZodString>;
     }, "strip", z.ZodTypeAny, {
@@ -2581,6 +2589,8 @@ export declare const extractedContentSchema: z.ZodObject<{
         buttonLabel?: string | undefined;
         buttonUrl?: string | undefined;
         location?: string | undefined;
+        secondaryCtaLabel?: string | undefined;
+        secondaryCtaTarget?: string | undefined;
         industry?: string | undefined;
     }, {
         title?: string | undefined;
@@ -2589,6 +2599,8 @@ export declare const extractedContentSchema: z.ZodObject<{
         buttonLabel?: string | undefined;
         buttonUrl?: string | undefined;
         location?: string | undefined;
+        secondaryCtaLabel?: string | undefined;
+        secondaryCtaTarget?: string | undefined;
         industry?: string | undefined;
     }>>;
     about: z.ZodDefault<z.ZodObject<{
@@ -4605,6 +4617,8 @@ export declare const extractedContentSchema: z.ZodObject<{
         buttonLabel?: string | undefined;
         buttonUrl?: string | undefined;
         location?: string | undefined;
+        secondaryCtaLabel?: string | undefined;
+        secondaryCtaTarget?: string | undefined;
         industry?: string | undefined;
     };
     services: {
@@ -5079,6 +5093,8 @@ export declare const extractedContentSchema: z.ZodObject<{
         buttonLabel?: string | undefined;
         buttonUrl?: string | undefined;
         location?: string | undefined;
+        secondaryCtaLabel?: string | undefined;
+        secondaryCtaTarget?: string | undefined;
         industry?: string | undefined;
     } | undefined;
     services?: {

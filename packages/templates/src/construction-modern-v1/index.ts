@@ -291,6 +291,14 @@ export function constructionModernV1(ctx: RenderContext): string {
   --overlay: ${hexToRgba(darkColor, 0.55)};
 }</style>`;
 
+  function resolveHeroCta(raw?: string): string {
+    if (!raw) return `${base}/contacts`;
+    if (/^https?:\/\//.test(raw)) return raw;
+    const target = raw.replace(/^\/+/, '').toUpperCase();
+    const isCollection = ['SERVICES', 'PROJECTS', 'NEWS', 'VACANCIES'].includes(target);
+    return resolveNavHref({ targetType: isCollection ? 'COLLECTION' : 'HOME_SECTION', target, showOnHomepage: true });
+  }
+
   const logoUrl = mediaUrl(ctx, ctx.logo?.id);
   const faviconUrl = mediaUrl(ctx, ctx.favicon?.id);
   const heroImageUrl = mediaUrl(ctx, ctx.hero?.imageId);
@@ -312,7 +320,9 @@ export function constructionModernV1(ctx: RenderContext): string {
       subtitle: ctx.hero?.subtitle || '',
       image: heroImageUrl,
       buttonLabel: ctx.hero?.buttonLabel || 'Связаться',
-      buttonUrl: ctx.hero?.buttonUrl || `${base}/contacts`,
+      buttonUrl: resolveHeroCta(ctx.hero?.buttonUrl),
+      secondaryCtaLabel: ctx.hero?.secondaryCtaLabel,
+      secondaryCtaUrl: resolveHeroCta(ctx.hero?.secondaryCtaTarget),
       location: ctx.hero?.location || '',
       industry: ctx.hero?.industry || 'Компания'
     },

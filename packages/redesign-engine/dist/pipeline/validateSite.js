@@ -8,7 +8,7 @@ export async function validateGeneratedSite(options) {
             services: { where: { status: 'PUBLISHED' }, select: { id: true } },
             projects: { where: { status: 'PUBLISHED' }, select: { id: true } },
             newsPosts: { where: { status: 'PUBLISHED' }, select: { id: true } },
-            media: { select: { id: true } },
+            media: { select: { id: true, sourceUrl: true } },
             menus: { include: { items: { select: { id: true } } } },
         },
     });
@@ -45,8 +45,10 @@ export async function validateGeneratedSite(options) {
     check(!!(theme.primaryColor && theme.textColor && theme.backgroundColor), 'Theme has primary/text/background colors', true);
     check(!!logoId && site.media.some((m) => m.id === logoId), 'Logo image exists in media', true);
     check(!!hero.title && String(hero.title).trim().length > 0, 'Hero has title', true);
-    check(!!hero.subtitle || !!hero.description, 'Hero has subtitle or description', false);
-    check(!!(hero.imageId || hero.imageUrl), 'Hero has background image', false);
+    check(!!hero.subtitle && String(hero.subtitle).trim().length > 0, 'Hero has supporting text', true);
+    check(!!(hero.imageId || hero.imageUrl), 'Hero has background image', true);
+    check(!!hero.imageId && site.media.some((m) => m.id === hero.imageId || m.sourceUrl === hero.imageId), 'Hero image belongs to current site media', true);
+    check(!!hero.buttonUrl && !hero.buttonUrl.includes('#') && !hero.buttonUrl.includes('javascript:'), 'Hero CTA has a valid destination', true);
     check(!!about.content && String(about.content).trim().length > 0, 'About section has content', true);
     check(!!(about.imageId || about.imageUrl), 'About section has image', false);
     check(!!cta.title || !!cta.description || !!settings.phone || !!settings.email, 'Contact/CTA section has content', false);

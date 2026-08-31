@@ -488,9 +488,9 @@ function Hero() {
             >
               {HERO.buttonLabel || 'Связаться'}
             </a>
-            {PROJECTS.length > 0 ? (
+            {HERO.secondaryCtaLabel ? (
               <a
-                href={sectionHref('PROJECTS')}
+                href={HERO.secondaryCtaUrl || sectionHref('PROJECTS')}
                 className="group inline-flex items-center gap-2 text-sm font-medium pb-0.5 transition-colors"
                 style={{ color: 'rgba(242,244,245,0.7)', borderBottom: '1px solid rgba(242,244,245,0.25)' }}
                 onMouseEnter={e => {
@@ -504,7 +504,7 @@ function Hero() {
                   el.style.borderBottomColor = 'rgba(242,244,245,0.25)'
                 }}
               >
-                Наши объекты
+                {HERO.secondaryCtaLabel}
                 <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
               </a>
             ) : null}

@@ -192,6 +192,8 @@ export const contentHeroSchema = z.object({
     imageId: z.string().optional(),
     buttonLabel: z.string().optional(),
     buttonUrl: z.string().optional(),
+    secondaryCtaLabel: z.string().optional(),
+    secondaryCtaTarget: z.string().optional(),
     location: z.string().optional(),
     industry: z.string().optional(),
 });

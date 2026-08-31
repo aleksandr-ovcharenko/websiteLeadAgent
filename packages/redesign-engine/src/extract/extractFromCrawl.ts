@@ -285,6 +285,91 @@ function contentMediaFromImage(img?: CrawledImage) {
   };
 }
 
+function summarizeServices(services: any[]): string {
+  const titles = services.slice(0, 3).map((s) => s.title).filter(Boolean);
+  if (!titles.length) return '';
+  if (titles.length === 1) return titles[0];
+  const last = titles[titles.length - 1];
+  const rest = titles.slice(0, -1).join(', ');
+  return `${rest} и ${last}`;
+}
+
+function makeHeroTitle(companyName: string, shortName: string, services: any[], projects: any[], h1?: string): string {
+  if (h1 && !/главная|home|о-нас|o-nas/i.test(h1) && h1.length < 120) {
+    return h1.split(/[\|—–\-]/)[0].trim();
+  }
+  if (services.length) {
+    const s = summarizeServices(services);
+    return s ? s.slice(0, 120) : shortName || companyName;
+  }
+  if (projects.length && projects[0].category) {
+    return `Объекты ${projects[0].category.toLowerCase()}`;
+  }
+  return shortName || companyName;
+}
+
+function makeHeroSubtitle(companyName: string, shortName: string, description: string, services: any[], projects: any[], location: string, industry: string): string {
+  const parts: string[] = [];
+  const name = shortName || companyName;
+  if (name) parts.push(name);
+  if (industry) parts.push(`— ${industry}`);
+  if (location) parts.push(`· ${location}`);
+  if (services.length) {
+    parts.push(`Основные направления: ${summarizeServices(services)}.`);
+  } else if (projects.length) {
+    parts.push(`Реализовано проектов: ${projects.length}.`);
+  } else if (description) {
+    parts.push(firstSentences(description, 1, 160));
+  }
+  return parts.join(' ').slice(0, 280);
+}
+
+function pickHeroImage(allImages: CrawledImage[], homepage: CrawledPage | undefined, aboutPage: CrawledPage | undefined, projects: any[]): CrawledImage | undefined {
+  const homeHero = homepage?.heroImage ? allImages.find((i) => i.src === homepage.heroImage) : undefined;
+  if (homeHero) return homeHero;
+  const likelyHero = allImages.find((i) => i.likelyHero);
+  if (likelyHero) return likelyHero;
+  for (const p of projects) {
+    const src = p.coverImage?.sourceUrl;
+    if (src) {
+      const img = allImages.find((i) => i.src === src);
+      if (img) return img;
+      return { src, alt: p.title || '', width: 0, height: 0, area: 0 } as CrawledImage;
+    }
+  }
+  const aboutCover = aboutPage?.images?.length ? pickCoverImage(aboutPage.images) : undefined;
+  if (aboutCover) return aboutCover;
+  return pickCoverImage(allImages);
+}
+
+function chooseHeroCta(services: any[], projects: any[]): { buttonLabel: string; buttonUrl: string; secondaryCtaLabel?: string; secondaryCtaTarget?: string } {
+  if (services.length) {
+    return { buttonLabel: 'Наши услуги', buttonUrl: '/services', secondaryCtaLabel: 'Смотреть объекты', secondaryCtaTarget: 'PROJECTS' };
+  }
+  if (projects.length) {
+    return { buttonLabel: 'Смотреть объекты', buttonUrl: '/projects', secondaryCtaLabel: 'О компании', secondaryCtaTarget: 'ABOUT' };
+  }
+  return { buttonLabel: 'Связаться', buttonUrl: '/contacts', secondaryCtaLabel: 'О компании', secondaryCtaTarget: 'ABOUT' };
+}
+
+function buildHero(opts: { companyName: string; shortName: string; description: string; services: any[]; projects: any[]; pages: CrawledPage[]; homepage: CrawledPage | undefined; aboutPage: CrawledPage | undefined; address?: string }) {
+  const allImages = opts.pages.flatMap((p) => p.images);
+  const industry = inferIndustry(opts.services, opts.homepage?.text || '');
+  const location = inferLocation(opts.address);
+  const title = makeHeroTitle(opts.companyName, opts.shortName, opts.services, opts.projects, opts.homepage?.h1);
+  const subtitle = makeHeroSubtitle(opts.companyName, opts.shortName, opts.description, opts.services, opts.projects, location, industry);
+  const image = pickHeroImage(allImages, opts.homepage, opts.aboutPage, opts.projects);
+  const cta = chooseHeroCta(opts.services, opts.projects);
+  return {
+    title,
+    subtitle,
+    imageId: image?.src,
+    ...cta,
+    location,
+    industry
+  };
+}
+
 export function extractFromCrawl(pages: CrawledPage[], baseUrl: string, navigation?: NavigationNode[]): ExtractedContent {
   const homepage = pages.find((p) => classifyPage(p, baseUrl) === 'home') || pages[0];
   const companyName = homepage?.h1?.split(/[\|—–\-]/)[0]?.trim() || homepage?.title?.split(/[\|—–\-]/)[0]?.trim() || 'Компания';
@@ -322,9 +407,6 @@ export function extractFromCrawl(pages: CrawledPage[], baseUrl: string, navigati
   const aboutImage = contentMediaFromImage(pickCoverImage(aboutPage?.images || homepage?.images || []));
 
   const theme = inferTheme(homepage);
-
-  const heroImageSrc = homepage?.heroImage || homepage?.images.find((i) => i.likelyHero)?.src || pickCoverImage(homepage?.images || [])?.src;
-  const heroImage = heroImageSrc ? homepage?.images.find((i) => i.src === heroImageSrc) || { src: heroImageSrc, alt: '' } : undefined;
   const logoSrc = homepage?.logo || homepage?.images.find((i) => i.likelyLogo)?.src;
 
   const services: any[] = [];
@@ -421,21 +503,14 @@ export function extractFromCrawl(pages: CrawledPage[], baseUrl: string, navigati
   }
 
   if (logoSrc) addMedia({ src: logoSrc, alt: 'logo', width: 0, height: 0 });
-  if (heroImage) addMedia(heroImage);
 
-  const industry = inferIndustry(services, homepage?.text || '');
-  const location = inferLocation(address);
-  const heroTitle = homepage?.h1 && !/главная|home/i.test(homepage.h1) ? homepage.h1 : companyName;
-
-  const hero = {
-    title: heroTitle,
-    subtitle: homepage?.metaDescription || firstSentences(homepage?.text || '', 2, 220),
-    imageId: heroImage?.src,
-    buttonLabel: 'Связаться',
-    buttonUrl: '/contacts',
-    location,
-    industry
-  };
+  const allImages = pages.flatMap((p) => p.images);
+  const description = homepage?.metaDescription || firstSentences(homepage?.text || '', 2, 300);
+  const hero = buildHero({ companyName, shortName, description, services, projects, pages, homepage, aboutPage, address });
+  if (hero.imageId) {
+    const heroImg = allImages.find((i) => i.src === hero.imageId) || { src: hero.imageId, alt: hero.title || '', width: 0, height: 0, area: 0 };
+    addMedia(heroImg);
+  }
 
   const about = {
     heading: aboutHeading,
