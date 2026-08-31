@@ -42,7 +42,7 @@ function useToast() {
 function buildStages(run: PipelineRun) {
   const names = [
     'Lead selected', 'Content extraction', 'Content transformation',
-    'CMS import', 'Website generation', 'Screenshot', 'Audit', 'Demo ready',
+    'CMS import', 'Website generation', 'Validation', 'Demo ready',
   ]
   return names.map((name, i) => {
     if (run.status === 'failed' && name === run.failedStage) return { name, status: 'failed' as const }

@@ -1,6 +1,13 @@
 export interface RenderContext {
   site: any;
   settings: any;
+  theme: any;
+  hero: any;
+  about: any;
+  cta: any;
+  logo: any;
+  favicon: any;
+  homepageSections: any[];
   pages: any[];
   services: any[];
   projects: any[];

@@ -1,3 +1,23 @@
+export interface CrawledImage {
+  src: string;
+  alt: string;
+  width?: number;
+  height?: number;
+  area?: number;
+  context?: string;
+  likelyLogo?: boolean;
+  likelyHero?: boolean;
+}
+
+export interface CrawledThemeColors {
+  headerBg?: string;
+  headerText?: string;
+  linkColor?: string;
+  buttonBg?: string;
+  buttonText?: string;
+  accent?: string;
+}
+
 export interface CrawledPage {
   url: string;
   title: string;
@@ -5,8 +25,13 @@ export interface CrawledPage {
   h1: string;
   text: string;
   html: string;
-  links: { text: string; href: string }[];
-  images: { src: string; alt: string }[];
+  links: { text: string; href: string; source?: 'header' | 'footer' | 'body' }[];
+  images: CrawledImage[];
+  logo?: string;
+  heroImage?: string;
+  themeColors?: CrawledThemeColors;
+  headerNav?: NavigationNode[];
+  footerNav?: NavigationNode[];
   path: string;
   depth: number;
   priority?: number;

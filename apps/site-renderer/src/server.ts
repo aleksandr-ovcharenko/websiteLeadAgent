@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+// @ts-expect-error no declaration file for built templates
 import { templates } from '../../../packages/templates/dist/index.js';
 
 const REPO_ROOT = process.cwd();
@@ -50,12 +51,31 @@ async function renderPreview(req: Request, res: Response) {
   });
   const media = await (prisma as any).media.findMany({ where: { siteId: site.id } });
   const mediaMap = new Map<string, any>();
-  for (const m of media) mediaMap.set(m.id, m);
+  for (const m of media) {
+    mediaMap.set(m.id, m);
+    if (m.sourceUrl) mediaMap.set(m.sourceUrl, m);
+  }
+
+  const themeConfig = site.themeConfig || {};
+  const theme = { ...themeConfig };
+  const hero = themeConfig.hero || {};
+  const about = themeConfig.about || {};
+  const cta = themeConfig.cta || {};
+  const homepageSections = themeConfig.homepageSections || [];
+  const logo = settings.logoMediaId ? mediaMap.get(settings.logoMediaId) : undefined;
+  const favicon = settings.faviconMediaId ? mediaMap.get(settings.faviconMediaId) : undefined;
 
   const render = templates[site.templateId] || templates['construction-modern-v1'];
   const html = render({
     site,
     settings,
+    theme,
+    hero,
+    about,
+    cta,
+    logo,
+    favicon,
+    homepageSections,
     pages,
     services,
     projects,
@@ -88,7 +108,7 @@ app.use('/template-assets', (req: Request, res: Response, next: any) => {
 
 // Site media from the generated sites directory
 app.get('/site-media/:siteId/*', async (req: Request, res: Response) => {
-  const { siteId } = req.params;
+  const siteId = String(req.params.siteId);
   const file = String(req.params[0]).replace(/\.\./g, '');
   const mediaDir = path.resolve(REPO_ROOT, 'data/generated/sites', siteId, 'media');
   const p = path.resolve(mediaDir, file);

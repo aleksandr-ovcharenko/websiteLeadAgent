@@ -1,6 +1,9 @@
 import express, { type Request, type Response } from 'express';
+import path from 'node:path';
+import fs from 'node:fs/promises';
 import { prisma, requireSuperAdmin } from './auth.js';
 import { captureSitePreview, getScreenshotStoragePath, getScreenshotUrl } from '../../../packages/screenshot/src/index.js';
+// @ts-expect-error no built declaration file
 import { getPipelineStageLabel, generateSite } from '@minsk/redesign-engine';
 
 const router = express.Router();
@@ -108,8 +111,9 @@ router.get('/api/platform/sites', async (_req: Request, res: Response) => {
 });
 
 router.get('/api/platform/sites/:siteId', async (req: Request, res: Response) => {
+  const siteId = String(req.params.siteId);
   const site = await prisma.site.findUnique({
-    where: { id: req.params.siteId },
+    where: { id: siteId },
     include: {
       lead: { select: { redesignStage: true } },
       builds: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, createdAt: true } }
@@ -131,16 +135,47 @@ router.post('/api/platform/sites', async (req: Request, res: Response) => {
 });
 
 router.post('/api/platform/sites/:siteId/archive', async (req: Request, res: Response) => {
+  const siteId = String(req.params.siteId);
   const site = await prisma.site.update({
-    where: { id: req.params.siteId },
+    where: { id: siteId },
     data: { status: 'ARCHIVED' }
   });
   res.json({ ok: true, site: await toPlatformSite(site) });
 });
 
+router.delete('/api/platform/sites/:siteId', async (req: Request, res: Response) => {
+  const siteId = String(req.params.siteId);
+  const site = await prisma.site.findUnique({ where: { id: siteId }, include: { lead: { select: { id: true } } } });
+  if (!site) { res.status(404).json({ error: 'not_found' }); return; }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.site.delete({ where: { id: siteId } });
+  });
+
+  // Clean up generated site media directory if present
+  try {
+    const siteDir = path.resolve('data/generated/sites', siteId);
+    await fs.rm(siteDir, { recursive: true, force: true });
+  } catch {
+    // ignore cleanup failures
+  }
+
+  try {
+    if (site.lead?.id) {
+      const leadDir = path.resolve('data/redesign', site.lead.id);
+      await fs.rm(leadDir, { recursive: true, force: true });
+    }
+  } catch {
+    // ignore cleanup failures
+  }
+
+  res.json({ ok: true });
+});
+
 router.post('/api/platform/sites/:siteId/screenshot', async (req: Request, res: Response) => {
+  const siteId = String(req.params.siteId);
   const site = await prisma.site.findUnique({
-    where: { id: req.params.siteId },
+    where: { id: siteId },
     include: {
       builds: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, createdAt: true } }
     }
@@ -151,7 +186,7 @@ router.post('/api/platform/sites/:siteId/screenshot', async (req: Request, res: 
 });
 
 router.get('/site-screenshots/:siteId/preview.png', async (req: Request, res: Response) => {
-  const p = getScreenshotStoragePath(req.params.siteId);
+  const p = getScreenshotStoragePath(String(req.params.siteId));
   try {
     await import('node:fs/promises').then((fs) => fs.access(p));
     res.sendFile(p);
@@ -185,10 +220,10 @@ router.get('/api/factory/runs', requireSuperAdmin, async (_req: Request, res: Re
   const stageIndex = (stage: string) => stageOrder.indexOf(stage || '');
 
   const runs = raw.map((run: any, i: number) => {
-    const totalStages = 8;
+    const totalStages = 7;
     const idx = stageIndex(run.stage);
     const isFailed = !!run.errorMessage;
-    const isCompleted = ['DEMO_APPROVED', 'READY_TO_CONTACT'].includes(run.stage);
+    const isCompleted = ['DEMO_GENERATED', 'DEMO_APPROVED', 'READY_TO_CONTACT'].includes(run.stage);
     const isQueued = ['NOT_SELECTED', 'SELECTED_FOR_REDESIGN'].includes(run.stage) && !isFailed;
     const isRunning = !isFailed && !isCompleted && !isQueued;
 

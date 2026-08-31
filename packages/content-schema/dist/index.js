@@ -47,6 +47,17 @@ export const reviewsBlockSchema = blockBaseSchema.extend({
         rating: z.number().optional(),
     })).default([]),
 });
+export const aboutBlockSchema = blockBaseSchema.extend({
+    type: z.literal('about'),
+    heading: z.string().optional(),
+    content: z.string(),
+    imageId: z.string().optional(),
+});
+export const vacanciesBlockSchema = blockBaseSchema.extend({
+    type: z.literal('vacancies'),
+    heading: z.string().optional(),
+    limit: z.number().optional(),
+});
 export const ctaBlockSchema = blockBaseSchema.extend({
     type: z.literal('cta'),
     title: z.string(),
@@ -67,6 +78,8 @@ export const contentBlockSchema = z.union([
     projectsBlockSchema,
     newsBlockSchema,
     reviewsBlockSchema,
+    aboutBlockSchema,
+    vacanciesBlockSchema,
     ctaBlockSchema,
     contactsBlockSchema,
 ]);
@@ -128,6 +141,17 @@ export const contentNewsSchema = z.object({
     seoDescription: z.string().optional(),
     coverImage: contentMediaSchema.optional(),
 });
+export const contentVacancySchema = z.object({
+    title: z.string(),
+    slug: z.string(),
+    location: z.string().optional(),
+    description: z.string().optional(),
+    requirements: z.string().optional(),
+    conditions: z.string().optional(),
+    contact: z.string().optional(),
+    sourceUrl: z.string().optional(),
+    sourceType: z.enum(['IMPORTED', 'MANUAL', 'AI_REWRITTEN']).default('IMPORTED'),
+});
 export const contentNavigationItemSchema = z.lazy(() => z.object({
     label: z.string(),
     url: z.string().optional(),
@@ -142,26 +166,84 @@ export const contentContactsSchema = z.object({
 });
 export const contentBrandingSchema = z.object({
     companyName: z.string().optional(),
+    logo: contentMediaSchema.optional(),
+    favicon: contentMediaSchema.optional(),
     primaryColor: z.string().optional(),
     secondaryColor: z.string().optional(),
     defaultSeoTitle: z.string().optional(),
     defaultSeoDescription: z.string().optional(),
 });
+export const contentThemeSchema = z.object({
+    primaryColor: z.string().optional(),
+    secondaryColor: z.string().optional(),
+    accentColor: z.string().optional(),
+    backgroundColor: z.string().optional(),
+    surfaceColor: z.string().optional(),
+    textColor: z.string().optional(),
+    mutedColor: z.string().optional(),
+    borderColor: z.string().optional(),
+    headingStyle: z.string().optional(),
+    radiusScale: z.number().optional(),
+    source: z.enum(['extracted', 'inferred', 'default']).default('default'),
+});
+export const contentHeroSchema = z.object({
+    title: z.string().optional(),
+    subtitle: z.string().optional(),
+    imageId: z.string().optional(),
+    buttonLabel: z.string().optional(),
+    buttonUrl: z.string().optional(),
+    location: z.string().optional(),
+    industry: z.string().optional(),
+});
 export const extractedContentSchema = z.object({
     company: z.object({
         name: z.string().optional(),
+        shortName: z.string().optional(),
+        description: z.string().optional(),
         address: z.string().optional(),
         phone: z.string().optional(),
         email: z.string().optional(),
         workingHours: z.string().optional(),
         socialLinks: z.array(z.object({ platform: z.string(), url: z.string() })).default([]),
+        legalName: z.string().optional(),
+        unp: z.string().optional(),
+        founded: z.string().optional(),
+        employees: z.string().optional(),
     }).default({}),
+    theme: contentThemeSchema.default({}),
+    hero: contentHeroSchema.default({}),
+    about: z.object({
+        heading: z.string().optional(),
+        content: z.string().optional(),
+        imageId: z.string().optional(),
+    }).default({}),
+    cta: z.object({
+        title: z.string().optional(),
+        description: z.string().optional(),
+        buttonLabel: z.string().optional(),
+        buttonUrl: z.string().optional(),
+    }).default({}),
+    homepageSections: z.array(z.object({
+        type: z.enum(['hero', 'about', 'services', 'projects', 'news', 'vacancies', 'contacts', 'cta']),
+        enabled: z.boolean().default(true),
+        sortOrder: z.number().default(0),
+        title: z.string().optional(),
+        limit: z.number().optional(),
+    })).default([
+        { type: 'hero', enabled: true, sortOrder: 0 },
+        { type: 'about', enabled: true, sortOrder: 1 },
+        { type: 'services', enabled: true, sortOrder: 2 },
+        { type: 'projects', enabled: true, sortOrder: 3 },
+        { type: 'news', enabled: true, sortOrder: 4 },
+        { type: 'contacts', enabled: true, sortOrder: 5 },
+    ]),
     branding: contentBrandingSchema.default({}),
     navigation: z.array(contentNavigationItemSchema).default([]),
     pages: z.array(contentPageSchema).default([]),
     services: z.array(contentServiceSchema).default([]),
     projects: z.array(contentProjectSchema).default([]),
     news: z.array(contentNewsSchema).default([]),
+    vacancies: z.array(contentVacancySchema).default([]),
     reviews: reviewsBlockSchema.shape.reviews.default([]),
     contacts: contentContactsSchema.default({}),
     media: z.array(contentMediaSchema).default([]),

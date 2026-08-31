@@ -3,50 +3,53 @@ import { useState, useEffect } from 'react'
 // ─── Logo assets ─────────────────────────────────────────────────────────────
 // Customer logo is supplied by __CMS__.company.logoUrl; no hardcoded marks below.
 
-// ─── Images (fallbacks) ─────────────────────────────────────────────────────
-const DEFAULT_IMG = {
-  hero:   'https://images.unsplash.com/photo-1766936587760-fcc13617ca3b?w=1400&h=1100&fit=crop&auto=format',
-  proj1:  'https://images.unsplash.com/photo-1546414701-81cc6963c67f?w=1400&h=960&fit=crop&auto=format',
-  proj2:  'https://images.unsplash.com/photo-1557761469-f29c6e201784?w=1400&h=960&fit=crop&auto=format',
-  proj3:  'https://images.unsplash.com/photo-1694885169342-909981fb408a?w=900&h=640&fit=crop&auto=format',
-  proj4:  'https://images.unsplash.com/photo-1669003750682-93cf2c65b9ca?w=900&h=640&fit=crop&auto=format',
-  about:  'https://images.unsplash.com/photo-1600730424902-a3a3be6af112?w=1100&h=1400&fit=crop&auto=format',
-  news1:  'https://images.unsplash.com/photo-1623489254637-a2dd8375243d?w=600&h=400&fit=crop&auto=format',
-}
+// No external fallback images; missing image URLs are omitted by the template.
+const DEFAULT_IMG = { hero: '', proj1: '', proj2: '', proj3: '', proj4: '', about: '', news1: '' }
 
 // ─── Fallback data used when no CMS payload is provided ───────────────────────
-const DEFAULT_CMS = {
+const DEFAULT_CMS: any = {
   PREVIEW_TOKEN: '',
   SITE_ID: '',
   route: '',
   subRoute: '',
+  THEME: {},
+  THEME_CSS: '',
+  SETTINGS: {},
   COMPANY: {
-    name: 'Строительная компания',
-    legalName: 'ООО «Строительная компания»',
-    unp: '000000000',
-    founded: '2000',
-    employees: '50+',
+    name: 'Компания',
+    legalName: '',
+    unp: '',
+    founded: '',
+    employees: '',
     address: { zip: '', city: '', street: '', room: '', formatted: '' },
-    hours: 'Пн–Пт: 9:00–18:00',
-    phone: '+375 00 000-00-00',
-    phoneHref: 'tel:+375000000000',
-    domain: 'example.com',
-    contacts: {
-      general: [{ phone: '+375 00 000-00-00', href: 'tel:+375000000000', label: 'офис' }],
-      procurement: [],
-      email: 'info@example.com',
-      tenderEmail: 'info@example.com',
-    },
+    hours: '',
+    phone: '',
+    phoneHref: '',
+    domain: '',
+    contacts: { general: [], procurement: [], email: '', tenderEmail: '' },
   },
-  NAV: [
-    { id: 'nav_1', label: 'Главная', href: '/', targetType: 'HOME', target: '', sortOrder: 0, showInHeader: true, showInFooter: true, showOnHomepage: false },
-    { id: 'nav_2', label: 'О компании', href: '#about', targetType: 'HOME_SECTION', target: 'ABOUT', sortOrder: 1, showInHeader: true, showInFooter: true, showOnHomepage: true },
-    { id: 'nav_3', label: 'Услуги', href: '#services', targetType: 'COLLECTION', target: 'SERVICES', sortOrder: 2, showInHeader: true, showInFooter: true, showOnHomepage: true },
-    { id: 'nav_4', label: 'Объекты', href: '#projects', targetType: 'COLLECTION', target: 'PROJECTS', sortOrder: 3, showInHeader: true, showInFooter: true, showOnHomepage: true },
-    { id: 'nav_5', label: 'Новости', href: '#news', targetType: 'COLLECTION', target: 'NEWS', sortOrder: 4, showInHeader: true, showInFooter: true, showOnHomepage: true },
-    { id: 'nav_6', label: 'Вакансии', href: '#vacancies', targetType: 'COLLECTION', target: 'VACANCIES', sortOrder: 5, showInHeader: false, showInFooter: true, showOnHomepage: true },
-    { id: 'nav_7', label: 'Контакты', href: '#contacts', targetType: 'HOME_SECTION', target: 'CONTACTS', sortOrder: 6, showInHeader: true, showInFooter: true, showOnHomepage: true },
+  LOGO: undefined,
+  FAVICON: undefined,
+  HERO: {
+    title: '',
+    subtitle: '',
+    image: '',
+    buttonLabel: 'Связаться',
+    buttonUrl: '#contacts',
+    location: '',
+    industry: 'Компания'
+  },
+  ABOUT: { heading: 'О компании', content: '', image: '' },
+  CTA: { title: 'Обсудим ваш проект', description: '', buttonLabel: 'Связаться', buttonUrl: '#contacts' },
+  HOME_SECTIONS: [
+    { type: 'about', enabled: true, sortOrder: 1, title: 'О компании' },
+    { type: 'services', enabled: true, sortOrder: 2, title: 'Услуги' },
+    { type: 'projects', enabled: true, sortOrder: 3, title: 'Объекты' },
+    { type: 'news', enabled: true, sortOrder: 4, title: 'Новости' },
+    { type: 'vacancies', enabled: true, sortOrder: 5, title: 'Вакансии' },
+    { type: 'contacts', enabled: true, sortOrder: 6, title: 'Контакты' },
   ],
+  NAV: [],
   PAGES: [],
   SERVICES: [],
   PROJECTS: [],
@@ -59,16 +62,39 @@ function getCmsData() {
   if (typeof window === 'undefined') return DEFAULT_CMS;
   const incoming = (window as any).__CMS__;
   if (!incoming) return DEFAULT_CMS;
-  return { ...DEFAULT_CMS, ...incoming };
+  const merged = { ...DEFAULT_CMS, ...incoming };
+  if (incoming.HERO) merged.HERO = { ...DEFAULT_CMS.HERO, ...incoming.HERO };
+  if (incoming.ABOUT) merged.ABOUT = { ...DEFAULT_CMS.ABOUT, ...incoming.ABOUT };
+  if (incoming.CTA) merged.CTA = { ...DEFAULT_CMS.CTA, ...incoming.CTA };
+  return merged;
 }
 
 const cms = getCmsData();
-const { COMPANY, NAV, PAGES, SERVICES, PROJECTS, NEWS_ITEMS, VACANCIES, PROCESS_STEPS } = cms;
+const { COMPANY, NAV, PAGES, SERVICES, PROJECTS, NEWS_ITEMS, VACANCIES, PROCESS_STEPS, HERO, ABOUT, CTA, LOGO, FAVICON, THEME, SETTINGS, HOME_SECTIONS } = cms;
 const PREVIEW_TOKEN = (cms as any).PREVIEW_TOKEN || '';
 const SITE_ID = (cms as any).SITE_ID || '';
 const IMG = (cms as any).IMG || DEFAULT_IMG;
 
 const BASE = PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}` : '';
+
+const COLLECTION_ROUTES = ['news', 'projects', 'services', 'vacancies'];
+const HOME_SECTION_TYPES = (HOME_SECTIONS || [])
+  .filter((s: any) => s.enabled !== false)
+  .map((s: any) => s.type)
+  .filter((t: string) => !COLLECTION_ROUTES.includes(t));
+
+function sectionConfig(type: string) {
+  return (HOME_SECTIONS || []).find((s: any) => s.type === type && s.enabled !== false);
+}
+function sectionHeading(type: string, fallback: string) {
+  return sectionConfig(type)?.title || fallback;
+}
+function sectionEyebrow(type: string, fallback: string) {
+  return sectionConfig(type)?.eyebrow || fallback;
+}
+function homeSectionEnabled(type: string) {
+  return !!sectionConfig(type);
+}
 
 function homeHref() {
   return `${BASE}/`;
@@ -136,6 +162,24 @@ function BrandMark({
   style?: React.CSSProperties
 }) {
   const initial = (COMPANY.name || 'S').slice(0, 1).toUpperCase()
+  const src = LOGO || (cms as any).LOGO
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt={COMPANY.name}
+        style={{
+          width: size,
+          height: size,
+          objectFit: 'contain',
+          flexShrink: 0,
+          borderRadius: '6px',
+          background: dark ? 'transparent' : 'white',
+          ...extraStyle,
+        }}
+      />
+    )
+  }
   return (
     <div
       style={{
@@ -149,8 +193,8 @@ function BrandMark({
         fontFamily: "'Geologica', sans-serif",
         fontWeight: 700,
         fontSize: Math.round(size * 0.45),
-        color: dark ? 'white' : 'var(--brand)',
-        background: dark ? 'var(--brand)' : 'white',
+        color: dark ? 'white' : 'var(--brass)',
+        background: dark ? 'var(--brass)' : 'white',
         border: dark ? 'none' : '1px solid var(--border)',
         ...extraStyle,
       }}
@@ -182,7 +226,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
               className="text-[9.5px] uppercase tracking-[0.22em] font-medium leading-none"
               style={{ color: 'var(--muted)' }}
             >
-              строительная компания
+              {HERO.industry || ''}
             </span>
           </div>
         </a>
@@ -207,11 +251,13 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
 
         {/* Desktop right */}
         <div className="hidden md:flex items-center gap-6 shrink-0">
-          <a href={COMPANY.phoneHref} className="text-sm font-medium" style={{ color: 'var(--fg)' }}>
-            {COMPANY.phone}
-          </a>
+          {COMPANY.phone ? (
+            <a href={COMPANY.phoneHref} className="text-sm font-medium" style={{ color: 'var(--fg)' }}>
+              {COMPANY.phone}
+            </a>
+          ) : null}
           <a
-            href={sectionHref('CONTACTS')}
+            href={HERO.buttonUrl || sectionHref('CONTACTS')}
             className="px-5 py-2.5 text-[11px] uppercase tracking-[0.15em] font-semibold border transition-all"
             style={{ borderColor: 'var(--fg)', color: 'var(--fg)' }}
             onMouseEnter={e => {
@@ -225,7 +271,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
               el.style.color = 'var(--fg)'
             }}
           >
-            Обсудить проект
+            {HERO.buttonLabel || 'Связаться'}
           </a>
         </div>
 
@@ -287,16 +333,18 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
             </a>
           ))}
           <div className="pt-7 flex flex-col gap-4">
-            <a href={COMPANY.phoneHref} className="text-xl font-semibold" style={{ color: 'var(--brass)' }}>
-              {COMPANY.phone}
-            </a>
+            {COMPANY.phone ? (
+              <a href={COMPANY.phoneHref} className="text-xl font-semibold" style={{ color: 'var(--brass)' }}>
+                {COMPANY.phone}
+              </a>
+            ) : null}
             <a
-              href={sectionHref('CONTACTS')}
+              href={HERO.buttonUrl || sectionHref('CONTACTS')}
               onClick={() => setMenuOpen(false)}
               className="text-center py-3.5 border text-sm uppercase tracking-wider font-medium"
               style={{ borderColor: 'var(--brass)', color: 'var(--brass)' }}
             >
-              Обсудить проект
+              {HERO.buttonLabel || 'Связаться'}
             </a>
           </div>
         </nav>
@@ -307,58 +355,62 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
 
 // ─── Hero ─────────────────────────────────────────────────────────────────────
 function Hero() {
+  const title = HERO.title || COMPANY.name
+  const titleWords = title.split(/\s+/).filter(Boolean)
   return (
     <section
       className="relative overflow-hidden"
       style={{ height: '100svh', minHeight: '640px', background: 'var(--dark)' }}
     >
       {/* Full-bleed background photo */}
-      <img
-        src="https://images.unsplash.com/photo-1669003154471-b72fe01a899d?w=1920&h=1080&fit=crop&auto=format"
-        alt="Современный коммерческий объект — производственный комплекс"
-        className="absolute inset-0 w-full h-full object-cover"
-        style={{ objectPosition: 'right center' }}
-      />
+      {HERO.image ? (
+        <img
+          src={HERO.image}
+          alt={title}
+          className="absolute inset-0 w-full h-full object-cover"
+          style={{ objectPosition: 'right center' }}
+        />
+      ) : null}
 
-      {/* Gradient stack:
-          – strong left vignette creates a dark text zone while the building shows right
-          – bottom anchor keeps headline area readable without crushing the image */}
+      {/* Gradient stack */}
       <div
         className="absolute inset-0"
         style={{
           background: [
-            'linear-gradient(to top, rgba(15,31,28,0.96) 0%, rgba(15,31,28,0.68) 35%, rgba(15,31,28,0.18) 62%, transparent 100%)',
-            'linear-gradient(to right, rgba(15,31,28,0.82) 0%, rgba(15,31,28,0.45) 40%, rgba(15,31,28,0.1) 65%, transparent 85%)',
+            'linear-gradient(to top, rgba(0,0,0,0.92) 0%, rgba(0,0,0,0.65) 35%, rgba(0,0,0,0.15) 62%, transparent 100%)',
+            'linear-gradient(to right, rgba(0,0,0,0.78) 0%, rgba(0,0,0,0.42) 40%, rgba(0,0,0,0.08) 65%, transparent 85%)',
           ].join(', '),
         }}
       />
 
       {/* ── Right edge: vertical location text ── */}
-      <div
-        className="absolute right-8 top-1/2 -translate-y-1/2 hidden lg:flex flex-col items-center gap-4"
-        style={{ zIndex: 2 }}
-      >
-        <div className="w-px h-16" style={{ background: 'rgba(242,244,245,0.2)' }} />
-        <span
-          className="text-[9px] uppercase tracking-[0.45em] font-medium"
-          style={{
-            color: 'rgba(242,244,245,0.35)',
-            writingMode: 'vertical-rl',
-            textOrientation: 'mixed',
-            letterSpacing: '0.45em',
-          }}
+      {HERO.location ? (
+        <div
+          className="absolute right-8 top-1/2 -translate-y-1/2 hidden lg:flex flex-col items-center gap-4"
+          style={{ zIndex: 2 }}
         >
-          Минск · Беларусь
-        </span>
-        <div className="w-px h-16" style={{ background: 'rgba(242,244,245,0.2)' }} />
-      </div>
+          <div className="w-px h-16" style={{ background: 'rgba(242,244,245,0.2)' }} />
+          <span
+            className="text-[9px] uppercase tracking-[0.45em] font-medium"
+            style={{
+              color: 'rgba(242,244,245,0.35)',
+              writingMode: 'vertical-rl',
+              textOrientation: 'mixed',
+              letterSpacing: '0.45em',
+            }}
+          >
+            {HERO.location}
+          </span>
+          <div className="w-px h-16" style={{ background: 'rgba(242,244,245,0.2)' }} />
+        </div>
+      ) : null}
 
       {/* ── Main content — bottom-left anchored ── */}
       <div
         className="absolute bottom-0 left-0 right-0 px-6 sm:px-10 md:px-16 lg:px-20"
         style={{ zIndex: 2, paddingBottom: 'clamp(3rem, 6vh, 5.5rem)' }}
       >
-        {/* Brand signature — mark + company identity above the headline */}
+        {/* Brand signature */}
         <div className="flex items-center gap-3 mb-7 md:mb-9">
           <BrandMark size={36} dark />
           <div className="flex flex-col leading-none gap-1">
@@ -372,12 +424,12 @@ function Hero() {
               className="text-[9px] uppercase tracking-[0.3em] font-medium leading-none"
               style={{ color: 'rgba(242,244,245,0.4)' }}
             >
-              Строительная компания · Беларусь
+              {HERO.industry || ''}
             </span>
           </div>
         </div>
 
-        {/* Headline — architectural scale, each phrase its own visual weight */}
+        {/* Headline */}
         <h1
           className="font-black text-white mb-8 md:mb-10"
           style={{
@@ -388,33 +440,39 @@ function Hero() {
             maxWidth: '880px',
           }}
         >
-          <span className="block">Строим</span>
-          <span className="block" style={{ color: 'var(--brass)' }}>объекты,</span>
-          <span className="block">которые</span>
-          <span
-            className="block"
-            style={{
-              WebkitTextStroke: '2px rgba(242,244,245,0.6)',
-              color: 'transparent',
-              fontStyle: 'italic',
-            }}
-          >
-            работают
-          </span>
+          {titleWords.map((word, i) => {
+            const isLast = i === titleWords.length - 1
+            const isSecond = i === 1
+            return (
+              <span
+                key={i}
+                className="block"
+                style={{
+                  color: isSecond ? 'var(--brass)' : (isLast ? 'transparent' : 'white'),
+                  WebkitTextStroke: isLast ? '2px rgba(242,244,245,0.6)' : undefined,
+                  fontStyle: isLast ? 'italic' : undefined,
+                }}
+              >
+                {word}
+              </span>
+            )
+          })}
         </h1>
 
         {/* Sub-row: descriptor + CTAs side by side */}
         <div className="flex flex-col sm:flex-row sm:items-end gap-6 sm:gap-14">
-          <p
-            className="text-sm md:text-base leading-relaxed shrink-0"
-            style={{ color: 'rgba(242,244,245,0.55)', maxWidth: '320px' }}
-          >
-            Полный цикл — от проектирования до сдачи. Комплексное строительство, монтаж конструкций, инженерные решения.
-          </p>
+          {HERO.subtitle ? (
+            <p
+              className="text-sm md:text-base leading-relaxed shrink-0"
+              style={{ color: 'rgba(242,244,245,0.55)', maxWidth: '360px' }}
+            >
+              {HERO.subtitle}
+            </p>
+          ) : null}
 
           <div className="flex flex-wrap items-center gap-5">
             <a
-              href={sectionHref('CONTACTS')}
+              href={HERO.buttonUrl || sectionHref('CONTACTS')}
               className="inline-flex items-center px-7 py-3.5 text-[11px] uppercase font-bold tracking-[0.18em] transition-all"
               style={{ background: 'var(--brass)', color: 'var(--dark)' }}
               onMouseEnter={e => {
@@ -428,37 +486,39 @@ function Hero() {
                 el.style.color = 'var(--dark)'
               }}
             >
-              Обсудить проект
+              {HERO.buttonLabel || 'Связаться'}
             </a>
-            <a
-              href={sectionHref('PROJECTS')}
-              className="group inline-flex items-center gap-2 text-sm font-medium pb-0.5 transition-colors"
-              style={{ color: 'rgba(242,244,245,0.7)', borderBottom: '1px solid rgba(242,244,245,0.25)' }}
-              onMouseEnter={e => {
-                const el = e.currentTarget as HTMLElement
-                el.style.color = 'white'
-                el.style.borderBottomColor = 'rgba(242,244,245,0.6)'
-              }}
-              onMouseLeave={e => {
-                const el = e.currentTarget as HTMLElement
-                el.style.color = 'rgba(242,244,245,0.7)'
-                el.style.borderBottomColor = 'rgba(242,244,245,0.25)'
-              }}
-            >
-              Наши объекты
-              <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
-            </a>
+            {PROJECTS.length > 0 ? (
+              <a
+                href={sectionHref('PROJECTS')}
+                className="group inline-flex items-center gap-2 text-sm font-medium pb-0.5 transition-colors"
+                style={{ color: 'rgba(242,244,245,0.7)', borderBottom: '1px solid rgba(242,244,245,0.25)' }}
+                onMouseEnter={e => {
+                  const el = e.currentTarget as HTMLElement
+                  el.style.color = 'white'
+                  el.style.borderBottomColor = 'rgba(242,244,245,0.6)'
+                }}
+                onMouseLeave={e => {
+                  const el = e.currentTarget as HTMLElement
+                  el.style.color = 'rgba(242,244,245,0.7)'
+                  el.style.borderBottomColor = 'rgba(242,244,245,0.25)'
+                }}
+              >
+                Наши объекты
+                <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+              </a>
+            ) : null}
           </div>
         </div>
       </div>
 
-      {/* ── Top-left architectural mark ── */}
+      {/* Top-left architectural mark */}
       <div
         className="absolute top-6 left-6 sm:left-10 md:left-16 lg:left-20 w-8 h-8 border-t border-l"
-        style={{ borderColor: 'rgba(19,163,74,0.5)', zIndex: 2 }}
+        style={{ borderColor: 'rgba(242,244,245,0.25)', zIndex: 2 }}
       />
 
-      {/* ── Large ghost monogram watermark — bottom-right atmosphere ── */}
+      {/* Large ghost monogram watermark */}
       <div
         className="absolute bottom-0 right-0 hidden lg:block overflow-hidden pointer-events-none"
         style={{ zIndex: 1, width: 'clamp(280px, 28vw, 420px)', aspectRatio: '1', opacity: 0.07, marginBottom: '-8%', marginRight: '-6%' }}
@@ -487,9 +547,9 @@ function Projects() {
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 pt-24 md:pt-36 pb-14 md:pb-20">
         <div className="flex items-end justify-between">
           <div>
-            <Eyebrow>Портфолио</Eyebrow>
+            <Eyebrow>{sectionEyebrow('projects', 'Портфолио')}</Eyebrow>
             <h2 className="text-4xl md:text-5xl font-bold leading-[1.05]" style={{ ...GEO, color: 'var(--fg)' }}>
-              Реализованные<br />объекты
+              {sectionHeading('projects', 'Реализованные объекты')}
             </h2>
           </div>
           <a
@@ -577,16 +637,20 @@ function Projects() {
           {/* Image */}
           <div
             className="overflow-hidden"
-            style={{ minHeight: '460px', background: '#4a5058' }}
+            style={{ minHeight: '460px', background: 'var(--card-bg)' }}
             onMouseEnter={() => setHov(0)}
             onMouseLeave={() => setHov(null)}
           >
-            <img
-              src={PROJECTS[0].img}
-              alt={PROJECTS[0].title}
-              className="w-full h-full object-cover transition-transform duration-700"
-              style={{ transform: hov === 0 ? 'scale(1.04)' : 'scale(1)' }}
-            />
+            {PROJECTS[0].img ? (
+              <img
+                src={PROJECTS[0].img}
+                alt={PROJECTS[0].title}
+                className="w-full h-full object-cover transition-transform duration-700"
+                style={{ transform: hov === 0 ? 'scale(1.04)' : 'scale(1)' }}
+              />
+            ) : (
+              <div className="w-full h-full" style={{ background: 'var(--card-bg)' }} />
+            )}
           </div>
         </div>
       </div>
@@ -601,16 +665,20 @@ function Projects() {
           {/* Image */}
           <div
             className="overflow-hidden order-1 lg:order-none"
-            style={{ minHeight: '420px', background: '#5a5a54' }}
+            style={{ minHeight: '420px', background: 'var(--card-bg)' }}
             onMouseEnter={() => setHov(1)}
             onMouseLeave={() => setHov(null)}
           >
-            <img
-              src={PROJECTS[1].img}
-              alt={PROJECTS[1].title}
-              className="w-full h-full object-cover transition-transform duration-700"
-              style={{ transform: hov === 1 ? 'scale(1.04)' : 'scale(1)' }}
-            />
+            {PROJECTS[1].img ? (
+              <img
+                src={PROJECTS[1].img}
+                alt={PROJECTS[1].title}
+                className="w-full h-full object-cover transition-transform duration-700"
+                style={{ transform: hov === 1 ? 'scale(1.04)' : 'scale(1)' }}
+              />
+            ) : (
+              <div className="w-full h-full" style={{ background: 'var(--card-bg)' }} />
+            )}
           </div>
 
           {/* Meta */}
@@ -689,13 +757,17 @@ function Projects() {
                 onMouseLeave={() => setHov(null)}
               >
                 {/* Image */}
-                <div className="overflow-hidden" style={{ aspectRatio: '3/2', background: '#4a5058' }}>
-                  <img
-                    src={project.img}
-                    alt={project.title}
-                    className="w-full h-full object-cover transition-transform duration-700"
-                    style={{ transform: hov === idx ? 'scale(1.04)' : 'scale(1)' }}
-                  />
+                <div className="overflow-hidden" style={{ aspectRatio: '3/2', background: 'var(--card-bg)' }}>
+                  {project.img ? (
+                    <img
+                      src={project.img}
+                      alt={project.title}
+                      className="w-full h-full object-cover transition-transform duration-700"
+                      style={{ transform: hov === idx ? 'scale(1.04)' : 'scale(1)' }}
+                    />
+                  ) : (
+                    <div className="w-full h-full" style={{ background: 'var(--card-bg)' }} />
+                  )}
                 </div>
 
                 {/* Caption */}
@@ -770,14 +842,14 @@ function Services() {
             <div className="flex items-center gap-4 mb-5">
               <div className="h-px w-8 shrink-0" style={{ background: 'var(--brass)' }} />
               <span className="text-[11px] uppercase tracking-[0.3em] font-medium" style={{ color: 'rgba(242,244,245,0.4)' }}>
-                Что мы делаем
+                {sectionEyebrow('services', 'Что мы делаем')}
               </span>
             </div>
             <h2
               className="font-bold leading-[1.05]"
               style={{ ...GEO, color: 'white', fontSize: 'clamp(2.5rem, 5vw, 3.5rem)' }}
             >
-              Наши услуги
+              {sectionHeading('services', 'Наши услуги')}
             </h2>
           </div>
           <p className="text-sm md:text-base leading-relaxed lg:pb-1" style={{ color: 'rgba(242,244,245,0.45)' }}>
@@ -878,13 +950,8 @@ function Services() {
 }
 
 // ─── About section ────────────────────────────────────────────────────────────
-const ABOUT_CAPABILITIES = [
-  { n: '01', title: 'Комплексное строительство',    desc: 'Строительные, монтажные и инженерные работы' },
-  { n: '02', title: 'Собственные ресурсы',           desc: 'Специалисты и необходимая строительная техника' },
-  { n: '03', title: 'Ответственность за результат',  desc: 'Соблюдение требований проекта и строительных норм' },
-]
-
 function About() {
+  if (!ABOUT.content && !ABOUT.image) return null
   return (
     <section
       id="about"
@@ -894,44 +961,32 @@ function About() {
       <div className="max-w-[1280px] mx-auto">
         <div className="grid grid-cols-1 lg:grid-cols-[58fr_42fr]">
 
-          {/* ── LEFT: large photograph ── */}
-          <div
-            className="relative overflow-hidden order-1"
-            style={{ minHeight: '560px', background: '#4a5058' }}
-          >
-            <img
-              src={IMG.about}
-              alt="Реализованный объект компании"
-              className="absolute inset-0 w-full h-full object-cover"
-              style={{ objectPosition: 'center 40%' }}
-            />
-
-            {/* Bottom caption */}
+          {/* LEFT: optional photograph */}
+          {ABOUT.image ? (
             <div
-              className="absolute bottom-0 left-0 right-0 px-8 py-6"
-              style={{ background: 'linear-gradient(to top, rgba(15,31,28,0.72), transparent)' }}
+              className="relative overflow-hidden order-1"
+              style={{ minHeight: '560px', background: 'var(--dark)' }}
             >
-              <p
-                className="text-[9px] uppercase tracking-[0.38em] font-medium"
-                style={{ color: 'rgba(242,244,245,0.5)' }}
-              >
-                Реализованный объект · Гражданское строительство
-              </p>
+              <img
+                src={ABOUT.image}
+                alt={ABOUT.heading || COMPANY.name}
+                className="absolute inset-0 w-full h-full object-cover"
+                style={{ objectPosition: 'center 40%' }}
+              />
+              <div
+                className="absolute top-0 right-0 bottom-0 w-px hidden lg:block"
+                style={{ background: 'var(--border)' }}
+              />
             </div>
+          ) : (
+            <div className="hidden lg:block order-1" />
+          )}
 
-            {/* Thin teal line at right edge — visual seam between photo and panel */}
-            <div
-              className="absolute top-0 right-0 bottom-0 w-px hidden lg:block"
-              style={{ background: 'var(--border)' }}
-            />
-          </div>
-
-          {/* ── RIGHT: editorial content panel ── */}
+          {/* RIGHT: editorial content panel */}
           <div
             className="relative flex flex-col justify-center px-8 md:px-12 lg:px-14 py-16 md:py-20 order-2"
             style={{
               background: 'var(--card-bg)',
-              /* Architectural trust detail: faint blueprint grid */
               backgroundImage: [
                 'linear-gradient(rgba(180,195,205,0.2) 1px, transparent 1px)',
                 'linear-gradient(90deg, rgba(180,195,205,0.2) 1px, transparent 1px)',
@@ -940,73 +995,21 @@ function About() {
             }}
           >
             <BrandMark size={34} style={{ marginBottom: '0.75rem' }} />
-            <Eyebrow>О компании</Eyebrow>
+            <Eyebrow>{sectionEyebrow('about', 'О компании')}</Eyebrow>
 
             <h2
               className="font-bold leading-[1.05] mb-6"
               style={{ ...GEO, color: 'var(--fg)', fontSize: 'clamp(1.75rem, 2.8vw, 2.35rem)' }}
             >
-              Строительство<br />с ответственностью<br />за результат
+              {sectionHeading('about', 'О компании')}
             </h2>
 
-            <p className="text-sm leading-relaxed mb-4" style={{ color: 'var(--muted)' }}>
-              {COMPANY.legalName} выполняет комплекс строительных, монтажных и инженерных работ — от подготовки и проектирования до реализации и сдачи объекта.
-            </p>
-            <p className="text-sm leading-relaxed" style={{ color: 'var(--muted)' }}>
-              Работы выполняются с участием собственных специалистов и строительной техники, с соблюдением требований проекта, строительных норм и задач заказчика.
-            </p>
-
-            {/* Divider */}
-            <div className="w-full h-px my-8" style={{ background: 'var(--border)' }} />
-
-            {/* Capabilities — numbered rows, not cards */}
-            <div>
-              {ABOUT_CAPABILITIES.map(cap => (
-                <div
-                  key={cap.n}
-                  className="flex items-start gap-5 py-4 border-b first:border-t"
-                  style={{ borderColor: 'var(--border)' }}
-                >
-                  <span
-                    className="text-[11px] font-bold tabular-nums shrink-0 mt-px"
-                    style={{ fontFamily: 'monospace', color: 'var(--brass)', minWidth: '1.75rem' }}
-                  >
-                    {cap.n}
-                  </span>
-                  <div>
-                    <p
-                      className="text-sm font-semibold leading-snug mb-0.5"
-                      style={{ ...GEO, color: 'var(--fg)' }}
-                    >
-                      {cap.title}
-                    </p>
-                    <p className="text-xs leading-snug" style={{ color: 'var(--muted)' }}>
-                      {cap.desc}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            {/* CTA */}
-            <a
-              href={sectionHref('ABOUT')}
-              className="inline-flex items-center gap-2 text-sm font-medium mt-8 self-start group transition-colors"
-              style={{ color: 'var(--fg)', borderBottom: '1px solid var(--border)', paddingBottom: '2px' }}
-              onMouseEnter={e => {
-                const el = e.currentTarget as HTMLElement
-                el.style.color = 'var(--brass)'
-                el.style.borderBottomColor = 'var(--brass)'
-              }}
-              onMouseLeave={e => {
-                const el = e.currentTarget as HTMLElement
-                el.style.color = 'var(--fg)'
-                el.style.borderBottomColor = 'var(--border)'
-              }}
+            <div
+              className="text-sm leading-relaxed space-y-4"
+              style={{ color: 'var(--muted)', whiteSpace: 'pre-wrap' }}
             >
-              Подробнее о компании
-              <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
-            </a>
+              {ABOUT.content}
+            </div>
           </div>
 
         </div>
@@ -1019,6 +1022,8 @@ function About() {
 function Process() {
   const [hov, setHov] = useState<number | null>(null)
 
+  if (PROCESS_STEPS.length === 0) return null
+
   return (
     <section
       id="process"
@@ -1030,7 +1035,7 @@ function Process() {
 
           {/* ── LEFT: sticky editorial heading ── */}
           <div className="lg:sticky lg:top-28">
-            <Eyebrow>Как мы работаем</Eyebrow>
+            <Eyebrow>{sectionEyebrow('process', 'Как мы работаем')}</Eyebrow>
             <h2
               className="font-bold leading-[1.0] mb-7"
               style={{ ...GEO, color: 'var(--fg)', fontSize: 'clamp(2.25rem, 4.5vw, 3.25rem)' }}
@@ -1151,6 +1156,7 @@ function Process() {
 
 // ─── News section ─────────────────────────────────────────────────────────────
 function News() {
+  if (NEWS_ITEMS.length === 0) return null
   return (
     <section
       id="news"
@@ -1160,9 +1166,9 @@ function News() {
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
         <div className="flex items-end justify-between mb-12">
           <div>
-            <Eyebrow>Актуальное</Eyebrow>
+            <Eyebrow>{sectionEyebrow('news', 'Актуальное')}</Eyebrow>
             <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>
-              Новости
+              {sectionHeading('news', 'Новости')}
             </h2>
           </div>
           <a
@@ -1262,9 +1268,9 @@ function ProjectList({ preview = false }: { preview?: boolean }) {
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
         <div className="flex items-end justify-between mb-12">
           <div>
-            <Eyebrow>Портфолио</Eyebrow>
+            <Eyebrow>{sectionEyebrow('projects', 'Портфолио')}</Eyebrow>
             <h2 className="text-4xl md:text-5xl font-bold leading-[1.05]" style={{ ...GEO, color: 'var(--fg)' }}>
-              Реализованные<br />объекты
+              {sectionHeading('projects', 'Реализованные объекты')}
             </h2>
           </div>
           {preview ? (
@@ -1286,8 +1292,12 @@ function ProjectList({ preview = false }: { preview?: boolean }) {
               style={{ borderColor: 'var(--border)' }}
             >
               <a href={projectHref(p.slug, returnTo)} className="block transition-colors h-full" onMouseEnter={e => { e.currentTarget.style.background = 'var(--card-bg)' }} onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}>
-                <div className="overflow-hidden" style={{ aspectRatio: '3/2', background: '#4a5058' }}>
-                  <img src={p.img} alt={p.title} className="w-full h-full object-cover" />
+                <div className="overflow-hidden" style={{ aspectRatio: '3/2', background: 'var(--card-bg)' }}>
+                  {p.img ? (
+                    <img src={p.img} alt={p.title} className="w-full h-full object-cover" />
+                  ) : (
+                    <div className="w-full h-full" style={{ background: 'var(--card-bg)' }} />
+                  )}
                 </div>
                 <div className="p-6">
                   <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.25em] font-medium mb-3" style={{ color: 'var(--muted)' }}>
@@ -1329,9 +1339,11 @@ function ProjectDetail({ slug }: { slug: string }) {
       <div className="max-w-[900px] mx-auto px-6 md:px-10">
         <a href={backHref('PROJECTS', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к объектам</a>
         <article className="mt-8">
-          <div className="mb-8 overflow-hidden" style={{ aspectRatio: '3/2' }}>
-            <img src={p.img} alt={p.title} className="w-full h-full object-cover" />
-          </div>
+          {p.img ? (
+            <div className="mb-8 overflow-hidden" style={{ aspectRatio: '3/2' }}>
+              <img src={p.img} alt={p.title} className="w-full h-full object-cover" />
+            </div>
+          ) : null}
           <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--muted)' }}>{p.category} · {p.location} · {p.status}</p>
           <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-5" style={{ ...GEO, color: 'var(--fg)' }}>{p.title}</h1>
           {p.excerpt ? <p className="text-lg leading-relaxed mb-8" style={{ color: 'var(--muted)' }}>{p.excerpt}</p> : null}
@@ -1354,14 +1366,15 @@ function ServiceList({ preview = false }: { preview?: boolean }) {
   if (typeof document !== 'undefined' && !preview) document.title = `Услуги — ${COMPANY.name}`
   const returnTo = preview ? 'home' : 'collection'
   const items = preview ? SERVICES.slice(0, 6) : SERVICES
+  if (preview && SERVICES.length === 0) return null
   return (
     <section id="services" className="py-24 md:py-32 border-t" style={{ background: 'var(--dark)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
         <div className="flex items-end justify-between mb-12">
           <div>
-            <Eyebrow>Специализация</Eyebrow>
+            <Eyebrow>{sectionEyebrow('services', 'Специализация')}</Eyebrow>
             <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'white' }}>
-              Услуги
+              {sectionHeading('services', 'Услуги')}
             </h2>
           </div>
           {preview ? (
@@ -1450,9 +1463,9 @@ function NewsList({ preview = false }: { preview?: boolean }) {
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
         <div className="flex items-end justify-between mb-12">
           <div>
-            <Eyebrow>Актуальное</Eyebrow>
+            <Eyebrow>{sectionEyebrow('news', 'Актуальное')}</Eyebrow>
             <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>
-              Новости
+              {sectionHeading('news', 'Новости')}
             </h2>
           </div>
           {preview ? (
@@ -1529,7 +1542,7 @@ function VacancyList({ preview = false }: { preview?: boolean }) {
     <section id="vacancies" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
         <div className="flex items-end justify-between mb-10">
-          <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>Вакансии</h2>
+          <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>{sectionHeading('vacancies', 'Вакансии')}</h2>
           {preview && VACANCIES.length > 0 ? (
             <a href={collectionHref('VACANCIES')} className="hidden md:flex items-center gap-2 text-sm font-medium group transition-colors" style={{ color: 'var(--fg)' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}>
               Все вакансии <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
@@ -1589,8 +1602,8 @@ function VacancyDetail({ slug }: { slug: string }) {
   )
 }
 
-// ─── CTA section ──────────────────────────────────────────────────────────────
-function CTA() {
+// ─── CTA / Contact section ─────────────────────────────────────────────────────
+function CallToAction() {
   return (
     <section id="contacts" className="relative overflow-hidden" style={{ background: 'var(--dark)' }}>
       {/* Subtle grid texture */}
@@ -1609,7 +1622,7 @@ function CTA() {
           <BrandMark size={44} dark />
           <div>
             <p className="text-[10px] uppercase tracking-[0.28em] font-medium" style={{ color: 'rgba(242,244,245,0.4)' }}>
-              {COMPANY.name} · Строительная компания
+              {HERO.industry ? `${COMPANY.name} · ${HERO.industry}` : COMPANY.name}
             </p>
           </div>
         </div>
@@ -1622,50 +1635,60 @@ function CTA() {
               className="font-bold leading-[1.0] mb-6"
               style={{ ...GEO, color: 'white', fontSize: 'clamp(2.5rem, 5vw, 4rem)' }}
             >
-              Обсудим<br />
-              <span style={{ color: 'var(--brass)' }}>ваш проект</span>
+              {CTA.title}
             </h2>
-            <p className="text-sm leading-relaxed mb-10" style={{ color: 'rgba(242,244,245,0.5)', maxWidth: '340px' }}>
-              Оставьте заявку или свяжитесь с нами напрямую. Рассматриваем обращения в течение рабочего дня.
-            </p>
+            {CTA.description ? (
+              <p className="text-sm leading-relaxed mb-10" style={{ color: 'rgba(242,244,245,0.5)', maxWidth: '340px' }}>
+                {CTA.description}
+              </p>
+            ) : null}
 
             {/* Address block */}
-            <div className="border-t border-b py-6 flex flex-col gap-2" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
-              <p className="text-[10px] uppercase tracking-[0.28em] font-medium mb-1" style={{ color: 'rgba(242,244,245,0.35)' }}>
-                Адрес
-              </p>
-              <p className="text-sm leading-relaxed" style={{ color: 'rgba(242,244,245,0.65)' }}>
-                {COMPANY.address.zip}, {COMPANY.address.city},<br />
-                {COMPANY.address.street}, {COMPANY.address.room}
-              </p>
-              <p className="text-[11px] mt-1" style={{ color: 'rgba(242,244,245,0.38)' }}>
-                {COMPANY.hours}
-              </p>
-            </div>
+            {(COMPANY.address.street || COMPANY.hours) ? (
+              <div className="border-t border-b py-6 flex flex-col gap-2" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                {COMPANY.address.street ? (
+                  <>
+                    <p className="text-[10px] uppercase tracking-[0.28em] font-medium mb-1" style={{ color: 'rgba(242,244,245,0.35)' }}>
+                      Адрес
+                    </p>
+                    <p className="text-sm leading-relaxed" style={{ color: 'rgba(242,244,245,0.65)' }}>
+                      {COMPANY.address.street}
+                    </p>
+                  </>
+                ) : null}
+                {COMPANY.hours ? (
+                  <p className="text-[11px] mt-1" style={{ color: 'rgba(242,244,245,0.38)' }}>
+                    {COMPANY.hours}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
 
             {/* Tender invitation */}
-            <div className="mt-8">
-              <p className="text-[10px] uppercase tracking-[0.28em] font-medium mb-3" style={{ color: 'rgba(242,244,245,0.35)' }}>
-                Пригласить на тендер
-              </p>
-              <a
-                href={`mailto:${COMPANY.contacts.tenderEmail}?subject=Приглашение на тендер`}
-                className="inline-flex items-center gap-2 text-sm font-medium transition-colors pb-0.5"
-                style={{ color: 'var(--brass)', borderBottom: '1px solid rgba(19,163,74,0.35)' }}
-                onMouseEnter={e => {
-                  const el = e.currentTarget as HTMLElement
-                  el.style.color = 'white'
-                  el.style.borderBottomColor = 'rgba(255,255,255,0.3)'
-                }}
-                onMouseLeave={e => {
-                  const el = e.currentTarget as HTMLElement
-                  el.style.color = 'var(--brass)'
-                  el.style.borderBottomColor = 'rgba(19,163,74,0.35)'
-                }}
-              >
-                {COMPANY.contacts.tenderEmail} →
-              </a>
-            </div>
+            {COMPANY.contacts.tenderEmail ? (
+              <div className="mt-8">
+                <p className="text-[10px] uppercase tracking-[0.28em] font-medium mb-3" style={{ color: 'rgba(242,244,245,0.35)' }}>
+                  Пригласить на тендер
+                </p>
+                <a
+                  href={`mailto:${COMPANY.contacts.tenderEmail}?subject=Приглашение на тендер`}
+                  className="inline-flex items-center gap-2 text-sm font-medium transition-colors pb-0.5"
+                  style={{ color: 'var(--brass)', borderBottom: '1px solid rgba(255,255,255,0.2)' }}
+                  onMouseEnter={e => {
+                    const el = e.currentTarget as HTMLElement
+                    el.style.color = 'white'
+                    el.style.borderBottomColor = 'rgba(255,255,255,0.3)'
+                  }}
+                  onMouseLeave={e => {
+                    const el = e.currentTarget as HTMLElement
+                    el.style.color = 'var(--brass)'
+                    el.style.borderBottomColor = 'rgba(255,255,255,0.2)'
+                  }}
+                >
+                  {COMPANY.contacts.tenderEmail} →
+                </a>
+              </div>
+            ) : null}
           </div>
 
           {/* ── Right: structured contact channels ── */}
@@ -1714,37 +1737,39 @@ function CTA() {
             </div>
 
             {/* Email + CTA */}
-            <div className="border-t pt-8" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
-              <p className="text-[10px] uppercase tracking-[0.3em] mb-3" style={{ color: 'rgba(242,244,245,0.35)' }}>
-                Email
-              </p>
-              <a
-                href={`mailto:${COMPANY.contacts.email}`}
-                className="text-xl font-medium transition-colors block mb-6"
-                style={{ color: 'white' }}
-                onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
-                onMouseLeave={e => (e.currentTarget.style.color = 'white')}
-              >
-                {COMPANY.contacts.email}
-              </a>
-              <a
-                href={`mailto:${COMPANY.contacts.email}`}
-                className="inline-flex items-center gap-3 px-8 py-4 border text-[12px] uppercase tracking-[0.18em] font-semibold transition-all"
-                style={{ borderColor: 'var(--brass)', color: 'var(--brass)' }}
-                onMouseEnter={e => {
-                  const el = e.currentTarget as HTMLElement
-                  el.style.background = 'var(--brass)'
-                  el.style.color = 'var(--dark)'
-                }}
-                onMouseLeave={e => {
-                  const el = e.currentTarget as HTMLElement
-                  el.style.background = 'transparent'
-                  el.style.color = 'var(--brass)'
-                }}
-              >
-                Связаться с нами →
-              </a>
-            </div>
+            {COMPANY.contacts.email ? (
+              <div className="border-t pt-8" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+                <p className="text-[10px] uppercase tracking-[0.3em] mb-3" style={{ color: 'rgba(242,244,245,0.35)' }}>
+                  Email
+                </p>
+                <a
+                  href={`mailto:${COMPANY.contacts.email}`}
+                  className="text-xl font-medium transition-colors block mb-6"
+                  style={{ color: 'white' }}
+                  onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
+                  onMouseLeave={e => (e.currentTarget.style.color = 'white')}
+                >
+                  {COMPANY.contacts.email}
+                </a>
+                <a
+                  href={CTA.buttonUrl || `mailto:${COMPANY.contacts.email || '#'}`}
+                  className="inline-flex items-center gap-3 px-8 py-4 border text-[12px] uppercase tracking-[0.18em] font-semibold transition-all"
+                  style={{ borderColor: 'var(--brass)', color: 'var(--brass)' }}
+                  onMouseEnter={e => {
+                    const el = e.currentTarget as HTMLElement
+                    el.style.background = 'var(--brass)'
+                    el.style.color = 'var(--dark)'
+                  }}
+                  onMouseLeave={e => {
+                    const el = e.currentTarget as HTMLElement
+                    el.style.background = 'transparent'
+                    el.style.color = 'var(--brass)'
+                  }}
+                >
+                  {CTA.buttonLabel || 'Связаться с нами'} →
+                </a>
+              </div>
+            ) : null}
 
           </div>
         </div>
@@ -1781,7 +1806,7 @@ function FooterHeading({ children }: { children: React.ReactNode }) {
 
 function Footer() {
   return (
-    <footer className="border-t" style={{ background: 'var(--fg)', borderColor: 'rgba(255,255,255,0.08)' }}>
+    <footer className="border-t" style={{ background: 'var(--dark)', borderColor: 'rgba(255,255,255,0.08)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 pt-16 pb-10">
 
         {/* ── Main grid ── */}
@@ -1796,7 +1821,7 @@ function Footer() {
                   {COMPANY.name}
                 </span>
                 <span className="text-[10px] uppercase tracking-[0.22em] font-medium leading-none" style={{ color: FOOTER_MUTED }}>
-                  строительная компания
+                  {HERO.industry || ''}
                 </span>
               </div>
             </div>
@@ -1898,40 +1923,41 @@ function Footer() {
           style={{ borderColor: 'rgba(255,255,255,0.07)' }}
         >
           <p className="text-xs" style={{ color: FOOTER_MUTED }}>
-            © {COMPANY.founded}–2025 {COMPANY.legalName}. УНП {COMPANY.unp}. Все права защищены.
+            {COMPANY.legalName && COMPANY.founded && COMPANY.unp
+              ? `© ${COMPANY.founded}–2025 ${COMPANY.legalName}. УНП ${COMPANY.unp}. Все права защищены.`
+              : `© 2025 ${COMPANY.name}. Все права защищены.`}
           </p>
-          <div className="flex items-center gap-6">
-            <a
-              href={`https://${COMPANY.domain}`}
-              className="text-xs transition-colors"
-              style={{ color: FOOTER_MUTED }}
-              onMouseEnter={e => (e.currentTarget.style.color = FOOTER_DIM)}
-              onMouseLeave={e => (e.currentTarget.style.color = FOOTER_MUTED)}
-            >
-              {COMPANY.domain}
-            </a>
-          </div>
+          {COMPANY.domain ? (
+            <div className="flex items-center gap-6">
+              <a
+                href={`https://${COMPANY.domain}`}
+                className="text-xs transition-colors"
+                style={{ color: FOOTER_MUTED }}
+                onMouseEnter={e => (e.currentTarget.style.color = FOOTER_DIM)}
+                onMouseLeave={e => (e.currentTarget.style.color = FOOTER_MUTED)}
+              >
+                {COMPANY.domain}
+              </a>
+            </div>
+          ) : null}
         </div>
       </div>
     </footer>
   )
 }
 
-// ─── Home page sections ───────────────────────────────────────────────────────
-const HOME_SECTIONS = ['about', 'contacts']
-const COLLECTIONS = ['news', 'projects', 'services', 'vacancies']
-
-const SECTION_COMPONENTS: Record<string, () => JSX.Element> = {
+const SECTION_COMPONENTS: Record<string, () => JSX.Element | null> = {
   about: () => <About />,
   services: () => <ServiceList preview />,
   projects: () => <ProjectList preview />,
   news: () => <NewsList preview />,
   vacancies: () => <VacancyList preview />,
-  contacts: () => <CTA />,
+  contacts: () => <CallToAction />,
+  cta: () => <CallToAction />,
 }
 
 function SectionResolver({ item }: { item: any }) {
-  const key = (item.target || '').toLowerCase()
+  const key = (item.type || item.target || '').toLowerCase()
   const Comp = SECTION_COMPONENTS[key]
   if (!Comp) return null
   return <Comp />
@@ -1950,15 +1976,15 @@ function Home({ activeSection }: { activeSection?: string }) {
     }
   }, [activeSection])
 
-  const homeSections = (NAV || [])
-    .filter((n: any) => n.showOnHomepage)
+  const homeSections = (HOME_SECTIONS || [])
+    .filter((s: any) => s.enabled !== false && s.type !== 'hero' && SECTION_COMPONENTS[s.type])
     .sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
 
   return (
     <>
       <Hero />
-      {homeSections.map((n: any) => (
-        <SectionResolver key={n.id} item={n} />
+      {homeSections.map((s: any, i: number) => (
+        <SectionResolver key={`${s.type}-${i}`} item={s} />
       ))}
       <Process />
     </>
@@ -1970,8 +1996,8 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
   const route = (cms as any).route || ''
   const sub = (cms as any).subRoute || ''
-  const isHomeSection = HOME_SECTIONS.includes(route) && !sub
-  const isCollection = COLLECTIONS.includes(route) && !sub
+  const isHomeSection = HOME_SECTION_TYPES.includes(route) && !sub
+  const isCollection = COLLECTION_ROUTES.includes(route) && !sub
   const matchedPage = route ? PAGES.find((p: any) => p.slug === route) : null
 
   return (

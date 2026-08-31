@@ -1,5 +1,5 @@
 import { extractedContentSchema, type ExtractedContent } from '../../../content-schema/dist/index.js';
-import type { CrawledPage } from '../types.js';
+import type { CrawledPage, CrawledImage, NavigationNode } from '../types.js';
 
 function toSlug(title: string): string {
   return title
@@ -11,126 +11,498 @@ function toSlug(title: string): string {
     .slice(0, 80) || `page-${Date.now()}`;
 }
 
-function pickImage(pages: CrawledPage[]): { src: string; alt: string } | undefined {
-  for (const p of pages) {
-    const img = p.images.find((i) => i.src && !i.src.startsWith('data:'));
-    if (img) return img;
+function normalizeUrl(base: string, href: string): string | null {
+  try {
+    const u = new URL(href, base);
+    const b = new URL(base);
+    if (u.hostname !== b.hostname) return null;
+    u.hash = '';
+    return u.toString().replace(/\?$/, '');
+  } catch { return null; }
+}
+
+function firstSentences(text: string, count = 2, maxLen = 240): string {
+  const cleaned = text.replace(/\s+/g, ' ').trim();
+  if (!cleaned) return '';
+  const sentences = cleaned.split(/(?<=[.!?])\s+/).filter(Boolean).slice(0, count);
+  const joined = sentences.join(' ');
+  return joined.length > maxLen ? joined.slice(0, maxLen).replace(/\s+\S*$/, '') + '…' : joined;
+}
+
+function cleanPhone(input: string): string {
+  return input.replace(/[^\d+]/g, '');
+}
+
+function findPhones(text: string): string[] {
+  const re = /[\+\d\s\-\(\)]{7,24}/g;
+  const matches = (text.match(re) || [])
+    .map((m) => m.replace(/\s+/g, ' ').trim())
+    .filter((m) => cleanPhone(m).length >= 7 && /\d{5,}/.test(m.replace(/\D/g, '')))
+    .map((m) => m.replace(/\s+/g, ' ').trim());
+  return [...new Set(matches)];
+}
+
+function findEmails(text: string): string[] {
+  const re = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+  return [...new Set(text.match(re) || [])];
+}
+
+function findSocialLinks(text: string, links: { href: string }[] = []): { platform: string; url: string }[] {
+  const domains = [
+    { platform: 'VK', rx: /vk\.com|vkontakte\.ru/ },
+    { platform: 'Instagram', rx: /instagram\.com|instagr\.am/ },
+    { platform: 'Facebook', rx: /facebook\.com|fb\.com/ },
+    { platform: 'Telegram', rx: /t\.me|telegram\.me/ },
+    { platform: 'YouTube', rx: /youtube\.com|youtu\.be/ },
+    { platform: 'LinkedIn', rx: /linkedin\.com/ },
+    { platform: 'OK', rx: /ok\.ru/ },
+  ];
+  const out: { platform: string; url: string }[] = [];
+  const seen = new Set<string>();
+  const all = [...new Set([text, ...links.map((l) => l.href)])];
+  for (const raw of all) {
+    for (const d of domains) {
+      if (d.rx.test(raw)) {
+        const match = raw.match(/https?:\/\/[^\s\"<>]+/);
+        if (match) {
+          const u = match[0].replace(/[\"'<>]/g, '');
+          if (!seen.has(u)) {
+            seen.add(u);
+            out.push({ platform: d.platform, url: u });
+          }
+        }
+        break;
+      }
+    }
+  }
+  return out;
+}
+
+function findWorkingHours(text: string): string | undefined {
+  const m = text.match(/(?:пн|вт|ср|чт|пт|сб|вс|понедельник|вторник|среда|четверг|пятница|суббота|воскресенье)[–\-—]?\s*(?:пн|вт|ср|чт|пт|сб|вс)?.*?(?:\d{1,2}[\:\.]\d{2}).*?(?:\d{1,2}[\:\.]\d{2})/i);
+  if (m) return m[0].trim();
+  return undefined;
+}
+
+function findLegalName(text: string): string | undefined {
+  const re = /((?:ООО|ЗАО|ОАО|АО|ИП|ООО\s+«[^»]+»|ОАО\s+«[^»]+»|ЗАО\s+«[^»]+»|АО\s+«[^»]+»|«[^»]+»))/gi;
+  const m = text.match(re);
+  if (m) {
+    const cleaned = m[0].replace(/\s+/g, ' ').trim();
+    if (cleaned.length > 3 && cleaned.length < 120) return cleaned;
   }
   return undefined;
 }
 
-export function extractFromCrawl(pages: CrawledPage[], baseUrl: string, navigation?: { label: string; url?: string; children?: any[] }[]): ExtractedContent {
-  const homepage = pages[0];
-  const companyName = homepage?.title?.split(/[\|—–\-]/)[0]?.trim() ?? '';
-  const contacts: any = {};
+function findUNP(text: string): string | undefined {
+  const m = text.match(/(?:УНП|ЕГР|UNP)[^\d]*(\d{9})/i);
+  return m?.[1];
+}
+
+function findFounded(text: string): string | undefined {
+  const m = text.match(/(?:основан[аы]?|работаем)\s+(?:с\s+)?(\d{4})/i) || text.match(/(\d{4})\s*(?:год|г\.)/);
+  return m?.[1];
+}
+
+function findEmployees(text: string): string | undefined {
+  const m = text.match(/(\d{2,4})\+?\s*(?:сотрудник|человек|специалист|работник|штат)/i) ||
+            text.match(/(?:штат|сотрудников)\s*(?:составляет|более|свыше)?\s*(\d{2,4})/i);
+  return m ? m[1] + (m[0].includes('+') ? '+' : '') : undefined;
+}
+
+function inferIndustry(services: any[], text: string): string {
+  const lower = text.toLowerCase();
+  if (lower.includes('интернет') || lower.includes('телевидение') || lower.includes('wi-fi') || lower.includes('связь')) {
+    return 'Интернет-провайдер · Беларусь';
+  }
+  if (services.some((s) => /интернет|телевид|wifi|wi-fi|связь/i.test(s.title))) {
+    return 'Интернет-провайдер · Беларусь';
+  }
+  if (lower.includes('строитель') || lower.includes('монтаж') || lower.includes('генподряд') || lower.includes('бетон') || lower.includes('железобетон') || lower.includes('объект')) {
+    return 'Строительная компания · Беларусь';
+  }
+  if (services.some((s) => /строитель|монтаж|проектирование|бетон|объект/i.test(s.title))) {
+    return 'Строительная компания · Беларусь';
+  }
+  return 'Компания · Беларусь';
+}
+
+function inferLocation(address?: string): string {
+  if (!address) return '';
+  const lower = address.toLowerCase();
+  if (lower.includes('минск')) return 'Минск · Беларусь';
+  if (lower.includes('гродно')) return 'Гродно · Беларусь';
+  if (lower.includes('брест')) return 'Брест · Беларусь';
+  if (lower.includes('витебск')) return 'Витебск · Беларусь';
+  if (lower.includes('могилев')) return 'Могилев · Беларусь';
+  if (lower.includes('гомель')) return 'Гомель · Беларусь';
+  return '';
+}
+
+type PageCategory = 'home' | 'about' | 'contacts' | 'services' | 'service' | 'projects' | 'project' | 'news' | 'vacancies' | 'vacancy' | 'page';
+
+function classifyPage(p: CrawledPage, baseUrl: string): PageCategory {
+  const lowerUrl = p.url.toLowerCase();
+  const lowerTitle = (p.title + ' ' + p.h1).toLowerCase();
+  const homeUrl = normalizeUrl(baseUrl, baseUrl);
+  const self = normalizeUrl(baseUrl, p.url);
+  if (self && homeUrl && (self === homeUrl || self === homeUrl + '/' || p.path === 'index')) return 'home';
+
+  const has = (keys: string[]) => keys.some((k) => lowerUrl.includes(k) || lowerTitle.includes(k));
+
+  if (has(['vakansii', 'vacanc', 'career', 'rabota', 'job', 'ваканс', 'карьера', 'работа']) && !has(['vakansiya', 'vacancy-', 'job-', 'position'])) return 'vacancies';
+  if (has(['vakansiya', 'vacancy-', 'job-', 'position', 'вакансия'])) return 'vacancy';
+  if (has(['contact', 'kontakt', 'контакт'])) return 'contacts';
+  if (has(['about', 'o-kompanii', 'o-nas', 'о-нас', 'о-компании', 'about-us', 'о-застройщике', 'о-нас'])) return 'about';
+  if (has(['news', 'novost', 'новост', 'press', 'blog', 'press-reliz'])) return 'news';
+  if (has(['service', 'uslugi', 'услуг', 'servis', 'решения', 'montazh', 'монтаж', 'проектирование', 'дизайн'])) return 'service';
+  if (has(['services', 'spisok-uslug', 'catalog', 'каталог-услуг', 'all-services'])) return 'services';
+  if (has(['project', 'object', 'objecty', 'объект', 'портфолио', 'portfolio', 'строительство', 'kommercheskie'])) return 'project';
+  if (has(['projects', 'objects', 'obekty', 'объекты', 'portfolio', 'портфолио'])) return 'projects';
+  return 'page';
+}
+
+function parseColor(input: string): { r: number; g: number; b: number } | null {
+  const hex = input.match(/^#([0-9a-fA-F]{3})$/);
+  if (hex) {
+    const s = hex[1];
+    const r = parseInt(s[0] + s[0], 16);
+    const g = parseInt(s[1] + s[1], 16);
+    const b = parseInt(s[2] + s[2], 16);
+    return { r, g, b };
+  }
+  const hex6 = input.match(/^#([0-9a-fA-F]{6})$/);
+  if (hex6) {
+    const s = hex6[1];
+    return { r: parseInt(s.slice(0, 2), 16), g: parseInt(s.slice(2, 4), 16), b: parseInt(s.slice(4, 6), 16) };
+  }
+  const rgb = input.match(/rgba?\s*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (rgb) return { r: parseInt(rgb[1], 10), g: parseInt(rgb[2], 10), b: parseInt(rgb[3], 10) };
+  return null;
+}
+
+function toHex(c: { r: number; g: number; b: number }): string {
+  const p = (v: number) => Math.min(255, Math.max(0, Math.round(v))).toString(16).padStart(2, '0');
+  return `#${p(c.r)}${p(c.g)}${p(c.b)}`;
+}
+
+function isNeutral(c: { r: number; g: number; b: number }): boolean {
+  const { r, g, b } = c;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  return max - min < 30 || (r > 240 && g > 240 && b > 240) || (r < 40 && g < 40 && b < 40);
+}
+
+function darkenColor(c: { r: number; g: number; b: number }, amount = 0.15): string {
+  const k = 1 - amount;
+  return toHex({ r: c.r * k, g: c.g * k, b: c.b * k });
+}
+
+function extractHtmlColors(html: string): string[] {
+  const re = /#([0-9a-fA-F]{6}|[0-9a-fA-F]{3})/g;
+  const matches = html.match(re) || [];
+  return [...new Set(matches)];
+}
+
+function inferTheme(homepage: CrawledPage | undefined): { primaryColor: string; secondaryColor: string; accentColor: string; backgroundColor: string; surfaceColor: string; textColor: string; mutedColor: string; borderColor: string; source: 'extracted' | 'inferred' | 'default' } {
+  const tc = homepage?.themeColors || {};
+  const candidates = [tc.buttonBg, tc.headerBg, tc.linkColor, tc.accent].filter(Boolean) as string[];
+  let primary: string | undefined;
+  let source: 'extracted' | 'inferred' | 'default' = 'extracted';
+  for (const c of candidates) {
+    const parsed = parseColor(c!);
+    if (parsed && !isNeutral(parsed)) {
+      primary = toHex(parsed);
+      break;
+    }
+  }
+  if (!primary && homepage?.html) {
+    const colors = extractHtmlColors(homepage.html);
+    for (const c of colors) {
+      const parsed = parseColor(c);
+      if (parsed && !isNeutral(parsed)) {
+        primary = toHex(parsed);
+        break;
+      }
+    }
+    source = primary ? 'inferred' : 'default';
+  }
+  if (!primary) {
+    primary = '#2563EB';
+    source = 'default';
+  }
+  const p = parseColor(primary)!;
+  return {
+    primaryColor: primary,
+    secondaryColor: darkenColor(p, 0.2),
+    accentColor: primary,
+    backgroundColor: '#F8F8F8',
+    surfaceColor: '#FFFFFF',
+    textColor: '#1F2937',
+    mutedColor: '#6B7280',
+    borderColor: '#E5E7EB',
+    source
+  };
+}
+
+function filenameFromUrl(src: string): string {
+  try {
+    const u = new URL(src);
+    const name = u.pathname.split('/').pop() || 'image.jpg';
+    return name.split('?')[0].split('#')[0] || 'image.jpg';
+  } catch { return 'image.jpg'; }
+}
+
+function mimeFromFilename(name: string): string {
+  const ext = name.split('.').pop()?.toLowerCase() || 'jpg';
+  const map: Record<string, string> = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', svg: 'image/svg+xml', ico: 'image/x-icon' };
+  return map[ext] || 'image/jpeg';
+}
+
+function pickCoverImage(images: CrawledImage[]): CrawledImage | undefined {
+  return images
+    .filter((i) => !i.src.startsWith('data:') && !i.likelyLogo && (i.width || 0) > 120 && (i.height || 0) > 120)
+    .sort((a, b) => (b.area || 0) - (a.area || 0))[0];
+}
+
+function pageMedia(p: CrawledPage, used: Set<string>) {
+  const cover = pickCoverImage(p.images);
+  const gallery = p.images
+    .filter((i) => i !== cover && !i.src.startsWith('data:') && !i.likelyLogo && (i.width || 0) > 200 && (i.height || 0) > 150)
+    .sort((a, b) => (b.area || 0) - (a.area || 0))
+    .slice(0, 8);
+  return { cover, gallery };
+}
+
+function contentMediaFromImage(img?: CrawledImage) {
+  if (!img) return undefined;
+  return {
+    filename: filenameFromUrl(img.src),
+    sourceUrl: img.src,
+    originalFilename: filenameFromUrl(img.src),
+    mimeType: mimeFromFilename(img.src),
+    alt: img.alt || ''
+  };
+}
+
+export function extractFromCrawl(pages: CrawledPage[], baseUrl: string, navigation?: NavigationNode[]): ExtractedContent {
+  const homepage = pages.find((p) => classifyPage(p, baseUrl) === 'home') || pages[0];
+  const companyName = homepage?.h1?.split(/[\|—–\-]/)[0]?.trim() || homepage?.title?.split(/[\|—–\-]/)[0]?.trim() || 'Компания';
+  const shortName = companyName.replace(/(?:ООО|ЗАО|ОАО|АО|ИП)\s*/gi, '').replace(/[«»]/g, '').trim();
+  const navItems = navigation ?? [];
+
+  const allPhones: string[] = [];
+  const allEmails: string[] = [];
+  const allSocial: { platform: string; url: string }[] = [];
+
+  let contactsPage: CrawledPage | undefined;
+  let aboutPage: CrawledPage | undefined;
+  const classified = new Map<CrawledPage, PageCategory>();
+
+  for (const p of pages) {
+    const cat = classifyPage(p, baseUrl);
+    classified.set(p, cat);
+    if (cat === 'contacts') contactsPage = p;
+    if (cat === 'about') aboutPage = p;
+    allPhones.push(...findPhones(p.text));
+    allEmails.push(...findEmails(p.text));
+    allSocial.push(...findSocialLinks(p.text, p.links));
+  }
+
+  const uniquePhones = [...new Set(allPhones)];
+  const uniqueEmails = [...new Set(allEmails)];
+  const uniqueSocial = [...new Map(allSocial.map((s) => [s.url, s])).values()];
+
+  const contactsText = contactsPage?.text || '';
+  const workingHours = contactsPage ? findWorkingHours(contactsPage.text) : undefined;
+  const address = contactsPage ? contactsPage.text.split('\n').slice(0, 4).join(' ').slice(0, 300) : undefined;
+
+  const aboutText = aboutPage ? firstSentences(aboutPage.text, 4, 1200) : firstSentences(homepage?.text || '', 4, 1200);
+  const aboutHeading = aboutPage?.h1 || aboutPage?.title || 'О компании';
+  const aboutImage = contentMediaFromImage(pickCoverImage(aboutPage?.images || homepage?.images || []));
+
+  const theme = inferTheme(homepage);
+
+  const heroImageSrc = homepage?.heroImage || homepage?.images.find((i) => i.likelyHero)?.src || pickCoverImage(homepage?.images || [])?.src;
+  const heroImage = heroImageSrc ? homepage?.images.find((i) => i.src === heroImageSrc) || { src: heroImageSrc, alt: '' } : undefined;
+  const logoSrc = homepage?.logo || homepage?.images.find((i) => i.likelyLogo)?.src;
+
   const services: any[] = [];
   const projects: any[] = [];
   const news: any[] = [];
+  const vacancies: any[] = [];
   const contentPages: any[] = [];
   const media: any[] = [];
   const seenMedia = new Set<string>();
-  const navItems = navigation ?? [];
+
+  function addMedia(img?: CrawledImage) {
+    if (!img || !img.src || img.src.startsWith('data:')) return;
+    if (seenMedia.has(img.src)) return;
+    seenMedia.add(img.src);
+    media.push({
+      filename: filenameFromUrl(img.src),
+      sourceUrl: img.src,
+      originalFilename: filenameFromUrl(img.src),
+      mimeType: mimeFromFilename(img.src),
+      alt: img.alt || ''
+    });
+  }
 
   for (const p of pages) {
+    const cat = classified.get(p) || 'page';
     const path = p.path || toSlug(p.title);
-    const isHome = p.url === baseUrl || p.path === 'index';
-    const lower = (p.title + ' ' + p.text).toLowerCase();
-    const lowerUrl = p.url.toLowerCase();
+    const isHome = cat === 'home';
+    const title = p.h1 || p.title || companyName;
+    const { cover, gallery } = pageMedia(p, seenMedia);
+    [cover, ...gallery, ...p.images].forEach(addMedia);
 
-    const pageRecord: any = {
-      title: p.title || companyName,
+    const baseBlocks: any[] = [];
+    if (cover) baseBlocks.push({ type: 'image', imageId: cover.src, caption: cover.alt });
+    baseBlocks.push({ type: 'text', heading: title, content: p.text.slice(0, 3000) });
+    if (gallery.length) {
+      baseBlocks.push({ type: 'gallery', imageIds: gallery.map((i) => i.src) });
+    }
+
+    if (cat === 'service' || cat === 'services') {
+      services.push({
+        title,
+        slug: toSlug(title),
+        shortDescription: p.metaDescription || firstSentences(p.text, 1, 220),
+        blocks: [{ type: 'text', content: p.text.slice(0, 1500) }],
+        sourceUrl: p.url,
+        image: contentMediaFromImage(cover)
+      });
+    } else if (cat === 'project' || cat === 'projects') {
+      projects.push({
+        title,
+        slug: toSlug(title),
+        excerpt: p.metaDescription || firstSentences(p.text, 1, 250),
+        category: inferIndustry([], p.text).replace(' · Беларусь', ''),
+        location: '',
+        blocks: [{ type: 'text', content: p.text.slice(0, 1500) }],
+        sourceUrl: p.url,
+        coverImage: contentMediaFromImage(cover),
+        gallery: gallery.map(contentMediaFromImage).filter(Boolean)
+      });
+    } else if (cat === 'news') {
+      const yearMatch = p.url.match(/\/([12]\d{3})\//);
+      const publishedAt = yearMatch ? `${yearMatch[1]}-01-01` : new Date().toISOString();
+      news.push({
+        title,
+        slug: toSlug(title),
+        excerpt: p.metaDescription || firstSentences(p.text, 1, 250),
+        publishedAt,
+        blocks: [{ type: 'text', content: p.text.slice(0, 1500) }],
+        sourceUrl: p.url,
+        coverImage: contentMediaFromImage(cover)
+      });
+    } else if (cat === 'vacancy' || cat === 'vacancies') {
+      vacancies.push({
+        title,
+        slug: toSlug(title),
+        location: '',
+        description: p.metaDescription || firstSentences(p.text, 2, 400),
+        requirements: firstSentences(p.text, 2, 400),
+        conditions: firstSentences(p.text, 2, 400),
+        contact: uniquePhones[0] || uniqueEmails[0] || '',
+        sourceUrl: p.url
+      });
+    }
+
+    contentPages.push({
+      title,
       slug: isHome ? 'index' : path,
       sourceUrl: p.url,
       isHomepage: isHome,
       seoTitle: p.title || '',
       seoDescription: p.metaDescription || '',
-      blocks: [
-        { type: 'text', heading: p.h1 || p.title, content: p.text.slice(0, 2000) }
-      ]
-    };
-
-    if (lowerUrl.includes('contact') || lower.includes('контакт')) {
-      contacts.phone = Array.from(p.text.matchAll(/[\+\d\s\-\(\)]{7,20}/g)).map((m) => m[0].trim())[0] ?? undefined;
-      contacts.address = p.text.split('\n').slice(0, 3).join(' ').slice(0, 300);
-    }
-
-    if (lowerUrl.includes('service') || lower.includes('услуг')) {
-      const title = p.h1 || p.title;
-      if (title) {
-        services.push({
-          title,
-          slug: toSlug(title),
-          shortDescription: p.metaDescription || p.text.slice(0, 200),
-          blocks: [{ type: 'text', content: p.text.slice(0, 1500) }],
-          sourceUrl: p.url
-        });
-      }
-    }
-
-    if (lowerUrl.includes('project') || lowerUrl.includes('object') || lower.includes('объект')) {
-      const title = p.h1 || p.title;
-      if (title && !title.toLowerCase().includes('главная')) {
-        projects.push({
-          title,
-          slug: toSlug(title),
-          excerpt: p.metaDescription || p.text.slice(0, 250),
-          blocks: [{ type: 'text', content: p.text.slice(0, 1500) }],
-          sourceUrl: p.url,
-          gallery: p.images.slice(0, 8).map((img) => ({
-            filename: img.src.split('/').pop() || 'image.jpg',
-            sourceUrl: img.src,
-            alt: img.alt
-          }))
-        });
-      }
-    }
-
-    if (lowerUrl.includes('news') || lowerUrl.includes('novost')) {
-      const title = p.h1 || p.title;
-      if (title) {
-        news.push({
-          title,
-          slug: toSlug(title),
-          excerpt: p.metaDescription || p.text.slice(0, 250),
-          blocks: [{ type: 'text', content: p.text.slice(0, 1500) }],
-          sourceUrl: p.url
-        });
-      }
-    }
-
-    contentPages.push(pageRecord);
-
-    for (const img of p.images) {
-      if (!img.src || img.src.startsWith('data:')) continue;
-      const src = new URL(img.src, p.url).toString();
-      if (seenMedia.has(src)) continue;
-      seenMedia.add(src);
-      media.push({
-        filename: img.src.split('/').pop() || 'image.jpg',
-        sourceUrl: src,
-        alt: img.alt
-      });
-    }
+      blocks: isHome ? [] : baseBlocks
+    });
   }
+
+  if (logoSrc) addMedia({ src: logoSrc, alt: 'logo', width: 0, height: 0 });
+  if (heroImage) addMedia(heroImage);
+
+  const industry = inferIndustry(services, homepage?.text || '');
+  const location = inferLocation(address);
+  const heroTitle = homepage?.h1 && !/главная|home/i.test(homepage.h1) ? homepage.h1 : companyName;
+
+  const hero = {
+    title: heroTitle,
+    subtitle: homepage?.metaDescription || firstSentences(homepage?.text || '', 2, 220),
+    imageId: heroImage?.src,
+    buttonLabel: 'Связаться',
+    buttonUrl: '/contacts',
+    location,
+    industry
+  };
+
+  const about = {
+    heading: aboutHeading,
+    content: aboutText,
+    imageId: aboutImage?.sourceUrl
+  };
+
+  const cta = {
+    title: 'Обсудим ваш проект',
+    description: about.content || firstSentences(contactsText || homepage?.text || '', 2, 220),
+    buttonLabel: 'Связаться',
+    buttonUrl: '/contacts'
+  };
+
+  const homepageSections = [
+    { type: 'hero' as const, enabled: true, sortOrder: 0, title: hero.title },
+    { type: 'about' as const, enabled: !!about.content, sortOrder: 1, title: about.heading },
+    { type: 'services' as const, enabled: services.length > 0, sortOrder: 2, title: 'Услуги', limit: 6 },
+    { type: 'projects' as const, enabled: projects.length > 0, sortOrder: 3, title: 'Объекты', limit: 4 },
+    { type: 'news' as const, enabled: news.length > 0, sortOrder: 4, title: 'Новости', limit: 3 },
+    { type: 'vacancies' as const, enabled: vacancies.length > 0, sortOrder: 5, title: 'Вакансии', limit: 3 },
+    { type: 'contacts' as const, enabled: true, sortOrder: 6, title: 'Контакты' },
+  ];
 
   const result = {
     company: {
       name: companyName,
-      address: contacts.address || '',
-      phone: contacts.phone || ''
+      shortName,
+      description: homepage?.metaDescription || firstSentences(homepage?.text || '', 2, 300),
+      address: address || '',
+      phone: uniquePhones[0] || '',
+      email: uniqueEmails[0] || '',
+      workingHours: workingHours || '',
+      socialLinks: uniqueSocial,
+      legalName: findLegalName(contactsText || homepage?.text || ''),
+      unp: findUNP(contactsText || homepage?.text || ''),
+      founded: findFounded(homepage?.text || ''),
+      employees: findEmployees(homepage?.text || '')
     },
+    theme,
+    hero,
+    about,
+    cta,
+    homepageSections,
     branding: {
       companyName,
-      primaryColor: '#2563EB',
-      secondaryColor: '#1E40AF'
+      logo: logoSrc ? { filename: filenameFromUrl(logoSrc), sourceUrl: logoSrc, mimeType: mimeFromFilename(logoSrc) } : undefined,
+      favicon: logoSrc ? { filename: filenameFromUrl(logoSrc), sourceUrl: logoSrc, mimeType: mimeFromFilename(logoSrc) } : undefined,
+      primaryColor: theme.primaryColor,
+      secondaryColor: theme.secondaryColor,
+      defaultSeoTitle: homepage?.title || companyName,
+      defaultSeoDescription: homepage?.metaDescription || ''
     },
     navigation: navItems,
     pages: contentPages,
     services,
     projects,
     news,
+    vacancies,
     reviews: [],
-    contacts,
+    contacts: {
+      phone: uniquePhones[0],
+      email: uniqueEmails[0],
+      address,
+      workingHours,
+      socialLinks: uniqueSocial
+    },
     media
   };
 

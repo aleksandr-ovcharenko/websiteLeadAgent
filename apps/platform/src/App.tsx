@@ -156,11 +156,13 @@ function MoreMenu({
   onRebuild,
   onAudit,
   onArchive,
+  onDelete,
 }: {
   onSettings: () => void;
   onRebuild: () => void;
   onAudit: () => void;
   onArchive: () => void;
+  onDelete: () => void;
 }) {
   const [open, setOpen] = useState(false);
   return (
@@ -199,6 +201,12 @@ function MoreMenu({
               >
                 Archive
               </button>
+              <button
+                onClick={() => { setOpen(false); onDelete(); }}
+                className="w-full text-left px-3 py-1.5 text-red-600 hover:bg-red-50 transition-colors"
+              >
+                Delete
+              </button>
             </div>
           </div>
         </>
@@ -215,12 +223,14 @@ function DetailPanel({
   onOpenCMS,
   onOpenPreview,
   onOpenWebsite,
+  onDelete,
 }: {
   site: Site;
   onClose: () => void;
   onOpenCMS: () => void;
   onOpenPreview: () => void;
   onOpenWebsite: () => void;
+  onDelete: () => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -332,6 +342,12 @@ function DetailPanel({
               Open preview
             </button>
           </div>
+          <button
+            onClick={onDelete}
+            className="w-full h-8 border border-red-200 text-red-600 text-xs font-medium rounded hover:bg-red-50 transition-colors"
+          >
+            Delete site
+          </button>
         </div>
 
         <div className="px-5 pb-4 text-[10px] font-mono text-stone-400">
@@ -547,7 +563,19 @@ function ForgeView() {
     window.open(`/showcase/${site.previewToken}`, '_blank');
   }
 
+  async function deleteSite(id: string) {
+    if (!confirm('Delete this site? This cannot be undone.')) return;
+    const r = await fetch(`/api/platform/sites/${id}`, { method: 'DELETE', credentials: 'include' });
+    if (!r.ok) {
+      alert('Failed to delete site');
+      return;
+    }
+    setSites((s) => s.filter((x) => x.id !== id));
+    setDetailSite((current) => (current?.id === id ? null : current));
+  }
+
   function archiveSite(id: string) {
+    fetch(`/api/platform/sites/${id}/archive`, { method: 'POST', credentials: 'include' });
     setSites((s) => s.map((x) => (x.id === id ? { ...x, status: "ARCHIVED" } : x)));
   }
 
@@ -570,6 +598,7 @@ function ForgeView() {
           onOpenCMS={() => openCMS(detailSite)}
           onOpenPreview={() => openPreview(detailSite)}
           onOpenWebsite={() => detailSite.domain && window.open(`https://${detailSite.domain}`, '_blank')}
+          onDelete={() => deleteSite(detailSite.id)}
         />
       )}
 
@@ -894,6 +923,7 @@ function ForgeView() {
                             onRebuild={() => {}}
                             onAudit={() => {}}
                             onArchive={() => archiveSite(site.id)}
+                            onDelete={() => deleteSite(site.id)}
                           />
                         </div>
                       </td>
@@ -989,6 +1019,7 @@ function ForgeView() {
                           onRebuild={() => {}}
                           onAudit={() => {}}
                           onArchive={() => archiveSite(site.id)}
+                          onDelete={() => deleteSite(site.id)}
                         />
                       </div>
                     </div>

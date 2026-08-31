@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import { crawlSite } from '../crawl/crawlSite.js';
 import { extractFromCrawl } from '../extract/extractFromCrawl.js';
 import { importToCms } from '../import/importToCms.js';
+import { validateGeneratedSite } from './validateSite.js';
 
 function slugify(input: string): string {
   return input
@@ -152,7 +153,30 @@ export async function generateSite(options: GenerateOptions) {
       } as any
     });
 
-    return { leadId: l.id, siteId, previewSlug, runId: run.id };
+    await (prisma as any).redesignRun.update({
+      where: { id: run.id },
+      data: { stage: 'AUDIT_DONE' } as any
+    });
+    await (prisma as any).lead.update({
+      where: { id: l.id },
+      data: { redesignStage: 'AUDIT_DONE' } as any
+    });
+
+    const validation = await validateGeneratedSite({ siteId, prisma });
+    if (!validation.ok) {
+      throw new Error(`Demo generation incomplete: ${validation.missing.join(', ')}`);
+    }
+
+    await (prisma as any).redesignRun.update({
+      where: { id: run.id },
+      data: { stage: 'DEMO_GENERATED' } as any
+    });
+    await (prisma as any).lead.update({
+      where: { id: l.id },
+      data: { redesignStage: 'DEMO_GENERATED' } as any
+    });
+
+    return { leadId: l.id, siteId, previewSlug, runId: run.id, validation };
   } catch (err: any) {
     await (prisma as any).redesignRun.update({
       where: { id: run.id },

@@ -220,62 +220,254 @@ export async function crawlSite(options) {
                             return null;
                         }
                     }
-                    function extractLinksFromContainer(container, source) {
+                    function validHref(href) {
+                        return !!href && !href.startsWith('#') && !href.startsWith('javascript:') && !href.startsWith('mailto:') && !href.startsWith('tel:');
+                    }
+                    function isInternal(base, href) {
+                        try {
+                            return new URL(href, base).hostname === new URL(base).hostname;
+                        }
+                        catch {
+                            return false;
+                        }
+                    }
+                    function linkFromAnchor(a, source) {
+                        const href = a.getAttribute('href') ?? '';
+                        if (!validHref(href) || !isInternal(baseHref, href))
+                            return null;
+                        const text = cleanLabel(a.textContent ?? '');
+                        if (!text)
+                            return null;
+                        return { text, href, source };
+                    }
+                    function flattenNav(nodes) {
+                        const out = [];
+                        for (const n of nodes) {
+                            if (n.url && n.label)
+                                out.push({ text: n.label, href: n.url, source: n.source });
+                            if (n.children?.length)
+                                out.push(...flattenNav(n.children));
+                        }
+                        return out;
+                    }
+                    function parseList(ul, source) {
+                        if (!ul)
+                            return [];
+                        const nodes = [];
+                        for (const li of Array.from(ul.children)) {
+                            if (li.tagName !== 'LI')
+                                continue;
+                            const a = li.querySelector(':scope > a[href], :scope > div > a[href], :scope > span > a[href]');
+                            const childUl = li.querySelector(':scope > ul');
+                            if (!a && childUl) {
+                                nodes.push(...parseList(childUl, source));
+                                continue;
+                            }
+                            if (!a)
+                                continue;
+                            const l = linkFromAnchor(a, source);
+                            if (!l) {
+                                if (childUl)
+                                    nodes.push(...parseList(childUl, source));
+                                continue;
+                            }
+                            const nu = normalizeUrl(baseHref, l.href);
+                            if (!nu) {
+                                if (childUl)
+                                    nodes.push(...parseList(childUl, source));
+                                continue;
+                            }
+                            const children = childUl ? parseList(childUl, source) : [];
+                            nodes.push({ label: l.text, url: nu, source, children });
+                        }
+                        return nodes;
+                    }
+                    function extractNavTree(container, source) {
                         if (!container)
                             return [];
+                        const topUl = container.querySelector('ul');
+                        if (topUl)
+                            return parseList(topUl, source);
+                        // fallback: flat anchors
                         return Array.from(container.querySelectorAll('a[href]'))
-                            .filter((a) => {
-                            const href = a.getAttribute('href') ?? '';
-                            return href && !href.startsWith('#') && !href.startsWith('javascript:') && !href.startsWith('mailto:') && !href.startsWith('tel:');
-                        })
-                            .map((a) => ({
-                            text: cleanLabel(a.textContent ?? ''),
-                            href: a.getAttribute('href') ?? '',
-                            source
-                        }))
-                            .filter((l) => l.text && l.href);
+                            .map((a) => linkFromAnchor(a, source))
+                            .filter(Boolean)
+                            .map((l) => ({ label: l.text, url: normalizeUrl(baseHref, l.href), source, children: [] }))
+                            .filter((n) => n.url);
                     }
-                    function buildNavTree(links) {
-                        const roots = [];
-                        const map = new Map();
-                        for (const link of links) {
-                            const nu = normalizeUrl(baseHref, link.href);
-                            if (!nu)
-                                continue;
-                            if (map.has(nu))
-                                continue;
-                            const node = { label: link.text, url: nu, source: link.source, children: [] };
-                            map.set(nu, node);
-                            roots.push(node);
+                    function extractBodyLinks() {
+                        const body = document.body;
+                        if (!body)
+                            return [];
+                        const seen = new Set();
+                        return Array.from(body.querySelectorAll('a[href]'))
+                            .map((a) => linkFromAnchor(a, 'body'))
+                            .filter(Boolean)
+                            .filter((l) => {
+                            const nu = normalizeUrl(baseHref, l.href);
+                            if (!nu || seen.has(nu))
+                                return false;
+                            seen.add(nu);
+                            return true;
+                        });
+                    }
+                    function extractLogo() {
+                        const header = document.querySelector('header');
+                        const nav = document.querySelector('nav, [role="navigation"]');
+                        const area = header || nav;
+                        if (area) {
+                            const logoImg = area.querySelector('img[alt*="logo" i], img[class*="logo" i], a[href="/"] img, a[href="./"] img');
+                            if (logoImg?.src)
+                                return new URL(logoImg.getAttribute('src') || logoImg.src, baseHref).toString();
                         }
-                        return roots;
+                        const linkIcon = document.querySelector('link[rel*="icon" i]');
+                        if (linkIcon?.href)
+                            return new URL(linkIcon.href, baseHref).toString();
+                        return null;
+                    }
+                    function resolveSrc(src) {
+                        try {
+                            return new URL(src, baseHref).toString();
+                        }
+                        catch {
+                            return src;
+                        }
+                    }
+                    function imageContext(img) {
+                        const section = img.closest('section, article, header, footer, main, [class*="hero" i], [class*="about" i], [class*="service" i], [class*="project" i], [class*="news" i]');
+                        if (section) {
+                            const cls = section.getAttribute('class') || '';
+                            const id = section.getAttribute('id') || '';
+                            return `${section.tagName.toLowerCase()} ${cls} ${id}`.trim().slice(0, 120);
+                        }
+                        return (img.parentElement?.getAttribute('class') || '').slice(0, 80);
+                    }
+                    function extractHeroImage() {
+                        const selectors = ['[class*="hero" i] img', '[class*="banner" i] img', 'header img', 'main > section:first-of-type img', 'section:first-of-type img'];
+                        const candidates = [];
+                        const viewport = window.innerHeight || 800;
+                        for (const sel of selectors) {
+                            for (const img of Array.from(document.querySelectorAll(sel))) {
+                                const el = img;
+                                const src = resolveSrc(el.getAttribute('src') || '');
+                                if (!src || src.startsWith('data:'))
+                                    continue;
+                                const rect = el.getBoundingClientRect();
+                                const w = el.naturalWidth || rect.width || 0;
+                                const h = el.naturalHeight || rect.height || 0;
+                                if (w < 300 || h < 150)
+                                    continue;
+                                candidates.push({ src, area: w * h, top: rect.top });
+                            }
+                        }
+                        // Also consider body images not in header/footer
+                        const header = document.querySelector('header');
+                        const footer = document.querySelector('footer');
+                        for (const img of Array.from(document.querySelectorAll('img[src]'))) {
+                            const el = img;
+                            if (header?.contains(el) || footer?.contains(el))
+                                continue;
+                            const src = resolveSrc(el.getAttribute('src') || '');
+                            if (!src || src.startsWith('data:'))
+                                continue;
+                            const rect = el.getBoundingClientRect();
+                            const w = el.naturalWidth || rect.width || 0;
+                            const h = el.naturalHeight || rect.height || 0;
+                            if (w < 600 || h < 300 || rect.top > viewport)
+                                continue;
+                            candidates.push({ src, area: w * h, top: rect.top });
+                        }
+                        candidates.sort((a, b) => (a.top < 0 ? 1 : 0) - (b.top < 0 ? 1 : 0) || a.top - b.top || b.area - a.area);
+                        return candidates[0]?.src || null;
+                    }
+                    function extractThemeColors() {
+                        const header = document.querySelector('header');
+                        const nav = document.querySelector('nav, [role="navigation"]');
+                        const headerEl = header || nav;
+                        const firstLink = document.querySelector('a');
+                        const firstButton = document.querySelector('button, .btn, [class*="button" i]');
+                        const toHex = (c) => {
+                            const ctx = document.createElement('canvas').getContext('2d');
+                            if (!ctx)
+                                return c;
+                            ctx.fillStyle = c;
+                            return ctx.fillStyle;
+                        };
+                        const get = (el, prop) => {
+                            if (!el)
+                                return undefined;
+                            const v = window.getComputedStyle(el)[prop];
+                            if (!v || v === 'rgba(0, 0, 0, 0)' || v === 'transparent')
+                                return undefined;
+                            return toHex(v);
+                        };
+                        const linkColor = firstLink ? toHex(window.getComputedStyle(firstLink).color) : undefined;
+                        const accent = linkColor;
+                        return {
+                            headerBg: get(headerEl, 'backgroundColor'),
+                            headerText: get(headerEl, 'color'),
+                            linkColor,
+                            buttonBg: get(firstButton, 'backgroundColor'),
+                            buttonText: get(firstButton, 'color'),
+                            accent
+                        };
+                    }
+                    function extractImages() {
+                        const header = document.querySelector('header');
+                        const footer = document.querySelector('footer');
+                        const seen = new Set();
+                        const out = [];
+                        for (const img of Array.from(document.querySelectorAll('img[src]'))) {
+                            const el = img;
+                            const raw = el.getAttribute('src') || '';
+                            if (!raw || raw.startsWith('data:'))
+                                continue;
+                            const src = resolveSrc(raw);
+                            if (seen.has(src))
+                                continue;
+                            seen.add(src);
+                            const rect = el.getBoundingClientRect();
+                            const w = el.naturalWidth || rect.width || 0;
+                            const h = el.naturalHeight || rect.height || 0;
+                            const area = w * h;
+                            const alt = el.getAttribute('alt') || '';
+                            const context = imageContext(el);
+                            const inHeader = !!header?.contains(el);
+                            const inFooter = !!footer?.contains(el);
+                            const likelyLogo = inHeader && (alt.toLowerCase().includes('logo') || (el.closest('a[href="/"], a[href="./"], a[href*="home"]') !== null) || (w > 0 && w < 220 && h > 0 && h < 120));
+                            const likelyHero = !inHeader && !inFooter && area > 200000 && rect.top < (window.innerHeight || 800);
+                            out.push({ src, alt, width: w, height: h, area, context, likelyLogo, likelyHero });
+                        }
+                        return out;
                     }
                     const title = document.title || '';
                     const meta = document.querySelector('meta[name="description"]')?.content ?? '';
                     const h1 = document.querySelector('h1')?.textContent?.trim() ?? '';
                     const body = document.body?.innerText ?? '';
                     const html = document.documentElement?.outerHTML ?? '';
-                    const header = document.querySelector('header, nav, [role="navigation"]');
-                    const footer = document.querySelector('footer');
-                    const headerLinks = extractLinksFromContainer(header, 'header');
-                    const footerLinks = extractLinksFromContainer(footer, 'footer');
-                    const bodyLinks = extractLinksFromContainer(document.body, 'body');
-                    const headerNav = buildNavTree(headerLinks);
-                    const footerNav = buildNavTree(footerLinks);
-                    const all = [...headerLinks, ...footerLinks, ...bodyLinks];
-                    const images = Array.from(document.querySelectorAll('img[src]'))
-                        .map((img) => ({
-                        src: img.getAttribute('src') ?? '',
-                        alt: img.getAttribute('alt') ?? ''
-                    }))
-                        .filter((i) => i.src);
+                    const headerEl = document.querySelector('header');
+                    const navEl = document.querySelector('nav, [role="navigation"]');
+                    const headerContainer = headerEl || navEl;
+                    const footerEl = document.querySelector('footer');
+                    const headerNav = extractNavTree(headerContainer, 'header');
+                    const footerNav = extractNavTree(footerEl, 'footer');
+                    const bodyLinks = extractBodyLinks();
+                    const navFlat = [...flattenNav(headerNav), ...flattenNav(footerNav)];
+                    const allLinks = [...navFlat, ...bodyLinks];
+                    const logo = extractLogo();
+                    const heroImage = extractHeroImage();
+                    const images = extractImages();
+                    const themeColors = extractThemeColors();
                     return {
                         title,
                         meta,
                         h1,
                         text: body.slice(0, 12000),
                         html,
-                        links: all,
+                        logo,
+                        heroImage,
+                        themeColors,
+                        links: allLinks,
                         images,
                         headerNav,
                         footerNav
@@ -290,6 +482,11 @@ export async function crawlSite(options) {
                     html: data.html,
                     links: data.links,
                     images: data.images,
+                    logo: data.logo || undefined,
+                    heroImage: data.heroImage || undefined,
+                    themeColors: data.themeColors,
+                    headerNav: data.headerNav,
+                    footerNav: data.footerNav,
                     path: slugFromUrl(url),
                     depth,
                     priority: depth,
@@ -333,9 +530,17 @@ export async function crawlSite(options) {
     finally {
         await browser.close().catch(() => { });
     }
-    // Build canonical navigation tree.
-    const headerNav = buildNavTree(allHeaderLinks, baseUrl);
-    const footerNav = buildNavTree(allFooterLinks, baseUrl);
-    const navigation = mergeHeaderAndFooter(headerNav, footerNav);
+    // Build canonical navigation tree from the first page's header/footer DOM trees.
+    let firstPageHeaderNav = [];
+    let firstPageFooterNav = [];
+    if (pages[0]?.headerNav) {
+        firstPageHeaderNav = pages[0].headerNav;
+        firstPageFooterNav = pages[0].footerNav || [];
+    }
+    else {
+        firstPageHeaderNav = buildNavTree(allHeaderLinks, baseUrl);
+        firstPageFooterNav = buildNavTree(allFooterLinks, baseUrl);
+    }
+    const navigation = mergeHeaderAndFooter(firstPageHeaderNav, firstPageFooterNav);
     return { pages, navigation };
 }

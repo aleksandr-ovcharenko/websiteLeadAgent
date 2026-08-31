@@ -9,6 +9,21 @@ function cleanPhone(input: string): string {
   return (input || '').replace(/[^\d+]/g, '');
 }
 
+function hexToRgba(hex: string, alpha = 1): string {
+  const h = hex.replace('#', '');
+  if (h.length === 3) {
+    const [r, g, b] = h.split('').map((c) => parseInt(c + c, 16));
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  if (h.length === 6) {
+    const r = parseInt(h.slice(0, 2), 16);
+    const g = parseInt(h.slice(2, 4), 16);
+    const b = parseInt(h.slice(4, 6), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  }
+  return `rgba(0,0,0,${alpha})`;
+}
+
 function formatDateRu(d: string | Date | null | undefined): string {
   if (!d) return '';
   const date = typeof d === 'string' ? new Date(d) : d;
@@ -46,27 +61,27 @@ function mediaUrl(ctx: RenderContext, id?: string): string | undefined {
 function buildCompany(ctx: RenderContext) {
   const settings = ctx.settings || {};
   const site = ctx.site || {};
-  const companyName = settings.companyName || site.name || 'Company';
-  const domain = site.domain || site.slug || 'example.com';
-  const rawPhone = settings.phone || '+375 17 374-15-28';
+  const companyName = settings.companyName || site.name || 'Компания';
+  const domain = site.domain || site.slug || '';
+  const rawPhone = settings.phone || '';
   const phone = rawPhone;
-  const phoneHref = cleanPhone(rawPhone) ? `tel:${cleanPhone(rawPhone)}` : '#';
-  const email = settings.email || `info@${domain}`;
+  const phoneHref = cleanPhone(rawPhone) ? `tel:${cleanPhone(rawPhone)}` : '';
+  const email = settings.email || '';
   const tenderEmail = settings.email || email;
   const address = settings.address || '';
 
   const contactsPage = ctx.pages?.find((p) => p.slug === 'contacts' || /контакт/i.test(p.title || ''));
   const contactsText = textFrom(contactsPage);
-  const allPhones = findPhoneNumbers(contactsText || rawPhone);
+  const allPhones = findPhoneNumbers(contactsText || rawPhone).slice(0, 4);
   const generalPhones = allPhones.slice(0, 2).map((p) => ({ phone: p, href: `tel:${cleanPhone(p)}`, label: 'приёмная' }));
   const procurementPhones = allPhones.slice(2, 4).map((p) => ({ phone: p, href: `tel:${cleanPhone(p)}` }));
 
   return {
     name: companyName,
-    legalName: settings.legalName || `ООО «${companyName}»`,
-    unp: settings.unp || '000000000',
-    founded: settings.founded || '2000',
-    employees: settings.employees || '50+',
+    legalName: settings.legalName || '',
+    unp: settings.unp || '',
+    founded: settings.founded || '',
+    employees: settings.employees || '',
     address: {
       zip: '',
       city: '',
@@ -74,13 +89,13 @@ function buildCompany(ctx: RenderContext) {
       room: '',
       formatted: address
     },
-    hours: settings.workingHours || 'Пн–Пт: 9:00–18:00',
+    hours: settings.workingHours || '',
     phone,
     phoneHref,
     domain,
     contacts: {
-      general: generalPhones.length ? generalPhones : [{ phone, href: phoneHref, label: 'приёмная' }],
-      procurement: procurementPhones.length ? procurementPhones : [{ phone, href: phoneHref }],
+      general: generalPhones.length ? generalPhones : (phone ? [{ phone, href: phoneHref, label: 'приёмная' }] : []),
+      procurement: procurementPhones.length ? procurementPhones : [],
       email,
       tenderEmail
     }
@@ -90,18 +105,6 @@ function buildCompany(ctx: RenderContext) {
 export function constructionModernV1(ctx: RenderContext): string {
   const html = readFileSync(resolve(__dirname, 'public/index.html'), 'utf-8');
   const company = buildCompany(ctx);
-
-  const defaultNav = (ctx.menu && ctx.menu.length > 0)
-    ? ctx.menu.filter((i) => i.visible !== false)
-    : [
-        { label: 'Главная', targetType: 'HOME', target: '', showInHeader: true, showInFooter: true, showOnHomepage: true },
-        { label: 'О компании', targetType: 'HOME_SECTION', target: 'ABOUT', showInHeader: true, showInFooter: true, showOnHomepage: true },
-        { label: 'Услуги', targetType: 'COLLECTION', target: 'SERVICES', showInHeader: true, showInFooter: true, showOnHomepage: true },
-        { label: 'Объекты', targetType: 'COLLECTION', target: 'PROJECTS', showInHeader: true, showInFooter: true, showOnHomepage: true },
-        { label: 'Новости', targetType: 'COLLECTION', target: 'NEWS', showInHeader: true, showInFooter: true, showOnHomepage: true },
-        { label: 'Вакансии', targetType: 'COLLECTION', target: 'VACANCIES', showInHeader: false, showInFooter: true, showOnHomepage: true },
-        { label: 'Контакты', targetType: 'HOME_SECTION', target: 'CONTACTS', showInHeader: true, showInFooter: true, showOnHomepage: true },
-      ].map((i, idx) => ({ ...i, sortOrder: idx }));
 
   const token = ctx.site?.previewToken || '';
   const base = token ? `/showcase/${token}` : '';
@@ -115,6 +118,29 @@ export function constructionModernV1(ctx: RenderContext): string {
     vacancies: 'vacancies',
     contacts: 'contacts'
   };
+
+  const homepageSections = (ctx.homepageSections || []).filter((s: any) => s.enabled !== false);
+
+  function navItemFromSection(s: any, idx: number): any {
+    const byType: Record<string, any> = {
+      hero: { label: s.title || 'Главная', targetType: 'HOME', target: '', showInHeader: true, showInFooter: true, showOnHomepage: true },
+      about: { label: s.title || 'О компании', targetType: 'HOME_SECTION', target: 'ABOUT', showInHeader: true, showInFooter: true, showOnHomepage: true },
+      services: { label: s.title || 'Услуги', targetType: 'COLLECTION', target: 'SERVICES', showInHeader: true, showInFooter: true, showOnHomepage: true },
+      projects: { label: s.title || 'Объекты', targetType: 'COLLECTION', target: 'PROJECTS', showInHeader: true, showInFooter: true, showOnHomepage: true },
+      news: { label: s.title || 'Новости', targetType: 'COLLECTION', target: 'NEWS', showInHeader: true, showInFooter: true, showOnHomepage: true },
+      vacancies: { label: s.title || 'Вакансии', targetType: 'COLLECTION', target: 'VACANCIES', showInHeader: false, showInFooter: true, showOnHomepage: true },
+      contacts: { label: s.title || 'Контакты', targetType: 'HOME_SECTION', target: 'CONTACTS', showInHeader: true, showInFooter: true, showOnHomepage: true },
+      cta: { label: s.title || 'Контакты', targetType: 'HOME_SECTION', target: 'CONTACTS', showInHeader: false, showInFooter: false, showOnHomepage: true },
+    };
+    const item = byType[s.type] || { label: s.title || s.type, targetType: 'HOME_SECTION', target: (s.type || '').toUpperCase(), showInHeader: true, showInFooter: true, showOnHomepage: true };
+    return { ...item, sortOrder: s.sortOrder ?? idx };
+  }
+
+  const navFromSections = homepageSections.map(navItemFromSection);
+
+  const defaultNav = (ctx.menu && ctx.menu.length > 0)
+    ? ctx.menu.filter((i: any) => i.visible !== false)
+    : navFromSections;
 
   function resolveNavHref(item: any): string {
     if (!item) return '#';
@@ -185,13 +211,9 @@ export function constructionModernV1(ctx: RenderContext): string {
     return true;
   });
 
-  const defaultProjectImages = [
-    'https://images.unsplash.com/photo-1546414701-81cc6963c67f?w=1400&h=960&fit=crop&auto=format',
-    'https://images.unsplash.com/photo-1557761469-f29c6e201784?w=1400&h=960&fit=crop&auto=format',
-    'https://images.unsplash.com/photo-1694885169342-909981fb408a?w=900&h=640&fit=crop&auto=format',
-    'https://images.unsplash.com/photo-1669003750682-93cf2c65b9ca?w=900&h=640&fit=crop&auto=format'
-  ];
-  const defaultNewsImage = 'https://images.unsplash.com/photo-1623489254637-a2dd8375243d?w=600&h=400&fit=crop&auto=format';
+  // No external placeholder images — empty source URL means the template should hide the image.
+  const defaultProjectImages: string[] = [];
+  const defaultNewsImage: string | undefined = undefined;
 
   const services = (ctx.services || []).map((s, i) => ({
     id: s.id,
@@ -200,7 +222,7 @@ export function constructionModernV1(ctx: RenderContext): string {
     title: s.title || 'Услуга',
     desc: s.shortDescription || (Array.isArray(s.blocks) ? s.blocks.map((b: any) => b.content || b.text || '').join(' ').slice(0, 240) : ''),
     content: textFrom(s),
-    img: mediaUrl(ctx, s.imageId) || defaultProjectImages[i % defaultProjectImages.length]
+    img: mediaUrl(ctx, s.imageId)
   }));
 
   const pages = (ctx.pages || []).map((p) => ({
@@ -217,12 +239,12 @@ export function constructionModernV1(ctx: RenderContext): string {
     id: p.id,
     slug: p.slug,
     title: p.title || 'Объект',
-    category: p.category || 'Промышленное строительство',
+    category: p.category || '',
     location: p.location || '',
-    status: p.projectStatus || 'Завершён',
+    status: p.projectStatus || '',
     excerpt: p.excerpt || '',
     content: textFrom(p),
-    img: mediaUrl(ctx, p.coverImageId) || defaultProjectImages[i % defaultProjectImages.length],
+    img: mediaUrl(ctx, p.coverImageId),
     gallery: (p.projectMedia || []).map((pm: any) => mediaUrl(ctx, pm.media?.id) || pm.media?.sourceUrl).filter(Boolean)
   }));
 
@@ -233,7 +255,7 @@ export function constructionModernV1(ctx: RenderContext): string {
     title: n.title || 'Новость',
     excerpt: n.excerpt || '',
     content: textFrom(n),
-    coverImageUrl: mediaUrl(ctx, n.coverImageId) || defaultNewsImage
+    coverImageUrl: mediaUrl(ctx, n.coverImageId)
   }));
 
   const vacancies = (ctx.vacancies || []).map((v) => ({
@@ -247,12 +269,65 @@ export function constructionModernV1(ctx: RenderContext): string {
     contact: v.contact || ''
   }));
 
+  const theme = ctx.theme || {};
+  const primaryColor = theme.primaryColor || '#2563EB';
+  const secondaryColor = theme.secondaryColor || primaryColor;
+  const textColor = theme.textColor || '#1C2B23';
+  const bgColor = theme.backgroundColor || '#F2F2F2';
+  const surfaceColor = theme.surfaceColor || '#FFFFFF';
+  const mutedColor = theme.mutedColor || '#5C7268';
+  const borderColor = theme.borderColor || '#C8D5CE';
+  const darkColor = '#111827';
+
+  const themeStyle = `<style>:root {
+  --bg: ${bgColor};
+  --fg: ${textColor};
+  --dark: ${darkColor};
+  --brass: ${primaryColor};
+  --brass-light: ${secondaryColor};
+  --muted: ${mutedColor};
+  --border: ${borderColor};
+  --card-bg: ${surfaceColor};
+  --overlay: ${hexToRgba(darkColor, 0.55)};
+}</style>`;
+
+  const logoUrl = mediaUrl(ctx, ctx.logo?.id);
+  const faviconUrl = mediaUrl(ctx, ctx.favicon?.id);
+  const heroImageUrl = mediaUrl(ctx, ctx.hero?.imageId);
+  const aboutImageUrl = mediaUrl(ctx, ctx.about?.imageId);
+
   const cmsPayload = {
     route: ctx.route,
     subRoute: ctx.subRoute,
     PREVIEW_TOKEN: token,
     SITE_ID: ctx.site?.id || '',
+    THEME: theme,
+    THEME_CSS: themeStyle,
+    SETTINGS: ctx.settings,
     COMPANY: company,
+    LOGO: logoUrl,
+    FAVICON: faviconUrl,
+    HERO: {
+      title: ctx.hero?.title || company.name,
+      subtitle: ctx.hero?.subtitle || '',
+      image: heroImageUrl,
+      buttonLabel: ctx.hero?.buttonLabel || 'Связаться',
+      buttonUrl: ctx.hero?.buttonUrl || `${base}/contacts`,
+      location: ctx.hero?.location || '',
+      industry: ctx.hero?.industry || 'Компания'
+    },
+    ABOUT: {
+      heading: ctx.about?.heading || 'О компании',
+      content: ctx.about?.content || '',
+      image: aboutImageUrl
+    },
+    CTA: {
+      title: ctx.cta?.title || 'Обсудим ваш проект',
+      description: ctx.cta?.description || '',
+      buttonLabel: ctx.cta?.buttonLabel || 'Связаться',
+      buttonUrl: ctx.cta?.buttonUrl || `${base}/contacts`
+    },
+    HOME_SECTIONS: homepageSections,
     NAV: nav,
     PAGES: pages,
     SERVICES: services,
@@ -264,7 +339,8 @@ export function constructionModernV1(ctx: RenderContext): string {
 
   const scriptBlock = `<script>window.__CMS__=${JSON.stringify(cmsPayload)};window.__CMS_ROUTE__=${JSON.stringify({ route: ctx.route, subRoute: ctx.subRoute })};</script>`;
 
-  return html
+  let result = html
+    .replace(/<head>/, `<head>\n    ${themeStyle}`)
     .replace('<title>', `<meta name="robots" content="noindex, nofollow" />\n    <title>`)
     .replace(/<title>[^<]*<\/title>/, `<title>${company.name}</title>`)
     .replace(/{{COMPANY_NAME}}/g, company.name)
@@ -274,4 +350,10 @@ export function constructionModernV1(ctx: RenderContext): string {
     .replace(/{{PHONE}}/g, company.phone)
     .replace(/{{ADDRESS}}/g, company.address.street)
     .replace(/<script type="module"/, `${scriptBlock}\n    <script type="module"`);
+
+  if (faviconUrl) {
+    result = result.replace('</head>', `<link rel="icon" type="image/png" href="${faviconUrl}" />\n  </head>`);
+  }
+
+  return result;
 }
