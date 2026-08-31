@@ -1925,6 +1925,12 @@ export declare const contentNewsSchema: z.ZodObject<{
     } | undefined;
     publishedAt?: string | undefined;
 }>;
+export interface ContentNavigationItem {
+    label: string;
+    url?: string;
+    children?: ContentNavigationItem[];
+}
+export declare const contentNavigationItemSchema: z.ZodType<ContentNavigationItem>;
 export declare const contentContactsSchema: z.ZodObject<{
     phone: z.ZodOptional<z.ZodString>;
     email: z.ZodOptional<z.ZodString>;
@@ -1934,16 +1940,16 @@ export declare const contentContactsSchema: z.ZodObject<{
         platform: z.ZodString;
         url: z.ZodString;
     }, "strip", z.ZodTypeAny, {
-        platform: string;
         url: string;
+        platform: string;
     }, {
-        platform: string;
         url: string;
+        platform: string;
     }>, "many">>;
 }, "strip", z.ZodTypeAny, {
     socialLinks: {
-        platform: string;
         url: string;
+        platform: string;
     }[];
     phone?: string | undefined;
     email?: string | undefined;
@@ -1955,8 +1961,8 @@ export declare const contentContactsSchema: z.ZodObject<{
     address?: string | undefined;
     workingHours?: string | undefined;
     socialLinks?: {
-        platform: string;
         url: string;
+        platform: string;
     }[] | undefined;
 }>;
 export declare const contentBrandingSchema: z.ZodObject<{
@@ -1989,16 +1995,16 @@ export declare const extractedContentSchema: z.ZodObject<{
             platform: z.ZodString;
             url: z.ZodString;
         }, "strip", z.ZodTypeAny, {
-            platform: string;
             url: string;
+            platform: string;
         }, {
-            platform: string;
             url: string;
+            platform: string;
         }>, "many">>;
     }, "strip", z.ZodTypeAny, {
         socialLinks: {
-            platform: string;
             url: string;
+            platform: string;
         }[];
         phone?: string | undefined;
         email?: string | undefined;
@@ -2011,8 +2017,8 @@ export declare const extractedContentSchema: z.ZodObject<{
         address?: string | undefined;
         workingHours?: string | undefined;
         socialLinks?: {
-            platform: string;
             url: string;
+            platform: string;
         }[] | undefined;
         name?: string | undefined;
     }>>;
@@ -2035,6 +2041,7 @@ export declare const extractedContentSchema: z.ZodObject<{
         defaultSeoTitle?: string | undefined;
         defaultSeoDescription?: string | undefined;
     }>>;
+    navigation: z.ZodDefault<z.ZodArray<z.ZodType<ContentNavigationItem, z.ZodTypeDef, ContentNavigationItem>, "many">>;
     pages: z.ZodDefault<z.ZodArray<z.ZodObject<{
         title: z.ZodString;
         slug: z.ZodString;
@@ -3565,16 +3572,16 @@ export declare const extractedContentSchema: z.ZodObject<{
             platform: z.ZodString;
             url: z.ZodString;
         }, "strip", z.ZodTypeAny, {
-            platform: string;
             url: string;
+            platform: string;
         }, {
-            platform: string;
             url: string;
+            platform: string;
         }>, "many">>;
     }, "strip", z.ZodTypeAny, {
         socialLinks: {
-            platform: string;
             url: string;
+            platform: string;
         }[];
         phone?: string | undefined;
         email?: string | undefined;
@@ -3586,8 +3593,8 @@ export declare const extractedContentSchema: z.ZodObject<{
         address?: string | undefined;
         workingHours?: string | undefined;
         socialLinks?: {
-            platform: string;
             url: string;
+            platform: string;
         }[] | undefined;
     }>>;
     media: z.ZodDefault<z.ZodArray<z.ZodObject<{
@@ -3868,8 +3875,8 @@ export declare const extractedContentSchema: z.ZodObject<{
     }[];
     contacts: {
         socialLinks: {
-            platform: string;
             url: string;
+            platform: string;
         }[];
         phone?: string | undefined;
         email?: string | undefined;
@@ -3878,8 +3885,8 @@ export declare const extractedContentSchema: z.ZodObject<{
     };
     company: {
         socialLinks: {
-            platform: string;
             url: string;
+            platform: string;
         }[];
         phone?: string | undefined;
         email?: string | undefined;
@@ -3894,6 +3901,7 @@ export declare const extractedContentSchema: z.ZodObject<{
         defaultSeoTitle?: string | undefined;
         defaultSeoDescription?: string | undefined;
     };
+    navigation: ContentNavigationItem[];
     pages: {
         title: string;
         slug: string;
@@ -4224,8 +4232,8 @@ export declare const extractedContentSchema: z.ZodObject<{
         address?: string | undefined;
         workingHours?: string | undefined;
         socialLinks?: {
-            platform: string;
             url: string;
+            platform: string;
         }[] | undefined;
     } | undefined;
     company?: {
@@ -4234,8 +4242,8 @@ export declare const extractedContentSchema: z.ZodObject<{
         address?: string | undefined;
         workingHours?: string | undefined;
         socialLinks?: {
-            platform: string;
             url: string;
+            platform: string;
         }[] | undefined;
         name?: string | undefined;
     } | undefined;
@@ -4246,6 +4254,7 @@ export declare const extractedContentSchema: z.ZodObject<{
         defaultSeoTitle?: string | undefined;
         defaultSeoDescription?: string | undefined;
     } | undefined;
+    navigation?: ContentNavigationItem[] | undefined;
     pages?: {
         title: string;
         slug: string;

@@ -19,11 +19,13 @@ function statusBadge(status?: string | null, type: 'audit' | 'lighthouse' | 'ai'
 export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [discoveryRunId, setDiscoveryRunId] = useState('');
   const [quick, setQuick] = useState(mode === 'audit' ? 'needs_audit' : mode === 'selected' ? 'selected' : 'ready_for_review');
   const [filters, setFilters] = useState<Filters>({ q: '', sort: 'v2_desc', websiteStatus: '', auditStatus: '', manual: '' });
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
+  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [activeTitle, setActiveTitle] = useState('');
   const [qualifying, setQualifying] = useState(false);
@@ -50,23 +52,32 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
     return p;
   };
 
-  const refresh = async () => {
-    setLoading(true);
+  const refresh = async (isBackground = false) => {
+    if (isBackground) setRefreshing(true);
+    else setLoading(true);
     try {
       const res = await api.getLeads(getParams());
-      setLeads(res.items || []);
+      const items = res.items || [];
+      setLeads((prev) => (isBackground && prev.length > 0 && items.length === 0) ? prev : items);
       setError(null);
+      if (selectedLeadId) {
+        const updated = items.find((l: any) => l.id === selectedLeadId);
+        if (updated) setSelectedLead(updated);
+      }
     } catch (e: any) {
       setError(e.message || 'Failed to load leads');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
   useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, 10000);
-    return () => clearInterval(interval);
+    let mounted = true;
+    const load = async () => { if (mounted) await refresh(false); };
+    load();
+    const interval = setInterval(() => { if (mounted) refresh(true); }, 10000);
+    return () => { mounted = false; clearInterval(interval); };
   }, [mode, discoveryRunId, filters.q, filters.websiteStatus, filters.auditStatus, filters.manual, quick, filters.sort]);
 
   const handleQuick = (key: string) => {
@@ -96,17 +107,17 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
   }
 
   function reviewLead(status: string, note?: string) {
-    if (!selectedLead) return;
-    api.reviewLead(selectedLead.id, status, note)
-      .then(() => refresh())
-      .catch((e) => setError(e.message || 'Review failed'));
+    if (!selectedLead) return Promise.reject(new Error('No lead selected'));
+    return api.reviewLead(selectedLead.id, status, note)
+      .then(() => refresh(false))
+      .catch((e) => { setError(e.message || 'Review failed'); throw e; });
   }
 
   function selectForRedesign(selected: boolean) {
-    if (!selectedLead) return;
-    api.setRedesignStage(selectedLead.id, selected ? 'SELECTED_FOR_REDESIGN' : 'NOT_SELECTED')
-      .then(() => refresh())
-      .catch((e) => setError(e.message || 'Select failed'));
+    if (!selectedLead) return Promise.reject(new Error('No lead selected'));
+    return api.setRedesignStage(selectedLead.id, selected ? 'SELECTED_FOR_REDESIGN' : 'NOT_SELECTED')
+      .then(() => refresh(false))
+      .catch((e) => { setError(e.message || 'Select failed'); throw e; });
   }
 
   const headers = { all: 'Leads', audit: 'Audit queue', selected: 'Selected for redesign' };
@@ -115,7 +126,10 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
     <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
       <div className="bg-white border-b border-[#e5e3df] px-6 h-[52px] flex items-center justify-between shrink-0">
         <h1 className="text-[14px] font-semibold text-[#1c1917]">{headers[mode]}</h1>
-        <Button size="sm" variant="secondary" onClick={refresh}>Refresh</Button>
+        <div className="flex items-center gap-2">
+          {refreshing && <span className="text-[11px] text-[#a8a29e] font-mono">Updating…</span>}
+          <Button size="sm" variant="secondary" onClick={() => refresh(false)}>Refresh</Button>
+        </div>
       </div>
 
       <div className={`p-6 ${selectedLead ? 'pr-[420px]' : ''}`}>
@@ -145,7 +159,7 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
               </thead>
               <tbody className="divide-y divide-[#f0eeeb]">
                 {leads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-[#fafaf9] cursor-pointer" onClick={() => setSelectedLead(lead)}>
+                  <tr key={lead.id} className="hover:bg-[#fafaf9] cursor-pointer" onClick={() => { setSelectedLead(lead); setSelectedLeadId(lead.id); }}>
                     <td className="px-3 py-2">
                       <div className="text-[#1c1917] font-medium truncate max-w-[180px]">{lead.companyName}</div>
                       <div className="text-[10px] text-[#a8a29e] font-mono">{lead.categories?.[0] || '—'}</div>
@@ -193,7 +207,7 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
       {selectedLead && (
         <LeadDetail
           lead={selectedLead}
-          onClose={() => setSelectedLead(null)}
+          onClose={() => { setSelectedLead(null); setSelectedLeadId(null); }}
           onStart={(op, input) => startOperation(op, input, selectedLead)}
           onReview={reviewLead}
           onSelect={selectForRedesign}

@@ -227,83 +227,67 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
     data: { siteId, name: 'main', isMain: true } as any
   });
 
+  const allPages = await prisma.page.findMany({ where: { siteId } as any, select: { id: true, sourceUrl: true, isHomepage: true } });
+  const pageByUrl = new Map<string, string>(allPages.filter((p: any) => p.sourceUrl).map((p: any) => [p.sourceUrl, p.id]));
+
+  async function createMenuItems(items: any[], parentId: string | null = null, sortStart = 0) {
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      const pageId = item.url ? pageByUrl.get(item.url) : undefined;
+      const data: any = {
+        siteId,
+        menuId: menu.id,
+        parentId,
+        label: item.label || '—',
+        sortOrder: sortStart + i,
+        pageId,
+        url: pageId ? undefined : (item.url ?? undefined)
+      };
+      const created = await prisma.menuItem.create({ data } as any);
+      if (item.children?.length) {
+        await createMenuItems(item.children, created.id, 0);
+      }
+    }
+  }
+
+  const nav = (options.content as any).navigation ?? [];
+  if (nav.length > 0) {
+    await createMenuItems(nav);
+  }
+
+  // Fallback generic menu if no navigation was extracted
   const home = await prisma.page.findFirst({ where: { siteId, isHomepage: true } as any });
-  if (home) {
+  if (nav.length === 0 && home) {
     await prisma.menuItem.create({
       data: { siteId, menuId: menu.id, label: 'Главная', pageId: home.id, sortOrder: 0 } as any
     });
-  }
 
-  const servicesPage = options.content.services.length > 0;
-  if (servicesPage) {
-    const sp = await prisma.page.create({
-      data: {
-        siteId,
-        title: 'Услуги',
-        slug: uniqueSlug('services'),
-        isHomepage: false,
-        blocks: [{ type: 'services' }],
-        status: 'PUBLISHED',
-        sourceType: 'MANUAL'
-      } as any
-    });
-    await prisma.menuItem.create({
-      data: { siteId, menuId: menu.id, label: 'Услуги', pageId: sp.id, sortOrder: 1 } as any
-    });
-  }
-
-  const projectsPage = options.content.projects.length > 0;
-  if (projectsPage) {
-    const pp = await prisma.page.create({
-      data: {
-        siteId,
-        title: 'Объекты',
-        slug: uniqueSlug('projects'),
-        isHomepage: false,
-        blocks: [{ type: 'projects' }],
-        status: 'PUBLISHED',
-        sourceType: 'MANUAL'
-      } as any
-    });
-    await prisma.menuItem.create({
-      data: { siteId, menuId: menu.id, label: 'Объекты', pageId: pp.id, sortOrder: 2 } as any
-    });
-  }
-
-  const newsPage = options.content.news.length > 0;
-  if (newsPage) {
-    const np = await prisma.page.create({
-      data: {
-        siteId,
-        title: 'Новости',
-        slug: uniqueSlug('news'),
-        isHomepage: false,
-        blocks: [{ type: 'news' }],
-        status: 'PUBLISHED',
-        sourceType: 'MANUAL'
-      } as any
-    });
-    await prisma.menuItem.create({
-      data: { siteId, menuId: menu.id, label: 'Новости', pageId: np.id, sortOrder: 3 } as any
-    });
-  }
-
-  const contactsPage = await prisma.page.findFirst({ where: { siteId, slug: 'contacts' } as any });
-  if (!contactsPage) {
-    const cp = await prisma.page.create({
-      data: {
-        siteId,
-        title: 'Контакты',
-        slug: uniqueSlug('contacts'),
-        isHomepage: false,
-        blocks: [{ type: 'contacts' }],
-        status: 'PUBLISHED',
-        sourceType: 'MANUAL'
-      } as any
-    });
-    await prisma.menuItem.create({
-      data: { siteId, menuId: menu.id, label: 'Контакты', pageId: cp.id, sortOrder: 4 } as any
-    });
+    const sort = [1, 2, 3, 4];
+    if (options.content.services.length > 0) {
+      const sp = await prisma.page.create({
+        data: { siteId, title: 'Услуги', slug: uniqueSlug('services'), isHomepage: false, blocks: [{ type: 'services' }], status: 'PUBLISHED', sourceType: 'MANUAL' } as any
+      });
+      await prisma.menuItem.create({ data: { siteId, menuId: menu.id, label: 'Услуги', pageId: sp.id, sortOrder: sort.shift() } as any });
+    }
+    if (options.content.projects.length > 0) {
+      const pp = await prisma.page.create({
+        data: { siteId, title: 'Объекты', slug: uniqueSlug('projects'), isHomepage: false, blocks: [{ type: 'projects' }], status: 'PUBLISHED', sourceType: 'MANUAL' } as any
+      });
+      await prisma.menuItem.create({ data: { siteId, menuId: menu.id, label: 'Объекты', pageId: pp.id, sortOrder: sort.shift() } as any });
+    }
+    if (options.content.news.length > 0) {
+      const np = await prisma.page.create({
+        data: { siteId, title: 'Новости', slug: uniqueSlug('news'), isHomepage: false, blocks: [{ type: 'news' }], status: 'PUBLISHED', sourceType: 'MANUAL' } as any
+      });
+      await prisma.menuItem.create({ data: { siteId, menuId: menu.id, label: 'Новости', pageId: np.id, sortOrder: sort.shift() } as any });
+    }
+    const contactsPage = await prisma.page.findFirst({ where: { siteId, slug: 'contacts' } as any });
+    if (!contactsPage) {
+      const cp = await prisma.page.create({
+        data: { siteId, title: 'Контакты', slug: uniqueSlug('contacts'), isHomepage: false, blocks: [{ type: 'contacts' }], status: 'PUBLISHED', sourceType: 'MANUAL' } as any
+      });
+      await prisma.menuItem.create({ data: { siteId, menuId: menu.id, label: 'Контакты', pageId: cp.id, sortOrder: sort.shift() } as any });
+    }
   }
 
   return { siteId, siteSlug: options.siteSlug, previewSlug: options.previewSlug };

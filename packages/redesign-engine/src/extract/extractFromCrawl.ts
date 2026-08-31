@@ -19,7 +19,7 @@ function pickImage(pages: CrawledPage[]): { src: string; alt: string } | undefin
   return undefined;
 }
 
-export function extractFromCrawl(pages: CrawledPage[], baseUrl: string): ExtractedContent {
+export function extractFromCrawl(pages: CrawledPage[], baseUrl: string, navigation?: { label: string; url?: string; children?: any[] }[]): ExtractedContent {
   const homepage = pages[0];
   const companyName = homepage?.title?.split(/[\|—–\-]/)[0]?.trim() ?? '';
   const contacts: any = {};
@@ -29,6 +29,7 @@ export function extractFromCrawl(pages: CrawledPage[], baseUrl: string): Extract
   const contentPages: any[] = [];
   const media: any[] = [];
   const seenMedia = new Set<string>();
+  const navItems = navigation ?? [];
 
   for (const p of pages) {
     const path = p.path || toSlug(p.title);
@@ -123,6 +124,7 @@ export function extractFromCrawl(pages: CrawledPage[], baseUrl: string): Extract
       primaryColor: '#2563EB',
       secondaryColor: '#1E40AF'
     },
+    navigation: navItems,
     pages: contentPages,
     services,
     projects,

@@ -1,5 +1,5 @@
 import { chromium, type Browser, type Page } from 'playwright';
-import type { CrawlOptions, CrawledPage } from '../types.js';
+import type { CrawlOptions, CrawledPage, CrawlResult, NavigationNode } from '../types.js';
 
 function normalizeUrl(base: string, href: string): string | null {
   try {
@@ -7,9 +7,14 @@ function normalizeUrl(base: string, href: string): string | null {
     const b = new URL(base);
     if (u.hostname !== b.hostname) return null;
     u.hash = '';
-    u.search = '';
+    // Drop common tracking/query params but keep useful paths.
+    const keep = new Set(['page', 'p', 'category', 'tag']);
+    for (const [k] of u.searchParams) {
+      if (!keep.has(k.toLowerCase())) u.searchParams.delete(k);
+    }
+    if (!u.search) u.search = '';
     u.pathname = u.pathname.replace(/\/$/, '') || '/';
-    return u.toString();
+    return u.toString().replace(/\?$/, '');
   } catch {
     return null;
   }
@@ -28,14 +33,29 @@ function slugFromUrl(url: string): string {
 const DEFAULT_SKIP = [
   'login', 'admin', 'wp-admin', 'cart', 'checkout', 'privacy',
   'cookie', 'terms', 'search', 'wp-login', '/wp-content/',
-  'authe', 'logout', 'account', '/pdf', '.pdf', '.jpg', '.png', '.zip'
+  'authe', 'logout', 'account', '/pdf', '.pdf', '.jpg', '.png', '.zip',
+  'print', '?replytocom', '/comment-', 'feed=', 'action=', 'share=',
+  'utm_', 'fbclid', 'gclid', 'mailto:', 'tel:', 'javascript:'
 ];
 
-const DEFAULT_KEYWORDS = [
-  'services', 'услуги', 'about', 'о компании', 'o kompanii', 'projects',
-  'объекты', 'portfolio', 'работы', 'gallery', 'галерея', 'news', 'новости',
-  'reviews', 'отзывы', 'contacts', 'контакты', 'prices', 'цены', 'index', ''
-];
+const ALLOWED_EXTENSIONS = new Set(['.html', '.htm', '']);
+
+function shouldCrawlUrl(nu: string): boolean {
+  const lower = nu.toLowerCase();
+  const path = new URL(nu).pathname.toLowerCase();
+  if (DEFAULT_SKIP.some((s) => lower.includes(s.toLowerCase()))) return false;
+  const dot = path.lastIndexOf('.');
+  const slash = path.lastIndexOf('/');
+  const ext = dot > slash && dot > 0 ? path.slice(dot) : '';
+  if (ext && !ALLOWED_EXTENSIONS.has(ext)) return false;
+  return true;
+}
+
+const skipSet = DEFAULT_SKIP;
+
+function cleanLabel(text: string): string {
+  return text.replace(/\s+/g, ' ').trim().slice(0, 60);
+}
 
 async function handleCookieConsent(page: Page) {
   const labels = ['accept', 'agree', 'ok', 'allow', 'принять', 'согласен', 'continue'];
@@ -57,18 +77,121 @@ async function handleCookieConsent(page: Page) {
   } catch {}
 }
 
-export async function crawlSite(options: CrawlOptions): Promise<CrawledPage[]> {
-  const maxPages = options.maxPages ?? 15;
-  const skipPaths = options.skipPaths ?? DEFAULT_SKIP;
+type RawLink = { text: string; href: string; source: 'header' | 'footer' | 'body' };
+
+type ExtractedNav = {
+  title: string;
+  meta: string;
+  h1: string;
+  text: string;
+  html: string;
+  links: RawLink[];
+  images: { src: string; alt: string }[];
+  headerNav: NavigationNode[];
+  footerNav: NavigationNode[];
+};
+
+function extractLinksFromContainer(container: HTMLElement | null, source: 'header' | 'footer' | 'body'): RawLink[] {
+  if (!container) return [];
+  const anchors = Array.from(container.querySelectorAll('a[href]'));
+  return anchors
+    .filter((a) => {
+      const href = a.getAttribute('href') ?? '';
+      return href && !href.startsWith('#') && !href.startsWith('javascript:') && !href.startsWith('mailto:') && !href.startsWith('tel:');
+    })
+    .map((a) => ({
+      text: cleanLabel(a.textContent ?? ''),
+      href: a.getAttribute('href') ?? '',
+      source
+    }))
+    .filter((l) => l.text && l.href);
+}
+
+function buildNavTree(links: RawLink[], baseUrl: string, depth = 0): NavigationNode[] {
+  const roots: NavigationNode[] = [];
+  const map = new Map<string, NavigationNode>();
+  const seenRoots = new Set<string>();
+
+  for (const link of links) {
+    const nu = normalizeUrl(baseUrl, link.href);
+    if (!nu) continue;
+    const existing = map.get(nu);
+    if (existing) {
+      if (link.source === 'header') existing.source = 'header';
+      continue;
+    }
+    const node: NavigationNode = { label: link.text, url: nu, source: link.source, children: [] };
+    map.set(nu, node);
+    if (depth === 0) {
+      roots.push(node);
+      seenRoots.add(nu);
+    }
+  }
+
+  // If a header link was later expanded on a deeper page, children will be added by the caller.
+  return roots;
+}
+
+function mergeHeaderAndFooter(header: NavigationNode[], footer: NavigationNode[]): NavigationNode[] {
+  // Preserve header order; add footer items that are not in header.
+  const all = [...header];
+  const headerUrls = new Set(header.map((n) => n.url));
+  for (const f of footer) {
+    if (f.url && !headerUrls.has(f.url)) all.push(f);
+  }
+  return all;
+}
+
+async function fetchSitemap(baseUrl: string): Promise<NavigationNode[]> {
+  const candidates = ['/sitemap.xml', '/sitemap_index.xml'];
+  const nodes: NavigationNode[] = [];
+  for (const path of candidates) {
+    try {
+      const res = await fetch(new URL(path, baseUrl).toString(), { headers: { 'User-Agent': 'Mozilla/5.0' } });
+      if (!res.ok) continue;
+      const text = await res.text();
+      const urls = [...text.matchAll(/<loc>([^<]+)<\/loc>/gi)].map((m) => m[1]).filter(Boolean);
+      for (const u of urls) {
+        const nu = normalizeUrl(baseUrl, u);
+        if (nu) nodes.push({ label: 'Sitemap', url: nu, source: 'sitemap', children: [] });
+      }
+      break;
+    } catch {}
+  }
+  return nodes;
+}
+
+export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
+  const maxPages = options.maxPages ?? 30;
+  const maxDepth = options.maxDepth ?? 4;
   const timeoutMs = options.timeoutMs ?? 30000;
+  const baseUrl = normalizeUrl(options.baseUrl, options.baseUrl) ?? options.baseUrl;
 
   const browser = await chromium.launch({
     headless: true,
     args: ['--ignore-certificate-errors', '--ignore-certificate-errors-spki-list', '--no-sandbox', '--disable-gpu']
   });
   const seen = new Set<string>();
-  const queue: { url: string; depth: number }[] = [{ url: options.baseUrl, depth: 0 }];
+  const queue: { url: string; depth: number; priority: number }[] = [{ url: baseUrl, depth: 0, priority: 0 }];
   const pages: CrawledPage[] = [];
+  const allHeaderLinks: RawLink[] = [];
+  const allFooterLinks: RawLink[] = [];
+
+  function enqueue(nu: string, depth: number, priority: number, source: 'header' | 'footer' | 'body') {
+    if (seen.has(nu) || !shouldCrawlUrl(nu) || depth > maxDepth) return;
+    queue.push({ url: nu, depth, priority });
+    // Sort so navigation/sitemap links are crawled first, then by depth.
+    queue.sort((a, b) => a.priority - b.priority || a.depth - b.depth);
+  }
+
+  // Seed from sitemap up front.
+  let sitemap: NavigationNode[] = [];
+  try {
+    sitemap = await fetchSitemap(baseUrl);
+    for (const n of sitemap) {
+      if (n.url) enqueue(n.url, 0, -10, 'header');
+    }
+  } catch {}
 
   try {
     while (queue.length > 0 && pages.length < maxPages) {
@@ -79,32 +202,105 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawledPage[]> {
       const context = await browser.newContext({ userAgent: 'Mozilla/5.0' });
       const page = await context.newPage();
       try {
-        await page.goto(url, { waitUntil: 'networkidle', timeout: timeoutMs }).catch(() => {});
+        const resp = await page.goto(url, { waitUntil: 'networkidle', timeout: timeoutMs }).catch(() => null);
+        if (resp && (resp.status() >= 400)) {
+          console.warn('crawl non-2xx', url, resp.status());
+          continue;
+        }
         await page.addInitScript({ content: 'window.__name = function __name(x){ return x; };' });
         await handleCookieConsent(page);
         await page.waitForTimeout(200);
 
-        const data = await page.evaluate(() => {
-          const __name = (window as any).__name || ((x: any) => x);
+        const data = await page.evaluate((baseHref: string): ExtractedNav => {
+
+          function cleanLabel(text: string): string {
+            return text.replace(/\s+/g, ' ').trim().slice(0, 60);
+          }
+
+          function normalizeUrl(base: string, href: string): string | null {
+            try {
+              const u = new URL(href, base);
+              const b = new URL(base);
+              if (u.hostname !== b.hostname) return null;
+              u.hash = '';
+              const keep = new Set(['page', 'p', 'category', 'tag']);
+              for (const [k] of u.searchParams) {
+                if (!keep.has(k.toLowerCase())) u.searchParams.delete(k);
+              }
+              if (!u.search) u.search = '';
+              u.pathname = u.pathname.replace(/\/$/, '') || '/';
+              return u.toString().replace(/\?$/, '');
+            } catch {
+              return null;
+            }
+          }
+
+          function extractLinksFromContainer(container: HTMLElement | null, source: 'header' | 'footer' | 'body'): { text: string; href: string; source: 'header' | 'footer' | 'body' }[] {
+            if (!container) return [];
+            return Array.from(container.querySelectorAll('a[href]'))
+              .filter((a) => {
+                const href = (a as HTMLAnchorElement).getAttribute('href') ?? '';
+                return href && !href.startsWith('#') && !href.startsWith('javascript:') && !href.startsWith('mailto:') && !href.startsWith('tel:');
+              })
+              .map((a) => ({
+                text: cleanLabel((a as HTMLElement).textContent ?? ''),
+                href: (a as HTMLAnchorElement).getAttribute('href') ?? '',
+                source
+              }))
+              .filter((l) => l.text && l.href);
+          }
+
+          function buildNavTree(links: any[]): any[] {
+            const roots: any[] = [];
+            const map = new Map<string, any>();
+            for (const link of links) {
+              const nu = normalizeUrl(baseHref, link.href);
+              if (!nu) continue;
+              if (map.has(nu)) continue;
+              const node = { label: link.text, url: nu, source: link.source, children: [] };
+              map.set(nu, node);
+              roots.push(node);
+            }
+            return roots;
+          }
+
           const title = document.title || '';
           const meta = (document.querySelector('meta[name="description"]') as HTMLMetaElement)?.content ?? '';
           const h1 = document.querySelector('h1')?.textContent?.trim() ?? '';
           const body = document.body?.innerText ?? '';
           const html = document.documentElement?.outerHTML ?? '';
-          const links = Array.from(document.querySelectorAll('a[href]'))
-            .map((a) => ({
-              text: (a.textContent ?? '').trim().slice(0, 120),
-              href: a.getAttribute('href') ?? ''
-            }))
-            .filter((l) => l.href);
+
+          const header = document.querySelector('header, nav, [role="navigation"]') as HTMLElement | null;
+          const footer = document.querySelector('footer') as HTMLElement | null;
+
+          const headerLinks = extractLinksFromContainer(header, 'header');
+          const footerLinks = extractLinksFromContainer(footer, 'footer');
+          const bodyLinks = extractLinksFromContainer(document.body, 'body');
+
+          const headerNav = buildNavTree(headerLinks);
+          const footerNav = buildNavTree(footerLinks);
+
+          const all = [...headerLinks, ...footerLinks, ...bodyLinks];
+
           const images = Array.from(document.querySelectorAll('img[src]'))
             .map((img) => ({
-              src: img.getAttribute('src') ?? '',
-              alt: img.getAttribute('alt') ?? ''
+              src: (img as HTMLImageElement).getAttribute('src') ?? '',
+              alt: (img as HTMLImageElement).getAttribute('alt') ?? ''
             }))
             .filter((i) => i.src);
-          return { title, meta, h1, text: body.slice(0, 10000), html, links, images };
-        });
+
+          return {
+            title,
+            meta,
+            h1,
+            text: body.slice(0, 12000),
+            html,
+            links: all,
+            images,
+            headerNav,
+            footerNav
+          };
+        }, baseUrl);
 
         pages.push({
           url,
@@ -116,16 +312,31 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawledPage[]> {
           links: data.links,
           images: data.images,
           path: slugFromUrl(url),
-          depth
+          depth,
+          priority: depth,
+          navItem: false
         });
 
-        if (depth < 2) {
+        const isNavItem = (href: string) => {
+          const nu = normalizeUrl(baseUrl, href);
+          if (!nu) return false;
+          return [...allHeaderLinks, ...allFooterLinks].some((l) => normalizeUrl(baseUrl, l.href) === nu);
+        };
+
+        if (depth < maxDepth) {
           for (const link of data.links) {
-            const nu = normalizeUrl(options.baseUrl, link.href);
-            if (!nu || seen.has(nu)) continue;
-            const lower = nu.toLowerCase();
-            if (skipPaths.some((s) => lower.includes(s.toLowerCase()))) continue;
-            queue.push({ url: nu, depth: depth + 1 });
+            const nu = normalizeUrl(baseUrl, link.href);
+            if (!nu) continue;
+            let priority = depth * 10;
+            if (link.source === 'header') {
+              priority -= 20;
+              allHeaderLinks.push({ ...link });
+            } else if (link.source === 'footer') {
+              priority -= 15;
+              allFooterLinks.push({ ...link });
+            }
+            if (isNavItem(link.href)) priority -= 30;
+            enqueue(nu, depth + 1, priority, link.source);
           }
         }
       } catch (err) {
@@ -139,5 +350,10 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawledPage[]> {
     await browser.close().catch(() => {});
   }
 
-  return pages;
+  // Build canonical navigation tree.
+  const headerNav = buildNavTree(allHeaderLinks, baseUrl);
+  const footerNav = buildNavTree(allFooterLinks, baseUrl);
+  const navigation = mergeHeaderAndFooter(headerNav, footerNav);
+
+  return { pages, navigation };
 }

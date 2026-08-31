@@ -9,6 +9,15 @@ export interface CrawledPage {
   images: { src: string; alt: string }[];
   path: string;
   depth: number;
+  priority?: number;
+  navItem?: boolean;
+}
+
+export interface NavigationNode {
+  label: string;
+  url?: string;
+  children?: NavigationNode[];
+  source?: 'header' | 'footer' | 'sitemap' | 'body';
 }
 
 export interface CrawlOptions {
@@ -17,6 +26,12 @@ export interface CrawlOptions {
   skipPaths?: string[];
   allowedKeywords?: string[];
   timeoutMs?: number;
+  maxDepth?: number;
+}
+
+export interface CrawlResult {
+  pages: CrawledPage[];
+  navigation: NavigationNode[];
 }
 
 export type RedesignStage =

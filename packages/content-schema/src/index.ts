@@ -148,6 +148,20 @@ export const contentNewsSchema = z.object({
   coverImage: contentMediaSchema.optional(),
 });
 
+export interface ContentNavigationItem {
+  label: string;
+  url?: string;
+  children?: ContentNavigationItem[];
+}
+
+export const contentNavigationItemSchema: z.ZodType<ContentNavigationItem> = z.lazy(() =>
+  z.object({
+    label: z.string(),
+    url: z.string().optional(),
+    children: z.array(contentNavigationItemSchema).default([]),
+  })
+);
+
 export const contentContactsSchema = z.object({
   phone: z.string().optional(),
   email: z.string().optional(),
@@ -174,6 +188,7 @@ export const extractedContentSchema = z.object({
     socialLinks: z.array(z.object({ platform: z.string(), url: z.string() })).default([]),
   }).default({}),
   branding: contentBrandingSchema.default({}),
+  navigation: z.array(contentNavigationItemSchema).default([]),
   pages: z.array(contentPageSchema).default([]),
   services: z.array(contentServiceSchema).default([]),
   projects: z.array(contentProjectSchema).default([]),

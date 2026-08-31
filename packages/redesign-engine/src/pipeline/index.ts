@@ -72,7 +72,7 @@ export async function generateSite(options: GenerateOptions) {
   await mkdir(artifactDir, { recursive: true });
 
   try {
-    const crawled = await crawlSite({ baseUrl, maxPages: 15 });
+    const { pages: crawled, navigation } = await crawlSite({ baseUrl, maxPages: 40, maxDepth: 4 });
 
     await (prisma as any).redesignRun.update({
       where: { id: run.id },
@@ -83,7 +83,7 @@ export async function generateSite(options: GenerateOptions) {
       data: { redesignStage: 'CONTENT_EXTRACTED' }
     });
 
-    const content = extractFromCrawl(crawled, baseUrl);
+    const content = extractFromCrawl(crawled, baseUrl, navigation);
     await writeFile(join(artifactDir, 'content.json'), JSON.stringify(content, null, 2));
 
     await (prisma as any).redesignRun.update({

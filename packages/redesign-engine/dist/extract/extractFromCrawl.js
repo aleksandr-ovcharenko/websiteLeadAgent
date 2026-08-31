@@ -16,7 +16,7 @@ function pickImage(pages) {
     }
     return undefined;
 }
-export function extractFromCrawl(pages, baseUrl) {
+export function extractFromCrawl(pages, baseUrl, navigation) {
     const homepage = pages[0];
     const companyName = homepage?.title?.split(/[\|—–\-]/)[0]?.trim() ?? '';
     const contacts = {};
@@ -26,6 +26,7 @@ export function extractFromCrawl(pages, baseUrl) {
     const contentPages = [];
     const media = [];
     const seenMedia = new Set();
+    const navItems = navigation ?? [];
     for (const p of pages) {
         const path = p.path || toSlug(p.title);
         const isHome = p.url === baseUrl || p.path === 'index';
@@ -113,6 +114,7 @@ export function extractFromCrawl(pages, baseUrl) {
             primaryColor: '#2563EB',
             secondaryColor: '#1E40AF'
         },
+        navigation: navItems,
         pages: contentPages,
         services,
         projects,

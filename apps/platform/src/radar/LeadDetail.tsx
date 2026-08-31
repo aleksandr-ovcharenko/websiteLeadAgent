@@ -32,16 +32,20 @@ function Status({ label, status }: { label: string; status: string }) {
   );
 }
 
-export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect }: { lead: Lead; onClose: () => void; onStart: (op: string, input: any) => void; onReview: (status: string, note?: string) => void; onSelect: (selected: boolean) => void }) {
+export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect }: { lead: Lead; onClose: () => void; onStart: (op: string, input: any) => void; onReview: (status: string, note?: string) => Promise<void> | void; onSelect: (selected: boolean) => Promise<void> | void }) {
   const [tab, setTab] = useState<'desktop' | 'mobile'>('desktop');
   const [note, setNote] = useState(lead.manualReviewNote || '');
   const [review, setReview] = useState(lead.manualReviewStatus || 'UNREVIEWED');
   const [imgError, setImgError] = useState(false);
+  const [selecting, setSelecting] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     setNote(lead.manualReviewNote || '');
     setReview(lead.manualReviewStatus || 'UNREVIEWED');
     setImgError(false);
+    setSelecting(false);
+    setGenerating(false);
   }, [lead.id]);
 
   const visual = lead.visualAnalysis || {};
@@ -62,20 +66,38 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
 
   const handleReview = (s: string) => {
     setReview(s);
-    onReview(s, note);
+    Promise.resolve(onReview(s, note)).catch(() => {});
+  };
+
+  const handleSelect = async () => {
+    setSelecting(true);
+    try {
+      await onSelect(true);
+    } finally {
+      setSelecting(false);
+    }
+  };
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    onStart('GENERATE_SITE', { leadId: lead.id });
   };
 
   const primaryAction = () => {
     if (!hasWebsite) return null;
-    if (!auditOk) return { label: 'Qualify', op: 'RUN_FULL_QUALIFICATION', input: { leadId: lead.id, force: false } };
-    if (!scored) return { label: 'Qualify', op: 'RUN_FULL_QUALIFICATION', input: { leadId: lead.id, force: false } };
-    if (review === 'GOOD' && lead.redesignStage !== 'SELECTED_FOR_REDESIGN' && !lead.site) return { label: 'Select for redesign', op: 'SELECT', input: {} };
-    if (lead.site) return { label: 'Open site', op: 'OPEN_SITE', input: {} };
-    if (review === 'GOOD') return { label: 'Generate site', op: 'GENERATE_SITE', input: { leadId: lead.id } };
+    if (!auditOk) return { label: 'Qualify', action: () => onStart('RUN_FULL_QUALIFICATION', { leadId: lead.id, force: false }) };
+    if (!scored) return { label: 'Qualify', action: () => onStart('RUN_FULL_QUALIFICATION', { leadId: lead.id, force: false }) };
+    if (lead.site) return { label: 'Open site', action: () => { if (lead.site) window.open(`/showcase/${lead.site.previewToken}`, '_blank'); } };
+    if (review === 'GOOD' && lead.redesignStage === 'NOT_SELECTED') return { label: selecting ? 'Selecting…' : 'Select for redesign', action: handleSelect, disabled: selecting };
+    if (review === 'GOOD' && ['SELECTED_FOR_REDESIGN', 'CONTENT_EXTRACTED', 'CONTENT_TRANSFORMED', 'CMS_IMPORTED'].includes(lead.redesignStage || '')) return { label: generating ? 'Generating…' : 'Generate demo', action: handleGenerate, disabled: generating };
+    if (review === 'GOOD') return { label: 'Generate demo', action: handleGenerate };
     return null;
   };
 
   const action = primaryAction();
+  const pipelineStage = lead.redesignStage && lead.redesignStage !== 'NOT_SELECTED'
+    ? lead.redesignStage.replace(/_/g, ' ')
+    : null;
 
   return (
     <div className="fixed inset-y-0 right-0 w-[420px] bg-white border-l border-[#e5e3df] flex flex-col z-40 shadow-[-4px_0_24px_rgba(28,25,23,0.07)]">
@@ -150,6 +172,7 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
             <Status label="AI analysis" status={visual?.status || 'PENDING'} />
             <Status label="Scored" status={scored ? 'SUCCESS' : 'PENDING'} />
             <Status label="Review" status={lead.manualReviewStatus || 'UNREVIEWED'} />
+            <Status label="Pipeline" status={pipelineStage ? 'SUCCESS' : 'PENDING'} />
           </div>
           {!readyForReview && (
             <div className="mt-3 p-2.5 bg-red-50 border border-red-200 rounded text-[11px] text-red-800 font-mono">
@@ -242,18 +265,14 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          onBlur={() => { if (readyForReview && note !== (lead.manualReviewNote || '')) onReview(review, note); }}
+          onBlur={() => { if (readyForReview && note !== (lead.manualReviewNote || '')) Promise.resolve(onReview(review, note)).catch(() => {}); }}
           disabled={!readyForReview}
           placeholder={readyForReview ? 'Review note (optional)' : 'Notes disabled until ready'}
           className={`w-full h-16 p-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] font-mono resize-none ${!readyForReview ? 'opacity-50' : ''}`}
         />
         <div className="flex gap-2">
           {action && (
-            <Button size="sm" onClick={() => {
-              if (action.op === 'OPEN_SITE' && lead.site) window.open(`/showcase/${lead.site.previewToken}`, '_blank');
-              else if (action.op === 'SELECT') onSelect(true);
-              else onStart(action.op, action.input);
-            }} className="flex-1">
+            <Button size="sm" disabled={action.disabled} onClick={() => { (action as any).action(); }} className="flex-1">
               {action.label}
             </Button>
           )}
