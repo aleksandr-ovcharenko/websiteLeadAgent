@@ -346,6 +346,17 @@ function DetailPanel({
                     >
                       Open
                     </button>
+                    <button
+                      onClick={async () => {
+                        if (!confirm(`Delete variant ${v.name || v.templateId}?`)) return;
+                        const r = await fetch(`/api/platform/sites/${site.id}/variants/${v.id}`, { method: 'DELETE', credentials: 'include' });
+                        if (!r.ok) { alert('Failed to delete variant'); return; }
+                        window.location.reload();
+                      }}
+                      className="px-2 h-6 border border-red-200 text-red-600 rounded hover:bg-red-50"
+                    >
+                      ×
+                    </button>
                   </div>
                 </div>
               ))}
