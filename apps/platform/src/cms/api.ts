@@ -80,6 +80,18 @@ export const api = {
   runDiscoveryAgain: (runId: string) => request(`/api/discovery/runs/${runId}/run-again`, { method: 'POST' }) as Promise<{ run: any; warning?: string }>,
   duplicateDiscoveryRun: (runId: string) => request(`/api/discovery/runs/${runId}/duplicate`) as Promise<any>,
 
+  // Activity
+  getActivityHistory: (params: { limit?: number; levelGte?: string; module?: string; runId?: string; leadId?: string; siteId?: string } = {}) => {
+    const qs = new URLSearchParams();
+    qs.set('limit', String(params.limit ?? 200));
+    if (params.levelGte) qs.set('levelGte', params.levelGte);
+    if (params.module) qs.set('module', params.module);
+    if (params.runId) qs.set('runId', params.runId);
+    if (params.leadId) qs.set('leadId', params.leadId);
+    if (params.siteId) qs.set('siteId', params.siteId);
+    return request(`/api/activity?${qs.toString()}`) as Promise<{ items: any[]; nextCursor: string | null }>;
+  },
+
   // Operations
   getOperationDefinitions: () => request('/api/operations/definitions') as Promise<{ operations: any[] }>,
   listOperations: (take = 50, skip = 0) => request(`/api/operations?take=${take}&skip=${skip}`) as Promise<{ items: any[]; count: number }>,

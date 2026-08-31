@@ -702,3 +702,32 @@ model OperationEvent {
   @@index([operationRunId])
   @@index([createdAt])
 }
+
+model ActivityEvent {
+  id              String   @id @default(cuid())
+  timestamp       DateTime @default(now())
+  level           String   @default("INFO")
+  module          String
+  eventType       String?
+  message         String
+  stage           String?
+  runId           String?
+  discoveryRunId  String?
+  pipelineRunId   String?
+  leadId          String?
+  siteId          String?
+  demoVariantId   String?
+  durationMs      Int?
+  details         Json?    @default("{}")
+  errorCode       String?
+  errorMessage    String?
+  rawError        String?
+
+  @@index([timestamp])
+  @@index([level])
+  @@index([module])
+  @@index([runId])
+  @@index([leadId])
+  @@index([siteId])
+  @@index([demoVariantId])
+}

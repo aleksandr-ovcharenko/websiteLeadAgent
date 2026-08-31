@@ -4,6 +4,7 @@ import { EventEmitter } from 'node:events';
 import { createRegistry } from './registry.js';
 import type { OperationDefinition } from './registry.js';
 import type { DiscoveryService } from '../discovery/service.js';
+import { ActivityService } from '../activity/ActivityService.js';
 
 export type OperationStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
 
@@ -32,6 +33,17 @@ export interface OperationInput {
   leadId?: string;
   createdBy?: string;
 }
+
+const MODULE_MAP: Record<string, string> = {
+  discovery: 'DISCOVERY',
+  audit: 'AUDIT',
+  lighthouse: 'LIGHTHOUSE',
+  ai: 'AI',
+  scoring: 'SCORING',
+  enrichment: 'ENRICHMENT',
+  factory: 'FACTORY',
+  workflow: 'CORE',
+};
 
 function redactMetadata(value: any): any {
   if (value === null || value === undefined) return value;
@@ -63,11 +75,13 @@ export class OperationService {
   private registry: Record<string, OperationDefinition>;
   private cancellations = new Set<string>();
   private emitter = new EventEmitter();
+  private activity: ActivityService;
 
-  constructor(input: { prisma: PrismaClient; logger: pino.Logger; env: Record<string, string | undefined>; discovery: DiscoveryService }) {
+  constructor(input: { prisma: PrismaClient; logger: pino.Logger; env: Record<string, string | undefined>; discovery: DiscoveryService; activity: ActivityService }) {
     this.prisma = input.prisma;
     this.logger = input.logger;
     this.env = input.env;
+    this.activity = input.activity;
     this.registry = createRegistry({
       prisma: input.prisma,
       logger: input.logger,
@@ -76,22 +90,33 @@ export class OperationService {
     });
   }
 
-  private async saveEvent(runId: string, level: string, message: string, stage: string | null, metadata?: Record<string, any>) {
+  private async saveEvent(def: OperationDefinition, runId: string, level: string, message: string, stage: string | null, metadata?: Record<string, any>) {
     const safeMetadata = metadata ? redactMetadata(metadata) : undefined;
-    const event = await this.prisma.operationEvent.create({
-      data: {
-        operationRunId: runId,
-        level,
-        stage,
+    const [event] = await Promise.all([
+      this.prisma.operationEvent.create({
+        data: {
+          operationRunId: runId,
+          level,
+          stage,
+          message,
+          metadata: safeMetadata ?? {},
+        },
+      }),
+      this.activity.log({
+        level: level as any,
+        module: MODULE_MAP[def.category] ?? 'CORE',
+        eventType: stage ?? undefined,
         message,
-        metadata: safeMetadata ?? {},
-      },
-    });
+        runId,
+        stage: stage ?? undefined,
+        details: safeMetadata ?? {},
+      }),
+    ]);
     this.emitter.emit(`event:${runId}`, event);
     return event;
   }
 
-  private createContext(runId: string): RunContext {
+  private createContext(def: OperationDefinition, runId: string): RunContext {
     const ctx: RunContext = {
       runId,
       prisma: this.prisma,
@@ -100,10 +125,10 @@ export class OperationService {
       currentStage: null,
       stage: async (name: string, message?: string) => {
         ctx.currentStage = name;
-        await this.saveEvent(runId, 'INFO', message ?? name, name);
+        await this.saveEvent(def, runId, 'INFO', message ?? name, name);
       },
       log: async (level, message, options) => {
-        await this.saveEvent(runId, level, message, options?.stage ?? ctx.currentStage, options?.metadata);
+        await this.saveEvent(def, runId, level, message, options?.stage ?? ctx.currentStage, options?.metadata);
       },
       info: async (message, options) => ctx.log('INFO', message, options),
       success: async (message, options) => ctx.log('SUCCESS', message, options),
@@ -147,7 +172,7 @@ export class OperationService {
         data: { status: 'RUNNING', startedAt: new Date() },
       });
 
-      const ctx = this.createContext(runId);
+      const ctx = this.createContext(def, runId);
       await ctx.info(`Starting ${def.label}`, { stage: 'start', metadata: { operationId } });
 
       const result = await def.handler(ctx, input);
@@ -174,8 +199,8 @@ export class OperationService {
         data: { status: 'FAILED', finishedAt: new Date(), error: { message } },
       });
       try {
-        const ctx = this.createContext(runId);
-        await ctx.error(message, { stage: 'error' });
+        const ctx = this.createContext(def, runId);
+        await ctx.error(message, { stage: 'error', metadata: { error: { message } } });
       } catch {}
     }
   }

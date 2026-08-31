@@ -5,6 +5,7 @@ import type { ProductArea } from "./cms/ProductHeader";
 import Hub from "./Hub";
 import Factory from "./Factory";
 import RadarConfiguration from './radar/RadarConfiguration';
+import { ActivityConsole } from './activity/ActivityConsole';
 
 type Status =
   | "DRAFT"
@@ -1153,6 +1154,7 @@ export default function App({ user }: { user?: any }) {
     <div className="h-screen flex flex-col overflow-hidden bg-[#f4f5f7]">
       <ProductHeader productArea={view} siteId={view === 'studio' ? studioSiteId : undefined} user={user} onNavigate={navigate} />
       {renderContent()}
+      {isSuperAdmin && <ActivityConsole />}
     </div>
   );
 }

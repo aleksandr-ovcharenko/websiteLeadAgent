@@ -3,11 +3,13 @@ import pino from 'pino';
 import { PrismaClient } from '@prisma/client';
 import { DiscoveryService } from '../apps/dashboard/src/discovery/service.js';
 import { OperationService } from '../apps/dashboard/src/operations/OperationService.js';
+import { ActivityService } from '../apps/dashboard/src/activity/ActivityService.js';
 
 const prisma = new PrismaClient();
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 const discovery = new DiscoveryService({ prisma, logger, env: process.env });
-const operations = new OperationService({ prisma, logger, env: process.env, discovery });
+const activity = new ActivityService({ prisma, logger });
+const operations = new OperationService({ prisma, logger, env: process.env, discovery, activity });
 
 async function main() {
   const runId = process.argv[2] || 'cmth2pcuh0000ljfx2tk7mp0x';

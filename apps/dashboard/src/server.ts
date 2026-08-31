@@ -10,12 +10,14 @@ import { platformRouter } from './platform.js';
 import { generateSite } from '@minsk/redesign-engine';
 import { DiscoveryService, listDiscoveryProviders, getDiscoveryProvider, DISCOVERY_PRESETS } from './discovery/index.js';
 import { OperationService } from './operations/index.js';
+import { ActivityService } from './activity/ActivityService.js';
 
 const prisma = new PrismaClient();
 const app = express();
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 const discovery = new DiscoveryService({ prisma, logger, env: process.env });
-const operations = new OperationService({ prisma, logger, env: process.env, discovery });
+const activity = new ActivityService({ prisma, logger });
+const operations = new OperationService({ prisma, logger, env: process.env, discovery, activity });
 
 app.use(sessionMiddleware);
 app.use(express.json());
@@ -619,12 +621,77 @@ app.post('/api/operations/:runId/cancel', requireSuperAdmin, async (req: Request
   res.json({ run });
 });
 
+app.get('/api/activity', requireSuperAdmin, async (req: Request, res: Response) => {
+  const result = await activity.history({
+    limit: numParam(req.query.limit, 200),
+    before: typeof req.query.before === 'string' ? req.query.before : undefined,
+    level: typeof req.query.level === 'string' ? req.query.level : undefined,
+    levelGte: req.query.levelGte as any,
+    module: typeof req.query.module === 'string' ? req.query.module : undefined,
+    runId: typeof req.query.runId === 'string' ? req.query.runId : undefined,
+    leadId: typeof req.query.leadId === 'string' ? req.query.leadId : undefined,
+    siteId: typeof req.query.siteId === 'string' ? req.query.siteId : undefined,
+    demoVariantId: typeof req.query.demoVariantId === 'string' ? req.query.demoVariantId : undefined,
+  });
+  res.json(result);
+});
+
+app.get('/api/activity/stream', requireSuperAdmin, async (req: Request, res: Response) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+
+  const send = (event: any) => {
+    res.write(`data: ${JSON.stringify(event)}\n\n`);
+  };
+
+  const last = req.headers['last-event-id'] as string | undefined;
+  if (!last) {
+    const { items } = await activity.history({ limit: 50 });
+    for (const event of items) send(event);
+  }
+
+  const unsubscribe = activity.subscribe(send);
+
+  const heartbeat = setInterval(() => {
+    res.write(':heartbeat\n\n');
+  }, 15000);
+
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+  });
+
+  res.on('error', () => {
+    clearInterval(heartbeat);
+    unsubscribe();
+  });
+});
+
 app.use('/api/auth', authRouter);
 app.use(platformRouter);
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
   // eslint-disable-next-line no-console
   console.log(`[CORE] ready on http://localhost:${PORT}`);
+  const { checkBrowserReadiness } = await import('./activity/browserCheck.js');
+  const browser = await checkBrowserReadiness();
+  if (!browser.ok) {
+    await activity.error({
+      module: 'SYSTEM',
+      eventType: 'BROWSER_UNAVAILABLE',
+      message: browser.friendlyMessage,
+      details: { action: browser.action, rawMessage: browser.rawMessage },
+      error: new Error(browser.rawMessage),
+    });
+    logger.error({ error: browser.rawMessage }, 'Browser check failed');
+  } else {
+    await activity.info({
+      module: 'SYSTEM',
+      eventType: 'BROWSER_READY',
+      message: 'Chromium browser is available.',
+    });
+  }
 });
 
 process.on('SIGINT', async () => {
