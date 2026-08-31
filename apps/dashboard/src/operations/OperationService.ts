@@ -153,6 +153,19 @@ export class OperationService {
     const def = this.registry[operationId];
     if (!def) throw new Error(`Unknown operation: ${operationId}`);
 
+    const active = await this.prisma.operationRun.findFirst({
+      where: {
+        operationId,
+        leadId: leadId ?? null,
+        entityId: entityId ?? null,
+        status: { in: ['PENDING', 'RUNNING'] },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (active) {
+      return { run: active, alreadyActive: true };
+    }
+
     const run = await this.prisma.operationRun.create({
       data: {
         operationId,

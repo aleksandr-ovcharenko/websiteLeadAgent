@@ -98,7 +98,7 @@ export const api = {
   getOperation: (runId: string) => request(`/api/operations/${runId}`) as Promise<{ run: any }>,
   getOperationEvents: (runId: string) => request(`/api/operations/${runId}/events`) as Promise<{ events: any[] }>,
   startOperation: (data: { operationId: string; input?: Record<string, any>; entityType?: string; entityId?: string; leadId?: string }) =>
-    request('/api/operations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) as Promise<{ run: any }>,
+    request('/api/operations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) as Promise<{ run: any; alreadyActive?: boolean }>,
   cancelOperation: (runId: string) => request(`/api/operations/${runId}/cancel`, { method: 'POST' }) as Promise<{ run: any }>,
 
   // Settings

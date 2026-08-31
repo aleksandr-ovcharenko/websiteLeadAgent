@@ -52,6 +52,20 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
     setOptimistic({});
   }, [lead.id]);
 
+  useEffect(() => {
+    setOptimistic(prev => {
+      const { stages } = computeQualification(lead);
+      const next: Record<string, 'RUNNING' | 'PENDING'> = {};
+      for (const [key, value] of Object.entries(prev)) {
+        const stage = stages.find(s => s.id === key);
+        const terminal = stage && ['SUCCESS', 'FAILED', 'FOUND', 'SKIPPED', 'UNREVIEWED', 'NOT_FOUND'].includes(stage.status);
+        if (value === 'RUNNING' && terminal) continue;
+        next[key] = value;
+      }
+      return next;
+    });
+  }, [lead]);
+
   const visual = lead.visualAnalysis || {};
   const lh = lead.lighthouseReport || {};
   const scores = lead.scoreDetailsV2?.parts || {};

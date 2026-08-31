@@ -37,6 +37,7 @@ export class OpenAiVisualAnalysisProvider implements VisualAnalysisProvider {
       lighthouse: input.lighthouse,
       rubric: {
         scale: 'All numeric fields are integers 1..10 (1=very poor, 10=excellent).',
+        numericFormat: 'MUST be JSON numbers, not strings. CORRECT: "modernity": 7. WRONG: "modernity": "7".',
         limits: { problemsMax: 6, strengthsMax: 4, summaryMaxChars: 250 }
       },
       requiredJsonSchema: {
