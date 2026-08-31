@@ -20,22 +20,33 @@ function randomToken() {
   return Math.random().toString(36).slice(2, 10);
 }
 
+type ActivityPayload = { module: string; eventType: string; message: string; details?: Record<string, any>; level?: 'INFO' | 'WARN' | 'ERROR' };
+export type ActivityHandler = (p: ActivityPayload) => Promise<void>;
+
 export interface GenerateOptions {
   leadId: string;
   templateId?: string;
   force?: boolean;
   prisma?: PrismaClient;
+  onActivity?: ActivityHandler;
 }
 
 export async function generateSite(options: GenerateOptions) {
   const prisma = options.prisma ?? new PrismaClient();
   const templateId = options.templateId ?? 'construction-modern-v1';
+  const onActivity = options.onActivity;
+  const emit = async (level: 'INFO' | 'WARN' | 'ERROR', eventType: string, message: string, details?: Record<string, any>) => {
+    if (onActivity) await onActivity({ module: 'FACTORY', eventType, message, details, level }).catch(() => {});
+  };
+
 
   const l = await (prisma as any).lead.findUnique({
     where: { id: options.leadId },
     include: { site: true }
   });
   if (!l) throw new Error(`Lead not found: ${options.leadId}`);
+
+  await emit('INFO', 'FACTORY_STARTED', 'Starting site generation', { leadId: l.id });
 
   if (l.manualReviewStatus !== 'GOOD') {
     throw new Error(`Lead ${l.id} is not GOOD (status: ${l.manualReviewStatus})`);
@@ -73,7 +84,9 @@ export async function generateSite(options: GenerateOptions) {
   await mkdir(artifactDir, { recursive: true });
 
   try {
+    await emit('INFO', 'FACTORY_CRAWL_STARTED', 'Crawling source website', { baseUrl });
     const { pages: crawled, navigation } = await crawlSite({ baseUrl, maxPages: 40, maxDepth: 4 });
+    await emit('INFO', 'FACTORY_CRAWL_COMPLETED', `Crawled ${crawled.length} pages`, { pages: crawled.length });
 
     await (prisma as any).redesignRun.update({
       where: { id: run.id },
@@ -86,6 +99,7 @@ export async function generateSite(options: GenerateOptions) {
 
     const content = extractFromCrawl(crawled, baseUrl, navigation);
     await writeFile(join(artifactDir, 'content.json'), JSON.stringify(content, null, 2));
+    await emit('INFO', 'FACTORY_CONTENT_TRANSFORMED', 'Content extracted and transformed', { pages: content?.pages?.length ?? 0 });
 
     await (prisma as any).redesignRun.update({
       where: { id: run.id },
@@ -101,6 +115,7 @@ export async function generateSite(options: GenerateOptions) {
 
     const domain = l.websiteDomain || l.website.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
+    await emit('INFO', 'FACTORY_CMS_IMPORT_STARTED', 'Importing to CMS');
     const { siteId, previewSlug, demoVariantId } = await importToCms({
       leadId: l.id,
       siteName: l.companyName || 'Generated Site',
@@ -111,6 +126,7 @@ export async function generateSite(options: GenerateOptions) {
       artifactDir,
       storageBaseUrl: '/redesign-media'
     }, prisma);
+    await emit('INFO', 'FACTORY_CMS_IMPORT_COMPLETED', 'CMS import completed', { siteId, demoVariantId, previewSlug });
 
     await (prisma as any).site.update({
       where: { id: siteId },
@@ -165,8 +181,10 @@ export async function generateSite(options: GenerateOptions) {
 
     const validation = await validateGeneratedSite({ siteId, prisma });
     if (!validation.ok) {
+      await emit('ERROR', 'FACTORY_VALIDATION_FAILED', 'Demo generation validation failed', { missing: validation.missing });
       throw new Error(`Demo generation incomplete: ${validation.missing.join(', ')}`);
     }
+    await emit('INFO', 'FACTORY_VALIDATION_PASSED', 'Demo validation passed', { siteId });
 
     await (prisma as any).redesignRun.update({
       where: { id: run.id },
@@ -177,8 +195,10 @@ export async function generateSite(options: GenerateOptions) {
       data: { redesignStage: 'DEMO_GENERATED' } as any
     });
 
+    await emit('INFO', 'FACTORY_COMPLETED', 'Site generation completed', { siteId, previewSlug });
     return { leadId: l.id, siteId, previewSlug, runId: run.id, validation };
   } catch (err: any) {
+    await emit('ERROR', 'FACTORY_FAILED', `Site generation failed: ${err?.message || String(err)}`, { error: err?.message || String(err) });
     await (prisma as any).redesignRun.update({
       where: { id: run.id },
       data: { errorMessage: err?.message || String(err) }

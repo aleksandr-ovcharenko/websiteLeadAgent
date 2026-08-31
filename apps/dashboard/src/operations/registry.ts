@@ -379,6 +379,17 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
           leadId: input.leadId,
           force: input.force ?? false,
           prisma: deps.prisma,
+          onActivity: async (event: { level?: 'INFO' | 'WARN' | 'ERROR'; module: string; eventType: string; message: string; details?: Record<string, any> }) => {
+            await deps.activity.log({
+              level: event.level ?? 'INFO',
+              module: 'FACTORY',
+              eventType: event.eventType,
+              message: event.message,
+              runId: ctx.runId,
+              leadId: input.leadId,
+              details: event.details,
+            });
+          },
         });
         await ctx.success(`Site generated: ${result.previewSlug}`, { stage: 'site_rendered', metadata: result });
         return result;
