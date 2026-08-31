@@ -9,6 +9,10 @@
     "src/construction-modern-v1/*.tsx",
     "src/construction-modern-v1/index.css",
     "src/construction-modern-v1/imports/**/*",
-    "src/construction-modern-v1/vite-env.d.ts"
+    "src/construction-modern-v1/vite-env.d.ts",
+    "src/construction-industrial-v1/*.tsx",
+    "src/construction-industrial-v1/index.css",
+    "src/construction-industrial-v1/imports/**/*",
+    "src/construction-industrial-v1/vite-env.d.ts"
   ]
 }

@@ -32,7 +32,22 @@ async function renderPreview(req: Request, res: Response) {
   const raw = (req.params[0] as string) || '';
   const { route, subRoute } = fmtRoute([raw]);
 
-  const site = await (prisma as any).site.findUnique({ where: { previewToken } });
+  let site: any = null;
+  let templateId = '';
+
+  const variant = await (prisma as any).demoVariant.findUnique({
+    where: { previewToken },
+    include: { site: true }
+  });
+
+  if (variant?.site) {
+    site = variant.site;
+    templateId = variant.templateId;
+  } else {
+    site = await (prisma as any).site.findUnique({ where: { previewToken } });
+    templateId = site?.templateId || 'construction-modern-v1';
+  }
+
   if (!site) { res.status(404).send('Site not found'); return; }
 
   const settings = await (prisma as any).siteSettings.findUnique({ where: { siteId: site.id } }) ?? {};
@@ -68,7 +83,7 @@ async function renderPreview(req: Request, res: Response) {
   const logo = settings.logoMediaId ? mediaMap.get(settings.logoMediaId) : undefined;
   const favicon = settings.faviconMediaId ? mediaMap.get(settings.faviconMediaId) : undefined;
 
-  const render = templates[site.templateId] || templates['construction-modern-v1'];
+  const render = templates[templateId] || templates['construction-modern-v1'];
   const html = render({
     site,
     settings,

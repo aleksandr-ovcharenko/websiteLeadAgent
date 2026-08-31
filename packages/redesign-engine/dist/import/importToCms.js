@@ -32,6 +32,21 @@ export async function importToCms(options, prisma = new PrismaClient()) {
         }
     });
     const siteId = site.id;
+    const demoVariant = await prisma.demoVariant.create({
+        data: {
+            siteId,
+            templateId: options.templateId,
+            previewToken: options.previewSlug,
+            name: options.templateId,
+            isPreferred: true,
+            status: 'ACTIVE',
+            themeConfig: site.themeConfig
+        }
+    });
+    await prisma.site.update({
+        where: { id: siteId },
+        data: { preferredDemoVariantId: demoVariant.id }
+    });
     const mediaDir = join('data/generated/sites', siteId, 'media');
     await mkdir(mediaDir, { recursive: true });
     const storage = new LocalFilesystemMediaStorage({ baseDir: mediaDir, baseUrl: `/site-media/${siteId}` });
@@ -380,5 +395,5 @@ export async function importToCms(options, prisma = new PrismaClient()) {
         media: await prisma.media.count({ where: { siteId } }),
         menuItems: await prisma.menuItem.count({ where: { siteId } })
     };
-    return { siteId, siteSlug: options.siteSlug, previewSlug: options.previewSlug, stats };
+    return { siteId, siteSlug: options.siteSlug, previewSlug: options.previewSlug, demoVariantId: demoVariant.id, stats };
 }

@@ -1,5 +1,4 @@
 @import 'tailwindcss';
-@import 'tw-animate-css';
 
 @theme inline { --color-background: var(--background); --color-foreground: var(--foreground); --color-primary: var(--primary); --color-primary-foreground: var(--primary-foreground); --color-border: var(--border); --color-muted-foreground: var(--muted-foreground); --color-surface: var(--surface); --color-surface-strong: var(--surface-strong); --color-graphite: var(--graphite); --color-graphite-muted: var(--graphite-muted); --color-accent-soft: var(--accent-soft); --font-sans: 'Arial', sans-serif; --font-mono: 'Courier New', monospace; }
 :root { --background: #e8e5df; --foreground: #252a29; --primary: #b4774e; --primary-foreground: #fffaf4; --border: #b9b8b1; --muted-foreground: #686b68; --surface: #f4f2ed; --surface-strong: #d9d6cf; --graphite: #252a29; --graphite-muted: #454b48; --accent-soft: #d8bca7; }

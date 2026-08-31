@@ -77,7 +77,7 @@ export async function generateSite(options) {
         const siteSlugBase = slugify(l.companyName || l.websiteDomain || 'site');
         const siteSlug = `${siteSlugBase}-${l.id.slice(-6)}`;
         const domain = l.websiteDomain || l.website.replace(/^https?:\/\//, '').replace(/\/$/, '');
-        const { siteId, previewSlug } = await importToCms({
+        const { siteId, previewSlug, demoVariantId } = await importToCms({
             leadId: l.id,
             siteName: l.companyName || 'Generated Site',
             siteSlug,
@@ -119,6 +119,7 @@ export async function generateSite(options) {
         await prisma.siteBuild.create({
             data: {
                 siteId,
+                demoVariantId,
                 templateId,
                 status: 'SUCCESS',
                 outputPath: `data/generated/sites/${siteId}`

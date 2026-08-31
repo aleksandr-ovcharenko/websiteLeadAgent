@@ -33,6 +33,7 @@ export interface ImportResult {
   siteId: string;
   siteSlug: string;
   previewSlug: string;
+  demoVariantId: string;
   stats: {
     pages: number;
     services: number;
@@ -65,6 +66,23 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   });
 
   const siteId = site.id;
+
+  const demoVariant = await (prisma as any).demoVariant.create({
+    data: {
+      siteId,
+      templateId: options.templateId,
+      previewToken: options.previewSlug,
+      name: options.templateId,
+      isPreferred: true,
+      status: 'ACTIVE',
+      themeConfig: site.themeConfig as any
+    } as any
+  });
+
+  await (prisma as any).site.update({
+    where: { id: siteId },
+    data: { preferredDemoVariantId: demoVariant.id } as any
+  });
 
   const mediaDir = join('data/generated/sites', siteId, 'media');
   await mkdir(mediaDir, { recursive: true });
@@ -433,5 +451,5 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
     menuItems: await prisma.menuItem.count({ where: { siteId } as any })
   };
 
-  return { siteId, siteSlug: options.siteSlug, previewSlug: options.previewSlug, stats };
+  return { siteId, siteSlug: options.siteSlug, previewSlug: options.previewSlug, demoVariantId: demoVariant.id, stats };
 }

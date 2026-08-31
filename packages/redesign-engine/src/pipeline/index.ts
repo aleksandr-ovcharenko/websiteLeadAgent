@@ -101,7 +101,7 @@ export async function generateSite(options: GenerateOptions) {
 
     const domain = l.websiteDomain || l.website.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
-    const { siteId, previewSlug } = await importToCms({
+    const { siteId, previewSlug, demoVariantId } = await importToCms({
       leadId: l.id,
       siteName: l.companyName || 'Generated Site',
       siteSlug,
@@ -147,6 +147,7 @@ export async function generateSite(options: GenerateOptions) {
     await (prisma as any).siteBuild.create({
       data: {
         siteId,
+        demoVariantId,
         templateId,
         status: 'SUCCESS',
         outputPath: `data/generated/sites/${siteId}`
