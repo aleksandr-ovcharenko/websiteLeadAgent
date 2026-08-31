@@ -26,6 +26,25 @@ function toBase64(buf: Buffer) {
   return buf.toString('base64');
 }
 
+function formatVisualError(err: any): { message: string; details?: any } {
+  if (err?.issues && Array.isArray(err.issues)) {
+    const numeric = err.issues
+      .filter((issue: any) => ['modernity', 'visualQuality', 'mobileUX', 'trust', 'ctaQuality', 'contentStructure', 'visualHierarchy', 'brandConsistency', 'redesignPotential'].includes(issue.path?.[0]))
+      .map((issue: any) => ({ field: issue.path?.[0], message: issue.message }));
+    if (numeric.length > 0) {
+      return {
+        message: `AI response validation failed: expected numeric scores but received invalid values for ${numeric.map((n: any) => n.field).join(', ')}.`,
+        details: { fields: numeric }
+      };
+    }
+    return {
+      message: `AI response validation failed: ${err.issues.map((i: any) => `${i.path?.join('.') ?? 'value'}: ${i.message}`).join('; ')}`,
+      details: { issues: err.issues }
+    };
+  }
+  return { message: err instanceof Error ? err.message : String(err) };
+}
+
 async function readJsonIfExists(path: string): Promise<unknown | null> {
   try {
     const raw = await readFile(path, 'utf-8');
@@ -128,6 +147,7 @@ export async function runVisualAnalysisForLead(input: {
     : null;
 
   const maxAttempts = 2;
+  const attemptErrors: { message: string; details?: any; attempt: number }[] = [];
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -252,22 +272,25 @@ export async function runVisualAnalysisForLead(input: {
       logger.info({ runId, leadId, attempt }, 'visual.success');
       return { status: 'SUCCESS' as const };
     } catch (err) {
-      logger.warn({ runId, leadId, attempt, err }, 'visual.attempt_failed');
+      const formatted = formatVisualError(err);
+      attemptErrors.push({ ...formatted, attempt });
+      logger.warn({ runId, leadId, attempt, error: formatted.message }, 'visual.attempt_failed');
       if (attempt === maxAttempts) {
+        const summary = attemptErrors.map((a) => `Attempt ${a.attempt}: ${a.message}`).join(' | ');
         await (prisma as any).visualAnalysis.update({
           where: { leadId },
           data: {
             status: 'FAILED',
-            errorMessage: err instanceof Error ? err.message : String(err),
+            errorMessage: summary,
             model: 'unknown',
             promptVersion
           }
         });
 
-        return { status: 'FAILED' as const };
+        return { status: 'FAILED' as const, error: summary, attempts: attemptErrors };
       }
     }
   }
 
-  return { status: 'FAILED' as const };
+  return { status: 'FAILED' as const, error: attemptErrors.map((a) => a.message).join(' | '), attempts: attemptErrors };
 }

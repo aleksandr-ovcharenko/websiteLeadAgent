@@ -190,7 +190,7 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
         }
         const provider = visualProvider(deps.env);
         await ctx.stage('visual', 'Running AI visual analysis');
-        const { status } = await runVisualAnalysisForLead({
+        const { status, error, attempts } = await runVisualAnalysisForLead({
           prisma: deps.prisma,
           logger: deps.logger,
           provider,
@@ -200,7 +200,15 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
           force: input.force ?? false,
         });
         if (status === 'SKIPPED') await ctx.warn('Visual analysis skipped — already completed or not ready');
-        else await ctx.success('Visual analysis complete', { stage: 'visual' });
+        else if (status === 'FAILED') {
+          await ctx.error('Visual analysis failed', { stage: 'visual', metadata: { error, attempts } });
+          throw new Error(error || 'Visual analysis failed');
+        } else {
+          if (attempts && attempts.length > 1) {
+            await ctx.warn('AI response required normalization on first attempt; succeeded on retry', { stage: 'visual', metadata: { attempts } });
+          }
+          await ctx.success('Visual analysis complete', { stage: 'visual' });
+        }
         return { leadId: lead.id, status };
       },
     },
