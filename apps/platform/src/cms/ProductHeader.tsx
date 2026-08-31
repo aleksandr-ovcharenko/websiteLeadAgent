@@ -4,12 +4,21 @@ import { IconChevronLeft, IconChevronDown, IconExternal, IconBell } from './icon
 
 export type ProductArea = 'hub' | 'radar' | 'factory' | 'forge' | 'studio'
 
+interface DemoVariant {
+  id: string
+  name: string
+  templateId: string
+  previewToken: string
+  isPreferred: boolean
+}
+
 interface SiteContext {
   id: string
   name: string
   domain: string
   initials: string
   previewToken: string
+  demoVariants: DemoVariant[]
 }
 
 interface ProductHeaderProps {
@@ -27,12 +36,15 @@ function getInitials(name: string) {
 }
 
 function mapSite(s: any): SiteContext {
+  const variants = s.demoVariants || []
+  const preferred = variants.find((v: DemoVariant) => v.isPreferred) || variants[0]
   return {
     id: s.id,
     name: s.name || 'Untitled',
     domain: s.domain || '—',
     initials: getInitials(s.name || ''),
-    previewToken: s.previewToken || '',
+    previewToken: preferred?.previewToken || s.previewToken || '',
+    demoVariants: variants,
   }
 }
 
@@ -79,11 +91,13 @@ const AREA_LABELS: { area: Exclude<ProductArea, 'hub' | 'studio'>; label: string
 
 export default function ProductHeader({ productArea, siteId, user, onNavigate }: ProductHeaderProps) {
   const [siteOpen, setSiteOpen] = useState(false)
+  const [showcaseOpen, setShowcaseOpen] = useState(false)
   const [showcaseVisible, setShowcaseVisible] = useState(false)
   const [availableSites, setAvailableSites] = useState<SiteContext[]>([])
   const [currentSite, setCurrentSite] = useState<SiteContext | null>(null)
   const [sitesLoading, setSitesLoading] = useState(false)
   const siteRef = useRef<HTMLDivElement>(null)
+  const showcaseRef = useRef<HTMLDivElement>(null)
 
   const userRole = user?.globalRole?.toLowerCase() ?? 'editor'
   const isSuperAdmin = userRole === 'super_admin'
@@ -93,6 +107,7 @@ export default function ProductHeader({ productArea, siteId, user, onNavigate }:
   useEffect(() => {
     function handler(e: MouseEvent) {
       if (siteRef.current && !siteRef.current.contains(e.target as Node)) setSiteOpen(false)
+      if (showcaseRef.current && !showcaseRef.current.contains(e.target as Node)) setShowcaseOpen(false)
     }
     document.addEventListener('mousedown', handler)
     return () => document.removeEventListener('mousedown', handler)
@@ -228,13 +243,43 @@ export default function ProductHeader({ productArea, siteId, user, onNavigate }:
               <span className="text-[12px] text-gray-500">Active</span>
             </div>
 
-            <button
-              onClick={handleShowcase}
-              className="flex items-center gap-1.5 h-[30px] px-3 rounded border border-gray-200 text-[12px] text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors flex-shrink-0"
-            >
-              <IconExternal size={11} />
-              Open Showcase
-            </button>
+            <div className="relative" ref={showcaseRef}>
+              <button
+                onClick={() => setShowcaseOpen(o => !o)}
+                className="flex items-center gap-1.5 h-[30px] px-3 rounded border border-gray-200 text-[12px] text-gray-600 hover:bg-gray-50 hover:border-gray-300 transition-colors flex-shrink-0"
+              >
+                <IconExternal size={11} />
+                Open Showcase
+                <IconChevronDown size={10} />
+              </button>
+
+              {showcaseOpen && currentSite && (
+                <div className="absolute top-full right-0 mt-1 w-64 bg-white border border-gray-200 rounded shadow-lg z-50">
+                  <div className="px-3 pt-2.5 pb-1.5 border-b border-gray-100">
+                    <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider">Choose variant</p>
+                  </div>
+                  <div className="py-1 max-h-64 overflow-y-auto">
+                    {currentSite.demoVariants.map(v => (
+                      <button
+                        key={v.id}
+                        onClick={() => {
+                          setShowcaseVisible(true)
+                          window.open(`/showcase/${v.previewToken}`, '_blank', 'noopener,noreferrer')
+                          setShowcaseOpen(false)
+                        }}
+                        className="w-full flex items-center justify-between px-3 py-2 text-left hover:bg-gray-50 transition-colors"
+                      >
+                        <div>
+                          <p className="text-[12px] font-medium text-gray-900">{v.name || v.templateId}</p>
+                          <p className="text-[10px] text-gray-400 font-mono">{v.templateId}</p>
+                        </div>
+                        {v.isPreferred && <span className="text-[10px] text-amber-600">preferred</span>}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </>
         )}
 

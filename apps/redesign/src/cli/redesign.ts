@@ -15,6 +15,7 @@ Usage:
 
 Templates:
   construction-modern-v1  (default)
+  construction-industrial-v1
 
 Pipeline:
   validate lead -> crawl -> extract -> import to CMS

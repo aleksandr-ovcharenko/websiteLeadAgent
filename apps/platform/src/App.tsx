@@ -16,6 +16,14 @@ type Status =
 
 type ViewMode = "table" | "visual";
 
+interface DemoVariant {
+  id: string;
+  name: string;
+  templateId: string;
+  previewToken: string;
+  isPreferred: boolean;
+}
+
 interface Site {
   id: string;
   name: string;
@@ -37,6 +45,7 @@ interface Site {
   previewCaptured: string;
   previewOutdated?: boolean;
   image: string;
+  demoVariants: DemoVariant[];
 }
 
 const IMG = (id: string, w = 800, h = 500) =>
@@ -45,6 +54,7 @@ const IMG = (id: string, w = 800, h = 500) =>
 
 const TEMPLATES = [
   "construction-modern-v1",
+  "construction-industrial-v1",
   "construction-premium-v2",
   "roofing-clean-v1",
   "residential-warm-v1",
@@ -321,6 +331,28 @@ function DetailPanel({
           </div>
         )}
 
+        {(site.demoVariants || []).length > 0 && (
+          <div className="px-5 py-4 border-b border-stone-100">
+            <p className="text-[11px] font-mono text-stone-400 uppercase tracking-wider mb-2">Demo variants</p>
+            <div className="flex flex-col gap-2">
+              {site.demoVariants.map((v) => (
+                <div key={v.id} className="flex items-center justify-between gap-2 text-xs">
+                  <span className="text-stone-700 truncate">{v.name || v.templateId}</span>
+                  <div className="flex items-center gap-2">
+                    {v.isPreferred && <span className="text-[10px] text-amber-600">preferred</span>}
+                    <button
+                      onClick={() => window.open(`/showcase/${v.previewToken}`, '_blank')}
+                      className="px-2 h-6 border border-stone-200 rounded hover:bg-stone-50"
+                    >
+                      Open
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
         <div className="px-5 py-4 mt-auto flex flex-col gap-2">
           <button
             onClick={onOpenCMS}
@@ -339,7 +371,7 @@ function DetailPanel({
               onClick={onOpenPreview}
               className="h-8 border border-stone-200 text-stone-700 text-xs rounded hover:bg-stone-50 transition-colors"
             >
-              Open preview
+              Open preferred
             </button>
           </div>
           <button

@@ -53,6 +53,8 @@ async function toPlatformSite(site: any): Promise<any> {
   const stageLabel = getPipelineStageLabel(site.lead?.redesignStage);
   const { attention, attentionAction } = computeAttention(site, screenshot);
   const image = screenshot ? screenshot.url : 'https://via.placeholder.com/800x500?text=No+preview';
+  const variants = site.demoVariants ?? [];
+  const preferred = variants.find((v: any) => v.isPreferred) ?? variants[0];
 
   return {
     id: site.id,
@@ -74,7 +76,8 @@ async function toPlatformSite(site: any): Promise<any> {
     image,
     attention,
     attentionAction,
-    previewToken: site.previewToken,
+    previewToken: preferred?.previewToken ?? site.previewToken,
+    demoVariants: variants.map((v: any) => ({ id: v.id, name: v.name, templateId: v.templateId, previewToken: v.previewToken, isPreferred: v.isPreferred })),
     stageLabel
   };
 }
@@ -102,7 +105,8 @@ router.get('/api/platform/sites', async (_req: Request, res: Response) => {
   const sites = await prisma.site.findMany({
     include: {
       lead: { select: { redesignStage: true } },
-      builds: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, createdAt: true } }
+      builds: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, createdAt: true } },
+      demoVariants: true
     },
     orderBy: { updatedAt: 'desc' }
   });
@@ -116,7 +120,8 @@ router.get('/api/platform/sites/:siteId', async (req: Request, res: Response) =>
     where: { id: siteId },
     include: {
       lead: { select: { redesignStage: true } },
-      builds: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, createdAt: true } }
+      builds: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, createdAt: true } },
+      demoVariants: true
     }
   });
   if (!site) { res.status(404).json({ error: 'not_found' }); return; }
@@ -256,6 +261,49 @@ router.get('/api/factory/runs', requireSuperAdmin, async (_req: Request, res: Re
   });
 
   res.json({ runs });
+});
+
+router.post('/api/platform/sites/:siteId/variants', async (req: Request, res: Response) => {
+  const siteId = String(req.params.siteId);
+  const { templateId } = req.body;
+  if (!templateId) { res.status(400).json({ error: 'missing_template' }); return; }
+  const site = await prisma.site.findUnique({ where: { id: siteId } });
+  if (!site) { res.status(404).json({ error: 'not_found' }); return; }
+  const existing = await (prisma as any).demoVariant.findFirst({ where: { siteId, templateId } });
+  if (existing) { res.status(409).json({ error: 'variant_exists' }); return; }
+
+  const variant = await (prisma as any).demoVariant.create({
+    data: {
+      siteId,
+      templateId,
+      previewToken: randomToken(),
+      name: templateId,
+      status: 'ACTIVE',
+      isPreferred: false,
+      themeConfig: site.themeConfig as any
+    } as any
+  });
+
+  await (prisma as any).siteBuild.create({
+    data: {
+      siteId,
+      demoVariantId: variant.id,
+      templateId,
+      status: 'SUCCESS',
+      outputPath: `data/generated/sites/${siteId}`
+    } as any
+  });
+
+  res.json({ ok: true, variant });
+});
+
+router.delete('/api/platform/sites/:siteId/variants/:variantId', async (req: Request, res: Response) => {
+  const siteId = String(req.params.siteId);
+  const variantId = String(req.params.variantId);
+  const variant = await (prisma as any).demoVariant.findFirst({ where: { id: variantId, siteId } });
+  if (!variant) { res.status(404).json({ error: 'not_found' }); return; }
+  await (prisma as any).demoVariant.delete({ where: { id: variantId } });
+  res.json({ ok: true });
 });
 
 router.post('/api/factory/runs/:runId/retry', requireSuperAdmin, async (req: Request, res: Response) => {
