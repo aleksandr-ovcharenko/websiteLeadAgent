@@ -13,7 +13,8 @@ export const STAGE_ICONS: Record<string, string> = {
   SKIPPED: '⊘',
   FAILED: '✕',
   PENDING: '○',
-  RUNNING: '⏵',
+  WAITING: '◌',
+  RUNNING: '◌',
   NOT_FOUND: '✕',
   UNREVIEWED: '○',
 };
@@ -22,6 +23,7 @@ export function stageColor(status: string) {
   if (['SUCCESS', 'FOUND'].includes(status)) return 'text-emerald-700 bg-emerald-50 border-emerald-200';
   if (['RUNNING'].includes(status)) return 'text-blue-700 bg-blue-50 border-blue-200';
   if (['PENDING', 'UNREVIEWED', 'UNKNOWN'].includes(status)) return 'text-amber-700 bg-amber-50 border-amber-200';
+  if (['WAITING'].includes(status)) return 'text-stone-500 bg-stone-50 border-stone-200';
   if (['FAILED', 'NOT_FOUND'].includes(status)) return 'text-red-700 bg-red-50 border-red-200';
   return 'text-stone-600 bg-stone-50 border-stone-200';
 }
@@ -31,6 +33,7 @@ export interface QualificationStage {
   label: string;
   status: string;
   reason?: string;
+  waitingFor?: string[];
 }
 
 export interface QualificationResult {
@@ -41,7 +44,42 @@ export interface QualificationResult {
   readyForReview: boolean;
 }
 
+const STAGE_ORDER = ['website', 'audit', 'screenshots', 'lighthouse', 'ai', 'scoring'] as const;
+
+const OVERRIDES: Record<string, string> = {
+  website: 'Website',
+  audit: 'Audit',
+  screenshots: 'Screenshots',
+  lighthouse: 'Lighthouse',
+  ai: 'AI analysis',
+  scoring: 'Scoring',
+};
+
+function runningOperationStage(lead: any, op: any): string | null {
+  if (!op) return null;
+  const oid = op.operationId;
+  if (oid === 'AUDIT_WEBSITE' || oid === 'RUN_FULL_QUALIFICATION') {
+    if (lead.auditStatus !== 'SUCCESS') return 'audit';
+    if (!lead.lighthouseReport) return 'lighthouse';
+    if (lead.visualAnalysis?.status !== 'SUCCESS') return 'ai';
+    if (lead.scoreStatus !== 'SUCCESS') return 'scoring';
+    return 'audit';
+  }
+  if (oid === 'RUN_LIGHTHOUSE') return 'lighthouse';
+  if (oid === 'RUN_VISUAL_ANALYSIS') return 'ai';
+  if (oid === 'RECALCULATE_SCORE') return 'scoring';
+  return null;
+}
+
 export function computeQualification(lead: any, optimistic: Record<string, 'RUNNING' | 'PENDING'> = {}): QualificationResult {
+  const active = (lead.activeOperations || []) as any[];
+  const runningStage = optimistic.audit ? 'audit' : runningOperationStage(lead, active[0]) || (active.length > 0 ? 'audit' : null);
+  const activeByStage = new Map<string, any>();
+  for (const op of active) {
+    const stage = runningOperationStage(lead, op);
+    if (stage) activeByStage.set(stage, op);
+  }
+
   const hasWebsite = !!lead.website;
   const websiteStatus = lead.websiteStatus || (hasWebsite ? 'FOUND' : 'NOT_FOUND');
   const websiteReason = lead.websiteIneligibilityReason;
@@ -49,27 +87,45 @@ export function computeQualification(lead: any, optimistic: Record<string, 'RUNN
   const auditReason = lead.auditErrorMessage;
   const screenshotsStatus = optimistic.audit || (lead.auditStatus === 'SUCCESS' ? 'SUCCESS' : (lead.auditStatus === 'FAILED' ? 'FAILED' : 'PENDING'));
   const screenshotsReason = lead.auditStatus === 'FAILED' ? lead.auditErrorMessage : undefined;
-  const lighthouseStatus = optimistic.lighthouse || (lead.lighthouseReport ? 'SUCCESS' : (lead.auditStatus === 'SUCCESS' ? 'PENDING' : 'PENDING'));
+  const rawLighthouse = lead.lighthouseReport ? 'SUCCESS' : (lead.auditStatus === 'SUCCESS' ? 'PENDING' : 'PENDING');
   const visual = lead.visualAnalysis || {};
-  const aiStatus = (optimistic.ai || visual.status || 'PENDING') as string;
-  const aiReason = visual.errorMessage;
-  const scoreStatus = (optimistic.scoring || lead.scoreStatus || 'PENDING') as string;
-  const scoreReason = (lead.scoreDetailsV2 as any)?.error;
+  const rawAi = visual.status || 'PENDING';
+  const rawScore = lead.scoreStatus || 'PENDING';
 
-  const stages: QualificationStage[] = [
-    { id: 'website', label: 'Website', status: websiteStatus, reason: websiteReason },
-    { id: 'audit', label: 'Audit', status: auditStatus, reason: auditReason },
-    { id: 'screenshots', label: 'Screenshots', status: screenshotsStatus, reason: screenshotsReason },
-    { id: 'lighthouse', label: 'Lighthouse', status: lighthouseStatus },
-    { id: 'ai', label: 'AI analysis', status: aiStatus, reason: aiReason },
-    { id: 'scoring', label: 'Scoring', status: scoreStatus, reason: scoreReason },
-  ];
+  const rawStatuses: Record<string, string> = {
+    website: websiteStatus,
+    audit: auditStatus,
+    screenshots: screenshotsStatus,
+    lighthouse: rawLighthouse,
+    ai: rawAi,
+    scoring: rawScore,
+  };
 
-  const validForReview = new Set(['SUCCESS', 'SKIPPED', 'FOUND']);
-  const firstBlockingIndex = stages.findIndex(s => !validForReview.has(s.status));
-  const firstBlocking = firstBlockingIndex >= 0 ? stages[firstBlockingIndex] : null;
-  const allQualified = firstBlockingIndex === -1;
+  const validForReview = new Set(['SUCCESS', 'SKIPPED', 'FOUND', 'PENDING']);
+  const firstBlockingIndex = STAGE_ORDER.findIndex(s => !['SUCCESS', 'SKIPPED', 'FOUND'].includes(rawStatuses[s]));
+  const firstBlocking = firstBlockingIndex >= 0 ? STAGE_ORDER[firstBlockingIndex] : null;
+
+  const stages: QualificationStage[] = STAGE_ORDER.map((id, i) => {
+    const base = rawStatuses[id];
+    const optimisticStatus = optimistic[id as keyof typeof optimistic];
+    let status = optimisticStatus || base;
+    const op = activeByStage.get(id);
+    if (op || (runningStage === id && !optimisticStatus)) {
+      if (status !== 'SUCCESS' && status !== 'FAILED' && status !== 'NOT_FOUND') status = 'RUNNING';
+    }
+    const label = OVERRIDES[id];
+    const incompleteBefore = STAGE_ORDER.slice(0, i).filter((s) => !['SUCCESS', 'SKIPPED', 'FOUND'].includes(rawStatuses[s]));
+    if (status === 'PENDING' && incompleteBefore.length > 0) {
+      status = 'WAITING';
+    }
+    const waitingFor = status === 'WAITING' ? incompleteBefore.map(s => OVERRIDES[s]) : undefined;
+    const reason = id === 'audit' ? auditReason : id === 'screenshots' ? screenshotsReason : id === 'ai' ? visual.errorMessage : id === 'scoring' ? (lead.scoreDetailsV2 as any)?.error : websiteReason;
+    return { id, label, status, reason, waitingFor };
+  });
+
+  const firstBlockingStage = firstBlocking ? stages[firstBlockingIndex] : null;
+  const allQualified = firstBlocking === null;
   const readyForReview = allQualified;
 
-  return { stages, firstBlocking, firstBlockingIndex, allQualified, readyForReview };
+  return { stages, firstBlocking: firstBlockingStage, firstBlockingIndex, allQualified, readyForReview };
 }

@@ -226,12 +226,12 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
       const context = await browser.newContext({ userAgent: 'Mozilla/5.0' });
       const page = await context.newPage();
       try {
+        await page.addInitScript({ content: 'window.__name = function __name(x){ return x; }; globalThis.__name = window.__name;' });
         const resp = await page.goto(url, { waitUntil: 'networkidle', timeout: timeoutMs }).catch(() => null);
         if (resp && (resp.status() >= 400)) {
           console.warn('crawl non-2xx', url, resp.status());
           continue;
         }
-        await page.addInitScript({ content: 'window.__name = function __name(x){ return x; };' });
         await handleCookieConsent(page);
         await page.waitForTimeout(200);
 

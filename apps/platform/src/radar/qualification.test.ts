@@ -32,13 +32,15 @@ describe('computeQualification', () => {
     expect(audit.status).toBe('FAILED');
     expect(audit.reason).toBe('Playwright Chromium is not installed.');
     expect(screenshots.status).toBe('FAILED');
-    expect(lighthouse.status).toBe('PENDING');
-    expect(ai.status).toBe('PENDING');
+    expect(lighthouse.status).toBe('WAITING');
+    expect(ai.status).toBe('WAITING');
+    expect(lighthouse.waitingFor).toEqual(['Audit', 'Screenshots']);
+    expect(ai.waitingFor).toEqual(['Audit', 'Screenshots', 'Lighthouse']);
     expect(result.firstBlocking?.id).toBe('audit');
     expect(result.firstBlocking?.reason).toBe('Playwright Chromium is not installed.');
     expect(result.readyForReview).toBe(false);
 
-    const blocked = result.stages.slice(result.firstBlockingIndex + 1).filter(s => s.status === 'PENDING');
+    const blocked = result.stages.slice(result.firstBlockingIndex + 1).filter(s => s.status === 'WAITING');
     expect(blocked.length).toBeGreaterThan(0);
     expect(blocked.map(s => s.id)).toEqual(expect.arrayContaining(['lighthouse', 'ai', 'scoring']));
   });
@@ -57,7 +59,8 @@ describe('computeQualification', () => {
 
     expect(result.stages.find(s => s.id === 'audit')!.status).toBe('SUCCESS');
     expect(lighthouse.status).toBe('RUNNING');
-    expect(ai.status).toBe('PENDING');
+    expect(ai.status).toBe('WAITING');
+    expect(ai.waitingFor).toEqual(['Lighthouse']);
     expect(result.firstBlocking?.id).toBe('lighthouse');
     expect(result.readyForReview).toBe(false);
   });

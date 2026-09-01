@@ -11,6 +11,7 @@ import { enrichLeads } from '../../../collector/src/enrichment/enrichLeads.js';
 import { generateSite } from '@minsk/redesign-engine';
 import type { RunContext } from './OperationService.js';
 import { ActivityService } from '../activity/ActivityService.js';
+import { QualificationOrchestrator } from '../qualification/QualificationOrchestrator.js';
 
 export interface OperationDefinition {
   label: string;
@@ -28,6 +29,7 @@ interface RegistryDeps {
   env: Record<string, string | undefined>;
   discovery: DiscoveryService;
   activity: ActivityService;
+  qualification: QualificationOrchestrator;
 }
 
 function visualProvider(env: Record<string, string | undefined>) {
@@ -204,8 +206,9 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
           await ctx.error('Visual analysis failed', { stage: 'visual', metadata: { error, attempts } });
           throw new Error(error || 'Visual analysis failed');
         } else {
-          if (attempts && attempts.length > 1) {
-            await ctx.warn('AI response required normalization on first attempt; succeeded on retry', { stage: 'visual', metadata: { attempts } });
+          const attemptList = attempts as any[] | undefined;
+          if (attemptList && attemptList.length > 1) {
+            await ctx.warn('AI response required normalization on first attempt; succeeded on retry', { stage: 'visual', metadata: { attempts: attemptList } });
           }
           await ctx.success('Visual analysis complete', { stage: 'visual' });
         }
@@ -294,83 +297,19 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
     RUN_FULL_QUALIFICATION: {
       label: 'Run full qualification',
       category: 'workflow',
-      description: 'Enrich, audit, run Lighthouse, run visual analysis and recalculate the lead score in one flow.',
+      description: 'Resume qualification from the first incomplete stage and auto-advance through the pipeline.',
       requiredRole: 'SUPER_ADMIN',
       inputSchema: { leadId: 'string', force: 'boolean' },
       supportsCancel: false,
       handler: async (ctx, input) => {
-        const force = input.force ?? false;
-        const lead = await deps.prisma.lead.findUnique({
-          where: { id: input.leadId },
-          select: {
-            id: true,
-            website: true,
-            websiteDomain: true,
-            auditStatus: true,
-            lighthouseReport: true,
-          },
-        });
-        if (!lead) throw new Error('Lead not found');
-
-        if ((!lead.website || force) && !input.skipEnrich) {
-          await ctx.stage('enrich', 'Enriching lead contact data');
-          await enrichLeads({ prisma: deps.prisma, logger: deps.logger, runId: ctx.runId, leadIds: [lead.id] });
-        } else {
-          await ctx.info('Skipping enrichment', { stage: 'enrich' });
-        }
-
-        if (lead.auditStatus !== 'SUCCESS' || force) {
-          await ctx.stage('audit', 'Auditing website');
-          const refreshed = await deps.prisma.lead.findUnique({ where: { id: lead.id }, select: { website: true } });
-          if (!refreshed?.website) throw new Error('No website available for audit');
-          await auditLeadWebsite({
-            prisma: deps.prisma,
-            logger: deps.logger,
-            runId: ctx.runId,
-            leadId: lead.id,
-            website: refreshed.website,
+        const force = input.force === true;
+        if (force) {
+          await deps.prisma.lead.update({
+            where: { id: input.leadId },
+            data: { auditStatus: 'PENDING', scoreStatus: 'PENDING' },
           });
-          const afterAudit = await deps.prisma.lead.findUnique({ where: { id: lead.id }, select: { auditStatus: true } });
-          if (afterAudit?.auditStatus !== 'SUCCESS') {
-            throw new Error(`Audit did not complete successfully for ${lead.id}`);
-          }
-        } else {
-          await ctx.info('Skipping audit', { stage: 'audit' });
         }
-
-        if (!lead.lighthouseReport || force) {
-          await ctx.stage('lighthouse', 'Running Lighthouse');
-          const refreshed = await deps.prisma.lead.findUnique({ where: { id: lead.id }, select: { website: true } });
-          if (!refreshed?.website) throw new Error('No website for Lighthouse');
-          const { reportPath, summary } = await runLighthouseForLead({ leadId: lead.id, url: refreshed.website });
-          await deps.prisma.lighthouseReport.upsert({
-            where: { leadId: lead.id },
-            create: { leadId: lead.id, reportPath, ...summary },
-            update: { reportPath, ...summary },
-          });
-        } else {
-          await ctx.info('Skipping Lighthouse', { stage: 'lighthouse' });
-        }
-
-        await ctx.stage('visual', 'Running visual analysis');
-        const provider = visualProvider(deps.env);
-        const { status } = await runVisualAnalysisForLead({
-          prisma: deps.prisma,
-          logger: deps.logger,
-          provider,
-          promptVersion: 'v1',
-          runId: ctx.runId,
-          leadId: lead.id,
-          force,
-        });
-        if (status === 'SKIPPED') await ctx.warn('Visual analysis skipped');
-        else await ctx.success('Visual analysis complete');
-
-        await ctx.stage('scoring', 'Recalculating lead score');
-        const result = await createRegistry(deps).RECALCULATE_SCORE.handler(ctx, { leadId: lead.id });
-
-        await ctx.success('Full qualification complete', { stage: 'complete' });
-        return { leadId: lead.id, score: result.score };
+        return deps.qualification.advance(input.leadId, ctx.runId);
       },
     },
 
@@ -439,17 +378,14 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
 
         await ctx.info(`Discovery run has ${all.length} leads, ${eligible.length} with websites. Qualifying ${todo.length} unqualified with concurrency ${concurrency}.`, { stage: 'eligibility' });
 
-        const registry = createRegistry(deps);
-        const qualify = registry.RUN_FULL_QUALIFICATION.handler;
-
         let index = 0;
         const workers = Array.from({ length: concurrency }, async () => {
           while (index < todo.length) {
             const i = index++;
             const lead = todo[i];
             try {
-              await qualify(ctx, { leadId: lead.id, force: false, skipEnrich: true });
-              await ctx.info(`Qualified ${i + 1}/${todo.length}: ${lead.id}`, { stage: 'progress' });
+              await deps.qualification.resume(lead.id, ctx.runId);
+              await ctx.info(`Started qualification ${i + 1}/${todo.length}: ${lead.id}`, { stage: 'progress' });
             } catch (err: any) {
               await ctx.warn(`Qualification failed for ${lead.id}: ${err.message}`, { stage: 'progress' });
             }

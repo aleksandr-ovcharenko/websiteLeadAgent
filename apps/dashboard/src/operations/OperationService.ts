@@ -5,6 +5,7 @@ import { createRegistry } from './registry.js';
 import type { OperationDefinition } from './registry.js';
 import type { DiscoveryService } from '../discovery/service.js';
 import { ActivityService } from '../activity/ActivityService.js';
+import { QualificationOrchestrator } from '../qualification/QualificationOrchestrator.js';
 
 export type OperationStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'INTERRUPTED';
 
@@ -76,18 +77,21 @@ export class OperationService {
   private cancellations = new Set<string>();
   private emitter = new EventEmitter();
   private activity: ActivityService;
+  public qualification: QualificationOrchestrator;
 
   constructor(input: { prisma: PrismaClient; logger: pino.Logger; env: Record<string, string | undefined>; discovery: DiscoveryService; activity: ActivityService }) {
     this.prisma = input.prisma;
     this.logger = input.logger;
     this.env = input.env;
     this.activity = input.activity;
+    this.qualification = new QualificationOrchestrator({ operations: this, prisma: input.prisma, logger: input.logger, activity: input.activity });
     this.registry = createRegistry({
       prisma: input.prisma,
       logger: input.logger,
       env: input.env,
       discovery: input.discovery,
       activity: input.activity,
+      qualification: this.qualification,
     });
   }
 
@@ -208,6 +212,11 @@ export class OperationService {
         data: { status: 'SUCCESS', finishedAt: new Date(), result: redactMetadata(result ?? null) },
       });
       await ctx.success('Operation completed successfully', { stage: 'complete' });
+      if (run.leadId) {
+        await this.qualification.advance(run.leadId, run.id).catch((err: any) => {
+          this.logger.warn({ leadId: run.leadId, err }, 'qualification.advance_failed');
+        });
+      }
     } catch (err: any) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn({ runId, err }, 'operation.failed');

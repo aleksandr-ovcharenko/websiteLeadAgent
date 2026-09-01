@@ -15,9 +15,10 @@ import { ActivityService } from './activity/ActivityService.js';
 const prisma = new PrismaClient();
 const app = express();
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
-const discovery = new DiscoveryService({ prisma, logger, env: process.env });
 const activity = new ActivityService({ prisma, logger });
+const discovery = new DiscoveryService({ prisma, logger, env: process.env, activity });
 const operations = new OperationService({ prisma, logger, env: process.env, discovery, activity });
+discovery.setQualificationOrchestrator(operations.qualification);
 
 app.use(sessionMiddleware);
 app.use(express.json());
@@ -260,8 +261,23 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
     } as any
   });
 
+  const activeOperations = await prisma.operationRun.findMany({
+    where: {
+      leadId: { in: leads.map((l: any) => l.id) },
+      status: { in: ['PENDING', 'RUNNING'] },
+    },
+    select: { id: true, operationId: true, leadId: true, status: true, createdAt: true },
+  });
+  const activeByLead = new Map<string, any[]>();
+  for (const op of activeOperations) {
+    const list = activeByLead.get(op.leadId) || [];
+    list.push(op);
+    activeByLead.set(op.leadId, list);
+  }
+
   const withReadiness = leads.map((l: any) => ({
     ...l,
+    activeOperations: activeByLead.get(l.id) || [],
     readyForReview: !!(
       l.websiteStatus === 'FOUND' &&
       l.auditStatus === 'SUCCESS' &&

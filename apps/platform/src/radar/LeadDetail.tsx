@@ -7,12 +7,14 @@ type Lead = any;
 
 const STATUS_LABELS: Record<string, string> = {
   PENDING: 'Pending',
+  WAITING: 'Waiting',
   SUCCESS: 'Complete',
   FAILED: 'Failed',
   SKIPPED: 'Skipped',
   UNKNOWN: 'Unknown',
   FOUND: 'Found',
   NOT_FOUND: 'Not found',
+  UNREVIEWED: 'Unreviewed',
 };
 
 function statusColor(status: string) {
@@ -109,10 +111,6 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
   const handleRunFullQualification = (force = false) => {
     onStart('RUN_FULL_QUALIFICATION', { leadId: lead.id, force });
     setRunning('audit');
-    setRunning('screenshots');
-    setRunning('lighthouse');
-    setRunning('ai');
-    setRunning('scoring');
   };
 
   const handleSelect = async () => {
@@ -134,10 +132,9 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
     const anyRunning = stages.some(s => s.status === 'RUNNING');
     if (anyRunning) return { label: 'Qualifying…', disabled: true };
     if (firstBlocking) {
-      const label = ['FAILED', 'NOT_FOUND'].includes(firstBlocking.status) ? `Retry ${firstBlocking.label}` : 'Run qualification';
-      const action = ['FAILED', 'NOT_FOUND'].includes(firstBlocking.status)
-        ? () => handleRetryStage(firstBlocking.id)
-        : () => handleRunFullQualification(false);
+      const failed = ['FAILED', 'NOT_FOUND'].includes(firstBlocking.status);
+      const label = failed ? `Retry ${firstBlocking.label}` : 'Run qualification';
+      const action = failed ? () => handleRetryStage(firstBlocking.id) : () => handleRunFullQualification(false);
       return { label, action, variant: 'primary' as const };
     }
     if (lead.site) return { label: 'Open site', action: () => { if (lead.site) window.open(`/showcase/${lead.site.previewToken}`, '_blank'); } };
@@ -219,16 +216,16 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
         <div className="px-5 py-4 border-b border-[#f0ede8]">
           <div className="text-[10px] font-mono text-[#a8a29e] uppercase tracking-wider mb-2">Qualification summary</div>
           <div className="space-y-1">
-            {stages.map((s, i) => {
+            {stages.map((s) => {
               const isBlocking = firstBlocking?.id === s.id;
-              const isPending = !['SUCCESS', 'SKIPPED', 'FOUND'].includes(s.status) && s.status !== 'RUNNING' && !isBlocking;
-              const waitingFor = isPending ? firstBlocking : null;
-              const status = isBlocking ? s.status : s.status;
+              const failed = ['FAILED', 'NOT_FOUND'].includes(s.status);
+              const rowClass = isBlocking && failed ? 'border-red-200 bg-red-50' : isBlocking && s.status === 'RUNNING' ? 'border-blue-200 bg-blue-50' : isBlocking ? 'border-amber-200 bg-amber-50' : 'border-transparent hover:bg-stone-50';
+              const iconClass = s.status === 'FAILED' || s.status === 'NOT_FOUND' ? 'text-red-600' : s.status === 'RUNNING' ? 'text-blue-600 animate-pulse' : ['SUCCESS', 'FOUND'].includes(s.status) ? 'text-emerald-600' : s.status === 'WAITING' ? 'text-stone-400' : 'text-amber-600';
               return (
-                <div key={s.id} className={`rounded border px-2.5 py-2 ${isBlocking ? 'border-red-200 bg-red-50' : 'border-transparent hover:bg-stone-50'}`}>
+                <div key={s.id} className={`rounded border px-2.5 py-2 ${rowClass}`}>
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
-                      <span className={`text-[12px] font-mono w-4 ${s.status === 'FAILED' || s.status === 'NOT_FOUND' ? 'text-red-600' : s.status === 'RUNNING' ? 'text-blue-600' : ['SUCCESS', 'FOUND'].includes(s.status) ? 'text-emerald-600' : 'text-amber-600'}`}>
+                      <span className={`text-[12px] font-mono w-4 ${iconClass}`}>
                         {STAGE_ICONS[s.status] || s.status[0]}
                       </span>
                       <span className="text-[12px] font-medium text-[#44403c]">{s.label}</span>
@@ -237,7 +234,15 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
                       {STATUS_LABELS[s.status] || s.status}
                     </span>
                   </div>
-                  {isBlocking && s.reason && (
+                  {s.status === 'RUNNING' && (
+                    <div className="mt-1 text-[11px] text-blue-700 font-mono pl-6">Running…</div>
+                  )}
+                  {s.waitingFor && s.status === 'WAITING' && (
+                    <div className="mt-1 text-[11px] text-stone-500 font-mono pl-6">
+                      Waiting for {s.waitingFor.join(', ')}.
+                    </div>
+                  )}
+                  {failed && s.reason && isBlocking && (
                     <div className="mt-1.5 text-[11px] text-red-800 font-mono pl-6">
                       {s.reason}
                       {s.reason.length > 80 && (
@@ -253,16 +258,11 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
                       )}
                     </div>
                   )}
-                  {isBlocking && (
+                  {failed && isBlocking && (
                     <div className="mt-1.5 text-[11px] text-red-800 font-mono pl-6">
                       <button onClick={() => handleRetryStage(s.id)} className="px-2 h-6 border border-red-300 rounded text-[10px] hover:bg-red-100">
                         Retry {s.label}
                       </button>
-                    </div>
-                  )}
-                  {waitingFor && (
-                    <div className="mt-1 text-[11px] text-amber-700 font-mono pl-6">
-                      Waiting for {waitingFor.label}.
                     </div>
                   )}
                 </div>

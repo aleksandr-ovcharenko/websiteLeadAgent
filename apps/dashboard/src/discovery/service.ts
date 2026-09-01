@@ -6,11 +6,14 @@ import { DISCOVERY_PRESETS } from './presets.js';
 import type { DiscoveryRequest, DiscoveryContext } from './types.js';
 import { enrichLeads } from '../../../collector/src/enrichment/enrichLeads.js';
 import { createRegistry } from '../operations/registry.js';
+import { ActivityService } from '../activity/ActivityService.js';
+import type { QualificationOrchestrator } from '../qualification/QualificationOrchestrator.js';
 
 export interface DiscoveryServiceInput {
   prisma: PrismaClient;
   logger: pino.Logger;
   env: Record<string, string | undefined>;
+  activity: ActivityService;
 }
 
 export interface StartDiscoveryInput {
@@ -29,11 +32,18 @@ export class DiscoveryService {
   private prisma: PrismaClient;
   private logger: pino.Logger;
   private env: Record<string, string | undefined>;
+  private activity: ActivityService;
+  private qualification?: QualificationOrchestrator;
 
   constructor(input: DiscoveryServiceInput) {
     this.prisma = input.prisma;
     this.logger = input.logger;
     this.env = input.env;
+    this.activity = input.activity;
+  }
+
+  setQualificationOrchestrator(qualification: QualificationOrchestrator) {
+    this.qualification = qualification;
   }
 
   private resolveRequest(input: StartDiscoveryInput): DiscoveryRequest {
@@ -166,11 +176,16 @@ export class DiscoveryService {
   private async qualifyRun(runId: string, concurrency: number, onProgress?: DiscoveryContext['onProgress']) {
     const run = await this.prisma.discoveryRun.findUnique({ where: { id: runId } });
     if (!run) return;
+    if (!this.qualification) {
+      throw new Error('Qualification orchestrator not set on DiscoveryService');
+    }
     const registry = createRegistry({
       prisma: this.prisma,
       logger: this.logger,
       env: this.env,
       discovery: this,
+      activity: this.activity,
+      qualification: this.qualification,
     });
     const ctx: any = {
       runId,
@@ -200,7 +215,7 @@ export class DiscoveryService {
         onProgress?.(message, options);
       },
       log: async (level: string, message: string, options?: any) => {
-        this.logger[level.toLowerCase()]({ runId, ...options?.metadata, stage: options?.stage ?? ctx.currentStage }, message);
+        (this.logger as any)[level.toLowerCase()]({ runId, ...options?.metadata, stage: options?.stage ?? ctx.currentStage }, message);
       },
       result: () => {},
       fail: (e: any) => { throw e; },
