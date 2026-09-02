@@ -38,16 +38,53 @@ export async function auditLeadWebsite(input: {
 
   try {
     await prisma.lead.update({ where: { id: leadId }, data: { auditErrorMessage: null } });
-    const context = await browser.newContext();
-
-    const page = await context.newPage();
+    let context = await browser.newContext();
+    let page = await context.newPage();
     page.setDefaultTimeout(30000);
     page.setDefaultNavigationTimeout(30000);
 
     await page.setViewportSize({ width: 1440, height: 1000 });
 
-    const response = await page.goto(website, { waitUntil: 'domcontentloaded' });
-    const finalUrl = page.url();
+    let response: import('playwright').Response | null = null;
+    let finalUrl = website;
+    let tlsWarning: { status: 'INVALID_CERTIFICATE'; error: string; message: string } | null = null;
+
+    try {
+      response = await page.goto(website, { waitUntil: 'domcontentloaded' });
+      finalUrl = page.url();
+    } catch (gotoErr) {
+      const errMessage = gotoErr instanceof Error ? gotoErr.message : String(gotoErr);
+      const isCertError = /ERR_CERT_DATE_INVALID|ERR_CERT_AUTHORITY_INVALID|ERR_CERT_COMMON_NAME_INVALID/.test(errMessage);
+
+      if (isCertError) {
+        const certCode = (errMessage.match(/ERR_CERT_[A-Z_]+/) || ['UNKNOWN_CERT'])[0];
+        tlsWarning = { status: 'INVALID_CERTIFICATE', error: certCode, message: 'Certificate is expired or invalid' };
+        await emit('WARN', 'AUDIT_TLS_WARNING', `TLS certificate validation failed (${certCode})`, {
+          tlsStatus: 'INVALID_CERTIFICATE',
+          tlsError: certCode,
+          tlsMessage: 'Certificate is expired or invalid',
+          currentUrl: website
+        });
+
+        // Retry with HTTPS errors ignored, scoped to this audit context only.
+        await context.close().catch(() => {});
+        context = await browser.newContext({ ignoreHTTPSErrors: true });
+        page = await context.newPage();
+        page.setDefaultTimeout(30000);
+        page.setDefaultNavigationTimeout(30000);
+        await page.setViewportSize({ width: 1440, height: 1000 });
+
+        try {
+          response = await page.goto(website, { waitUntil: 'domcontentloaded' });
+          finalUrl = page.url();
+        } catch (secondErr) {
+          const secondMessage = secondErr instanceof Error ? secondErr.message : String(secondErr);
+          throw new Error(`Audit failed after ignoring certificate errors: ${secondMessage}`);
+        }
+      } else {
+        throw gotoErr;
+      }
+    }
 
     await page.waitForTimeout(1000);
 
@@ -82,7 +119,8 @@ export async function auditLeadWebsite(input: {
       inputUrl: website,
       finalUrl,
       httpStatus,
-      crawl
+      crawl,
+      tls: tlsWarning
     };
 
     await writeFile(join(outDir, 'crawl.json'), JSON.stringify(payload, null, 2), 'utf-8');
@@ -97,12 +135,15 @@ export async function auditLeadWebsite(input: {
 
     await prisma.lead.update({
       where: { id: leadId },
-      data: { auditStatus: 'SUCCESS' }
+      data: {
+        auditStatus: 'SUCCESS',
+        auditErrorMessage: tlsWarning ? JSON.stringify(tlsWarning) : null
+      }
     });
-    await emit('INFO', 'AUDIT_COMPLETED', 'Audit completed successfully', { finalUrl, httpStatus });
+    await emit('INFO', 'AUDIT_COMPLETED', 'Audit completed successfully', { finalUrl, httpStatus, tls: tlsWarning });
 
-    logger.info({ runId, leadId, finalUrl, httpStatus }, 'audit.lead.success');
-    return { ok: true, httpStatus };
+    logger.info({ runId, leadId, finalUrl, httpStatus, tls: tlsWarning }, 'audit.lead.success');
+    return { ok: true, httpStatus, tls: tlsWarning };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await prisma.lead.update({

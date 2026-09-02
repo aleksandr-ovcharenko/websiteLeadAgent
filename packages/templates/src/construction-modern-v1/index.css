@@ -12,6 +12,8 @@
   --border: #C8D5CE;
   --card-bg: #E5EDEA;
   --overlay: rgba(15, 31, 28, 0.55);
+  --font-display: 'Geologica', sans-serif;
+  --font-body: 'Inter', sans-serif;
 }
 
 html,
@@ -34,7 +36,7 @@ html {
 }
 
 body {
-  font-family: 'Inter', sans-serif;
+  font-family: var(--font-body);
   background-color: var(--bg);
   color: var(--fg);
   -webkit-font-smoothing: antialiased;

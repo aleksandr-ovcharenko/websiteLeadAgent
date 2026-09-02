@@ -1,0 +1,41 @@
+{
+  "id": "xai",
+  "name": "xAI",
+  "source": "https://styles.refero.design/style/3b83dfe4-2f53-4a4d-819d-e6045ca5f7dc",
+  "theme": "light",
+  "description": "Warm cream laboratory with a black pill — restrained near-monochrome editorial system on warm-white canvas.",
+  "colors": {
+    "jetInk": "#0a0a0a",
+    "charcoal": "#151515",
+    "fog": "#858585",
+    "pewter": "#9d9d9d",
+    "steel": "#545454",
+    "dove": "#d5d9e2",
+    "cream": "#f9f8f6",
+    "paper": "#ffffff",
+    "sand": "#f2ede5"
+  },
+  "fonts": {
+    "primary": "universalSans",
+    "display": "universalSansDisplay",
+    "body": "universalSans",
+    "substitutes": {
+      "universalSans": "Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      "universalSansDisplay": "Söhne, GT America, Inter Display, ui-sans-serif, system-ui, sans-serif",
+      "GeistMono": "Geist Mono, JetBrains Mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace"
+    }
+  },
+  "tokens": {
+    "canvas": "#ffffff",
+    "card": "#f9f8f6",
+    "ink": "#0a0a0a",
+    "secondaryText": "#858585",
+    "border": "#d5d9e2",
+    "sectionGap": "80px",
+    "elementGap": "12px",
+    "buttonRadius": "9999px",
+    "cardRadius": "16px",
+    "inputRadius": "6px",
+    "pageMaxWidth": "1200px"
+  }
+}

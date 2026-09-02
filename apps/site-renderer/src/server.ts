@@ -102,7 +102,8 @@ async function renderPreview(req: Request, res: Response) {
     menu,
     mediaMap,
     route,
-    subRoute
+    subRoute,
+    stylePreset: req.query.style as string | undefined
   });
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   res.type('html').send(html);

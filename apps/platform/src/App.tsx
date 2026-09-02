@@ -1100,6 +1100,23 @@ export default function App({ user }: { user?: any }) {
   const [view, setView] = useState<ProductArea>(initial.view);
   const [studioSiteId, setStudioSiteId] = useState<string | undefined>(initial.siteId);
   const isSuperAdmin = user?.globalRole === 'SUPER_ADMIN';
+  const consoleRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = consoleRef.current;
+    if (!el) return;
+    const setHeight = () => {
+      const height = el.getBoundingClientRect().height;
+      document.documentElement.style.setProperty('--console-height', `${height}px`);
+    };
+    setHeight();
+    const ro = new ResizeObserver(setHeight);
+    ro.observe(el);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty('--console-height');
+    };
+  }, []);
 
   useEffect(() => {
     const onPop = () => {
@@ -1154,7 +1171,7 @@ export default function App({ user }: { user?: any }) {
     <div className="h-screen flex flex-col overflow-hidden bg-[#f4f5f7]">
       <ProductHeader productArea={view} siteId={view === 'studio' ? studioSiteId : undefined} user={user} onNavigate={navigate} />
       {renderContent()}
-      {isSuperAdmin && <ActivityConsole />}
+      {isSuperAdmin && <div ref={consoleRef} className="shrink-0 w-full"><ActivityConsole /></div>}
     </div>
   );
 }

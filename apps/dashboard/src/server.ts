@@ -366,8 +366,8 @@ app.post('/api/leads/:leadId/redesign', requireAuth, async (req: Request, res: R
   const leadId = String(req.params.leadId);
   const stage = typeof req.body?.stage === 'string' ? String(req.body.stage) : '';
   const stages = new Set([
-    'NOT_SELECTED', 'SELECTED_FOR_REDESIGN', 'CONTENT_EXTRACTED', 'CONTENT_TRANSFORMED',
-    'CMS_IMPORTED', 'SITE_RENDERED', 'AUDIT_DONE', 'DEMO_GENERATED', 'DEMO_APPROVED', 'READY_TO_CONTACT'
+    'NOT_SELECTED', 'SELECTED_FOR_REDESIGN', 'CRAWL_READY', 'CRAWL_FAILED', 'CONTENT_EXTRACTED',
+    'CONTENT_TRANSFORMED', 'CMS_IMPORTED', 'SITE_RENDERED', 'AUDIT_DONE', 'DEMO_GENERATED', 'DEMO_APPROVED', 'READY_TO_CONTACT'
   ]);
   if (!stages.has(stage)) {
     res.status(400).json({ error: 'invalid_stage' });
@@ -387,8 +387,9 @@ app.post('/api/leads/:leadId/generate', requireSuperAdmin, async (req: Request, 
   const leadId = String(req.params.leadId);
   const template = typeof req.body?.template === 'string' ? req.body.template : 'construction-modern-v1';
   const force = req.body?.force === true;
+  const crawlRunId = typeof req.body?.crawlRunId === 'string' ? req.body.crawlRunId : undefined;
   try {
-    const result = await generateSite({ leadId, templateId: template, force, prisma });
+    const result = await generateSite({ leadId, templateId: template, force, crawlRunId, prisma });
     res.json({ ok: true, ...result });
   } catch (err: any) {
     res.status(400).json({ error: err?.message || 'generation_failed' });

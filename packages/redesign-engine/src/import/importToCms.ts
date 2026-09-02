@@ -1,6 +1,6 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import { join } from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Prisma, SiteStatus, PageStatus, ContentSourceType } from '@prisma/client';
 import type { ExtractedContent } from '../../../content-schema/dist/index.js';
 import { LocalFilesystemMediaStorage } from '../../../media-storage/dist/index.js';
 
@@ -18,8 +18,53 @@ function randomId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+export function cleanPhoneDigits(input: string): string {
+  return input.replace(/[^\d+]/g, '');
+}
+
+export function normalizePhone(input?: string | null): string | undefined {
+  if (!input) return undefined;
+  // Some extraction returns noise like "15 +375(17)209 87 00" or
+  // "Реализация квартир: +375 (17) 209-87-32". Extract the best phone-like
+  // substring, preferring one that starts with + and has the most digits.
+  const phoneRe = /(\+\d[\d\s\(\)\-]{5,}|\d[\d\s\(\)\-]{6,})/g;
+  const candidates: { raw: string; digits: string }[] = [];
+  let m;
+  while ((m = phoneRe.exec(input)) !== null) {
+    const raw = m[0].trim();
+    const digits = raw.replace(/[^\d]/g, '');
+    if (digits.length >= 7) candidates.push({ raw, digits });
+  }
+  if (!candidates.length) return input.trim().replace(/[^\d+\s\(\)\-]/g, '').replace(/\s+/g, ' ').trim() || undefined;
+  candidates.sort((a, b) => {
+    const aHasPlus = a.raw.startsWith('+') ? 1 : 0;
+    const bHasPlus = b.raw.startsWith('+') ? 1 : 0;
+    if (aHasPlus !== bHasPlus) return bHasPlus - aHasPlus;
+    if (b.digits.length !== a.digits.length) return b.digits.length - a.digits.length;
+    return a.raw.length - b.raw.length;
+  });
+  const best = candidates[0].raw;
+  return best.replace(/[^\d+\s\(\)\-]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+const GENERIC_NAME_RE = /^\s*(контакты|о компании|о нас|главная|наши услуги|объекты|новости|вакансии)\s*$/i;
+
+export function isGenericCompanyName(name?: string | null): boolean {
+  if (!name) return true;
+  if (name.length < 2) return true;
+  return GENERIC_NAME_RE.test(name);
+}
+
+export interface LeadIdentity {
+  id: string;
+  companyName?: string | null;
+  phone?: string | null;
+  address?: string | null;
+}
+
 export interface ImportOptions {
   leadId: string;
+  lead: LeadIdentity;
   siteName: string;
   siteSlug: string;
   previewSlug: string;
@@ -50,38 +95,26 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   await writeFile(join(options.artifactDir, 'content.json'), JSON.stringify(options.content, null, 2));
 
   const previewUrl = `http://localhost:3000/showcase/${options.previewSlug}`;
+  const themeConfig = options.content.theme ? { ...options.content.theme, homepageSections: options.content.homepageSections, hero: options.content.hero, about: options.content.about, cta: options.content.cta } : {};
 
-  // Create site with site-specific theme config.
-  const site = await prisma.site.create({
-    data: {
-      leadId: options.leadId,
-      name: options.siteName,
-      slug: options.siteSlug,
-      previewToken: options.previewSlug,
-      templateId: options.templateId,
-      themeConfig: options.content.theme ? { ...options.content.theme, homepageSections: options.content.homepageSections, hero: options.content.hero, about: options.content.about, cta: options.content.cta } : ({} as any),
-      settings: { previewUrl } as any,
-      status: 'DRAFT'
-    } as any
+  // Canonical Site is upserted by leadId. Same previewToken and same id are kept on retry.
+  const site = await prisma.site.upsert({
+    where: { leadId: options.leadId },
+    update: { name: options.siteName, slug: options.siteSlug, previewToken: options.previewSlug, templateId: options.templateId, themeConfig, settings: { previewUrl } as any, status: 'DRAFT' },
+    create: { leadId: options.leadId, name: options.siteName, slug: options.siteSlug, previewToken: options.previewSlug, templateId: options.templateId, themeConfig: themeConfig as any, settings: { previewUrl } as any, status: 'DRAFT' }
   });
 
   const siteId = site.id;
 
-  const demoVariant = await (prisma as any).demoVariant.create({
-    data: {
-      siteId,
-      templateId: options.templateId,
-      previewToken: options.previewSlug,
-      name: options.templateId,
-      isPreferred: true,
-      status: 'ACTIVE',
-      themeConfig: site.themeConfig as any
-    } as any
+  const demoVariant = await prisma.demoVariant.upsert({
+    where: { previewToken: options.previewSlug },
+    update: { siteId, templateId: options.templateId, name: options.templateId, isPreferred: true, status: 'ACTIVE', themeConfig },
+    create: { siteId, templateId: options.templateId, previewToken: options.previewSlug, name: options.templateId, isPreferred: true, status: 'ACTIVE', themeConfig: themeConfig as any }
   });
 
-  await (prisma as any).site.update({
+  await prisma.site.update({
     where: { id: siteId },
-    data: { preferredDemoVariantId: demoVariant.id } as any
+    data: { preferredDemoVariantId: demoVariant.id }
   });
 
   const mediaDir = join('data/generated/sites', siteId, 'media');
@@ -97,11 +130,18 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
     return s;
   }
 
-  // Download and store media.
+  // Download and store media, reusing existing records by sourceUrl for the same site.
   const mediaMap = new Map<string, any>();
+  const existingMedia = await prisma.media.findMany({ where: { siteId } });
+  for (const m of existingMedia) {
+    if (m.sourceUrl) mediaMap.set(m.sourceUrl, m);
+    mediaMap.set(m.id, m);
+  }
+
   for (const m of options.content.media || []) {
     const sourceUrl = m.sourceUrl;
     if (!sourceUrl) continue;
+    if (mediaMap.has(sourceUrl)) continue;
     try {
       const resp = await fetch(sourceUrl);
       if (!resp.ok) {
@@ -132,31 +172,50 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   const logoMedia = options.content.branding?.logo?.sourceUrl ? mediaMap.get(options.content.branding.logo.sourceUrl) : undefined;
   const faviconMedia = options.content.branding?.favicon?.sourceUrl ? mediaMap.get(options.content.branding.favicon.sourceUrl) : undefined;
 
-  // Create site settings with extracted identity and theme.
-  await prisma.siteSettings.create({
-    data: {
-      siteId,
-      companyName: options.content.company?.shortName ?? options.content.company?.name ?? options.content.branding?.companyName ?? options.siteName,
-      legalName: options.content.company?.legalName,
-      unp: options.content.company?.unp,
-      founded: options.content.company?.founded,
-      employees: options.content.company?.employees,
-      logoMediaId: logoMedia?.id,
-      faviconMediaId: faviconMedia?.id,
-      phone: options.content.company?.phone,
-      email: options.content.company?.email,
-      address: options.content.company?.address,
-      workingHours: options.content.company?.workingHours,
-      socialLinks: options.content.company?.socialLinks ?? [],
-      contacts: options.content.contacts ?? {},
-      primaryColor: options.content.branding?.primaryColor ?? options.content.theme?.primaryColor,
-      secondaryColor: options.content.branding?.secondaryColor ?? options.content.theme?.secondaryColor,
-      defaultSeoTitle: options.content.branding?.defaultSeoTitle,
-      defaultSeoDescription: options.content.branding?.defaultSeoDescription,
-      previewUrl,
-      language: 'ru',
-      timezone: 'Europe/Minsk'
-    } as any
+  // Prefer trusted Lead identity over noisy extracted page headings.
+  // Strip location qualifiers such as ", центральный офис" from the public display name.
+  const leadDisplayName = options.lead.companyName?.split(/[,;]/)[0]?.trim();
+  const extractedCompanyName = options.content.company?.shortName ?? options.content.company?.name;
+  const companyName = !isGenericCompanyName(leadDisplayName)
+    ? leadDisplayName
+    : (!isGenericCompanyName(extractedCompanyName) ? extractedCompanyName : options.content.branding?.companyName ?? options.siteName);
+
+  const contacts = options.content.contacts ?? {};
+  const normalizedContacts = {
+    ...contacts,
+    phone: normalizePhone(contacts.phone) ?? contacts.phone,
+    address: options.lead.address ?? contacts.address,
+  };
+
+  const siteSettingsData: Prisma.SiteSettingsCreateInput = {
+    site: { connect: { id: siteId } },
+    companyName: companyName || undefined,
+    legalName: options.content.company?.legalName ?? undefined,
+    unp: options.content.company?.unp ?? undefined,
+    founded: options.content.company?.founded ?? undefined,
+    employees: options.content.company?.employees ?? undefined,
+    logo: logoMedia?.id ? { connect: { id: logoMedia.id } } : undefined,
+    favicon: faviconMedia?.id ? { connect: { id: faviconMedia.id } } : undefined,
+    phone: normalizePhone(options.lead.phone ?? options.content.company?.phone) ?? undefined,
+    email: options.content.company?.email || undefined,
+    address: (options.lead.address ?? options.content.company?.address) || undefined,
+    workingHours: options.content.company?.workingHours || undefined,
+    socialLinks: options.content.company?.socialLinks ?? [],
+    contacts: normalizedContacts,
+    primaryColor: options.content.branding?.primaryColor ?? options.content.theme?.primaryColor,
+    secondaryColor: options.content.branding?.secondaryColor ?? options.content.theme?.secondaryColor,
+    defaultSeoTitle: options.content.branding?.defaultSeoTitle,
+    defaultSeoDescription: options.content.branding?.defaultSeoDescription,
+    previewUrl: undefined,
+    language: 'ru',
+    timezone: 'Europe/Minsk'
+  };
+
+  // Upsert site settings by the unique siteId. Preserves manual Studio edits to unrelated fields only when not touched by this payload.
+  await prisma.siteSettings.upsert({
+    where: { siteId },
+    create: siteSettingsData,
+    update: siteSettingsData
   });
 
   function mapImageId(sourceUrl?: string): string | undefined {
@@ -185,129 +244,150 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
     return sourceUrl ? mediaMap.get(sourceUrl) : undefined;
   }
 
-  // Pages
+  // Pages — upsert by unique (siteId, slug) so retries do not create duplicates.
   for (const p of options.content.pages || []) {
-    await prisma.page.create({
-      data: {
-        siteId,
-        title: p.title,
-        slug: uniqueSlug(p.slug),
-        isHomepage: p.isHomepage,
-        blocks: mapBlocks(p.blocks),
-        seoTitle: p.seoTitle,
-        seoDescription: p.seoDescription,
-        sourceUrl: p.sourceUrl,
-        sourceType: p.sourceType,
-        status: 'PUBLISHED',
-        publishedAt: new Date()
-      } as any
+    const slug = uniqueSlug(p.slug);
+    const pageData = {
+      siteId,
+      title: p.title,
+      slug,
+      isHomepage: p.isHomepage,
+      blocks: mapBlocks(p.blocks) as any,
+      seoTitle: p.seoTitle,
+      seoDescription: p.seoDescription,
+      sourceUrl: p.sourceUrl,
+      sourceType: p.sourceType,
+      status: PageStatus.PUBLISHED,
+      publishedAt: new Date()
+    };
+    await prisma.page.upsert({
+      where: { siteId_slug: { siteId, slug } },
+      create: pageData,
+      update: pageData
     });
   }
 
-  // Services
+  // Services — upsert by (siteId, slug).
   for (const s of options.content.services || []) {
+    const slug = uniqueSlug(s.slug);
     const image = mediaFromSourceUrl(s.image?.sourceUrl);
-    await prisma.service.create({
-      data: {
-        siteId,
-        title: s.title,
-        slug: uniqueSlug(s.slug),
-        shortDescription: s.shortDescription,
-        blocks: mapBlocks(s.blocks),
-        imageId: image?.id,
-        seoTitle: s.seoTitle,
-        seoDescription: s.seoDescription,
-        sourceUrl: s.sourceUrl,
-        sourceType: s.sourceType,
-        status: 'PUBLISHED',
-        sortOrder: 0
-      } as any
+    const serviceData = {
+      siteId,
+      title: s.title,
+      slug,
+      shortDescription: s.shortDescription,
+      blocks: mapBlocks(s.blocks) as any,
+      imageId: image?.id,
+      seoTitle: s.seoTitle,
+      seoDescription: s.seoDescription,
+      sourceUrl: s.sourceUrl,
+      sourceType: s.sourceType,
+      status: PageStatus.PUBLISHED,
+      sortOrder: 0
+    };
+    await prisma.service.upsert({
+      where: { siteId_slug: { siteId, slug } },
+      create: serviceData,
+      update: serviceData
     });
   }
 
-  // Projects
+  // Projects — upsert by (siteId, slug). Gallery rows are upserted by (projectId, mediaId).
   for (const p of options.content.projects || []) {
+    const slug = uniqueSlug(p.slug);
     const cover = mediaFromSourceUrl(p.coverImage?.sourceUrl);
-    const project = await prisma.project.create({
-      data: {
-        siteId,
-        title: p.title,
-        slug: uniqueSlug(p.slug),
-        excerpt: p.excerpt,
-        category: p.category,
-        location: p.location,
-        completionDate: p.completionDate,
-        blocks: mapBlocks(p.blocks),
-        coverImageId: cover?.id,
-        seoTitle: p.seoTitle,
-        seoDescription: p.seoDescription,
-        sourceUrl: p.sourceUrl,
-        sourceType: p.sourceType,
-        status: 'PUBLISHED',
-        publishedAt: new Date()
-      } as any
+    const projectData = {
+      siteId,
+      title: p.title,
+      slug,
+      excerpt: p.excerpt,
+      category: p.category,
+      location: p.location,
+      completionDate: p.completionDate,
+      blocks: mapBlocks(p.blocks) as any,
+      coverImageId: cover?.id,
+      seoTitle: p.seoTitle,
+      seoDescription: p.seoDescription,
+      sourceUrl: p.sourceUrl,
+      sourceType: p.sourceType,
+      status: PageStatus.PUBLISHED,
+      publishedAt: new Date()
+    };
+    const project = await prisma.project.upsert({
+      where: { siteId_slug: { siteId, slug } },
+      create: projectData,
+      update: projectData
     });
 
     for (const img of p.gallery || []) {
       const dbm = mediaFromSourceUrl(img.sourceUrl);
       if (dbm) {
-        await prisma.projectMedia.create({
-          data: {
-            projectId: project.id,
-            mediaId: dbm.id,
-            sortOrder: 0
-          } as any
+        await prisma.projectMedia.upsert({
+          where: { projectId_mediaId: { projectId: project.id, mediaId: dbm.id } },
+          create: { projectId: project.id, mediaId: dbm.id, sortOrder: 0 },
+          update: { sortOrder: 0 }
         });
       }
     }
   }
 
-  // News
+  // News — upsert by (siteId, slug).
   for (const n of options.content.news || []) {
+    const slug = uniqueSlug(n.slug);
     const cover = mediaFromSourceUrl(n.coverImage?.sourceUrl);
-    await prisma.newsPost.create({
-      data: {
-        siteId,
-        title: n.title,
-        slug: uniqueSlug(n.slug),
-        excerpt: n.excerpt,
-        blocks: mapBlocks(n.blocks),
-        coverImageId: cover?.id,
-        seoTitle: n.seoTitle,
-        seoDescription: n.seoDescription,
-        sourceUrl: n.sourceUrl,
-        sourceType: n.sourceType,
-        status: 'PUBLISHED',
-        publishedAt: n.publishedAt ? new Date(n.publishedAt) : new Date()
-      } as any
+    const newsData = {
+      siteId,
+      title: n.title,
+      slug,
+      excerpt: n.excerpt,
+      blocks: mapBlocks(n.blocks) as any,
+      coverImageId: cover?.id,
+      seoTitle: n.seoTitle,
+      seoDescription: n.seoDescription,
+      sourceUrl: n.sourceUrl,
+      sourceType: n.sourceType,
+      status: PageStatus.PUBLISHED,
+      publishedAt: n.publishedAt ? new Date(n.publishedAt) : new Date()
+    };
+    await prisma.newsPost.upsert({
+      where: { siteId_slug: { siteId, slug } },
+      create: newsData,
+      update: newsData
     });
   }
 
-  // Vacancies
+  // Vacancies — upsert by (siteId, slug).
   for (const v of options.content.vacancies || []) {
-    await prisma.vacancy.create({
-      data: {
-        siteId,
-        title: v.title,
-        slug: uniqueSlug(v.slug),
-        location: v.location,
-        description: v.description,
-        requirements: v.requirements,
-        conditions: v.conditions,
-        contact: v.contact,
-        sourceUrl: v.sourceUrl,
-        status: 'PUBLISHED',
-        publishedAt: new Date()
-      } as any
+    const slug = uniqueSlug(v.slug);
+    const vacancyData = {
+      siteId,
+      title: v.title,
+      slug,
+      location: v.location,
+      description: v.description,
+      requirements: v.requirements,
+      conditions: v.conditions,
+      contact: v.contact,
+      sourceUrl: v.sourceUrl,
+      status: PageStatus.PUBLISHED,
+      publishedAt: new Date()
+    };
+    await prisma.vacancy.upsert({
+      where: { siteId_slug: { siteId, slug } },
+      create: vacancyData,
+      update: vacancyData
     });
   }
 
-  // Main menu with hierarchy preserved.
-  const menu = await prisma.menu.create({
-    data: { siteId, name: 'main', isMain: true } as any
-  });
+  // Main menu with hierarchy preserved. Reuse existing main menu, replace its items with current import set.
+  let menu = await prisma.menu.findFirst({ where: { siteId, isMain: true } });
+  if (!menu) {
+    menu = await prisma.menu.create({ data: { siteId, name: 'main', isMain: true } });
+  } else {
+    await prisma.menuItem.deleteMany({ where: { menuId: menu!.id } });
+  }
 
-  const allPages = await prisma.page.findMany({ where: { siteId } as any, select: { id: true, sourceUrl: true, isHomepage: true, slug: true } });
+  const allPages = await prisma.page.findMany({ where: { siteId }, select: { id: true, sourceUrl: true, isHomepage: true, slug: true } });
   const pageByUrl = new Map<string, string>(allPages.filter((p: any) => p.sourceUrl).map((p: any) => [p.sourceUrl, p.id]));
   const pageBySlug = new Map<string, string>(allPages.map((p: any) => [p.slug, p.id]));
 
@@ -327,7 +407,7 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       }
       const data: any = {
         siteId,
-        menuId: menu.id,
+        menuId: menu!.id,
         parentId,
         label: item.label || '—',
         sortOrder: sortStart + i,
@@ -347,42 +427,54 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   }
 
   // Fallback generic menu if no navigation was extracted.
-  const home = await prisma.page.findFirst({ where: { siteId, isHomepage: true } as any });
+  const home = await prisma.page.findFirst({ where: { siteId, isHomepage: true } });
   if (nav.length === 0 && home) {
     const sort = [1, 2, 3, 4];
     await prisma.menuItem.create({
-      data: { siteId, menuId: menu.id, label: 'Главная', pageId: home.id, sortOrder: 0, showInFooter: true, showInHeader: true } as any
+      data: { siteId, menuId: menu!.id, label: 'Главная', pageId: home.id, sortOrder: 0, showInFooter: true, showInHeader: true } as any
     });
 
     if (options.content.services.length > 0) {
-      const sp = await prisma.page.create({
-        data: { siteId, title: 'Услуги', slug: uniqueSlug('services'), isHomepage: false, blocks: [{ type: 'services' }], status: 'PUBLISHED', sourceType: 'MANUAL' } as any
+      const servicesSlug = uniqueSlug('services');
+      const sp = await prisma.page.upsert({
+        where: { siteId_slug: { siteId, slug: servicesSlug } },
+        create: { siteId, title: 'Услуги', slug: servicesSlug, isHomepage: false, blocks: [{ type: 'services' }] as any, status: PageStatus.PUBLISHED, sourceType: ContentSourceType.MANUAL },
+        update: { title: 'Услуги', blocks: [{ type: 'services' }] as any, status: PageStatus.PUBLISHED, sourceType: ContentSourceType.MANUAL }
       });
-      await prisma.menuItem.create({ data: { siteId, menuId: menu.id, label: 'Услуги', pageId: sp.id, sortOrder: sort.shift(), showInHeader: true, showInFooter: true } as any });
+      await prisma.menuItem.create({ data: { siteId, menuId: menu!.id, label: 'Услуги', pageId: sp.id, sortOrder: sort.shift()!, showInHeader: true, showInFooter: true } });
     }
     if (options.content.projects.length > 0) {
-      const pp = await prisma.page.create({
-        data: { siteId, title: 'Объекты', slug: uniqueSlug('projects'), isHomepage: false, blocks: [{ type: 'projects' }], status: 'PUBLISHED', sourceType: 'MANUAL' } as any
+      const projectsSlug = uniqueSlug('projects');
+      const pp = await prisma.page.upsert({
+        where: { siteId_slug: { siteId, slug: projectsSlug } },
+        create: { siteId, title: 'Объекты', slug: projectsSlug, isHomepage: false, blocks: [{ type: 'projects' }] as any, status: PageStatus.PUBLISHED, sourceType: ContentSourceType.MANUAL },
+        update: { title: 'Объекты', blocks: [{ type: 'projects' }] as any, status: PageStatus.PUBLISHED, sourceType: ContentSourceType.MANUAL }
       });
-      await prisma.menuItem.create({ data: { siteId, menuId: menu.id, label: 'Объекты', pageId: pp.id, sortOrder: sort.shift(), showInHeader: true, showInFooter: true } as any });
+      await prisma.menuItem.create({ data: { siteId, menuId: menu!.id, label: 'Объекты', pageId: pp.id, sortOrder: sort.shift()!, showInHeader: true, showInFooter: true } });
     }
     if (options.content.news.length > 0) {
-      const np = await prisma.page.create({
-        data: { siteId, title: 'Новости', slug: uniqueSlug('news'), isHomepage: false, blocks: [{ type: 'news' }], status: 'PUBLISHED', sourceType: 'MANUAL' } as any
+      const newsSlug = uniqueSlug('news');
+      const np = await prisma.page.upsert({
+        where: { siteId_slug: { siteId, slug: newsSlug } },
+        create: { siteId, title: 'Новости', slug: newsSlug, isHomepage: false, blocks: [{ type: 'news' }] as any, status: PageStatus.PUBLISHED, sourceType: ContentSourceType.MANUAL },
+        update: { title: 'Новости', blocks: [{ type: 'news' }] as any, status: PageStatus.PUBLISHED, sourceType: ContentSourceType.MANUAL }
       });
-      await prisma.menuItem.create({ data: { siteId, menuId: menu.id, label: 'Новости', pageId: np.id, sortOrder: sort.shift(), showInHeader: true, showInFooter: true } as any });
+      await prisma.menuItem.create({ data: { siteId, menuId: menu!.id, label: 'Новости', pageId: np.id, sortOrder: sort.shift()!, showInHeader: true, showInFooter: true } });
     }
-    const contactsPage = await prisma.page.findFirst({ where: { siteId, slug: 'contacts' } as any });
+    const contactsPage = await prisma.page.findFirst({ where: { siteId, slug: 'contacts' } });
     if (!contactsPage) {
-      const cp = await prisma.page.create({
-        data: { siteId, title: 'Контакты', slug: uniqueSlug('contacts'), isHomepage: false, blocks: [{ type: 'contacts' }], status: 'PUBLISHED', sourceType: 'MANUAL' } as any
+      const contactsSlug = uniqueSlug('contacts');
+      const cp = await prisma.page.upsert({
+        where: { siteId_slug: { siteId, slug: contactsSlug } },
+        create: { siteId, title: 'Контакты', slug: contactsSlug, isHomepage: false, blocks: [{ type: 'contacts' }] as any, status: PageStatus.PUBLISHED, sourceType: ContentSourceType.MANUAL },
+        update: { title: 'Контакты', blocks: [{ type: 'contacts' }] as any, status: PageStatus.PUBLISHED, sourceType: ContentSourceType.MANUAL }
       });
-      await prisma.menuItem.create({ data: { siteId, menuId: menu.id, label: 'Контакты', pageId: cp.id, sortOrder: sort.shift(), showInHeader: true, showInFooter: true } as any });
+      await prisma.menuItem.create({ data: { siteId, menuId: menu!.id, label: 'Контакты', pageId: cp.id, sortOrder: sort.shift()!, showInHeader: true, showInFooter: true } });
     }
   }
 
   // Compose the homepage from CMS entities.
-  const homepage = await prisma.page.findFirst({ where: { siteId, isHomepage: true } as any });
+  const homepage = await prisma.page.findFirst({ where: { siteId, isHomepage: true } });
   if (homepage) {
     const hero = options.content.hero;
     const cta = options.content.cta;
@@ -437,7 +529,7 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
 
     await prisma.page.update({
       where: { id: homepage.id },
-      data: { blocks: homeBlocks } as any
+      data: { blocks: homeBlocks as any }
     });
   }
 

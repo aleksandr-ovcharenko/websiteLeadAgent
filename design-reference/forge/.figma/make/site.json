@@ -1,0 +1,10 @@
+{
+  "description": "Transform text attachments into interactive dashboards, enabling users to visualize data insights quickly and efficiently for better decision-making.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

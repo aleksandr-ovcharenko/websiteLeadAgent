@@ -1,0 +1,10 @@
+{
+  "description": "Effortlessly read and analyze attached text files, enhancing productivity for professionals and students by streamlining document review and comprehension.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

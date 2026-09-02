@@ -5,6 +5,10 @@ import { Button } from '../cms/ui';
 const MODULES = ['All', 'RADAR', 'DISCOVERY', 'AUDIT', 'LIGHTHOUSE', 'AI', 'SCORING', 'FACTORY', 'CRAWLER', 'CMS', 'MEDIA', 'RENDERER', 'FORGE', 'STUDIO', 'SHOWCASE', 'SYSTEM'];
 const LEVELS = ['DEBUG', 'INFO', 'WARN', 'ERROR'];
 
+function stripAnsi(s: string): string {
+  return s.replace(/\u001b\[[0-9;]*[mK]|[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');
+}
+
 function fmtTime(iso: string) {
   const d = new Date(iso);
   return d.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -59,7 +63,7 @@ function EventRow({ event, onToggle }: { event: ActivityEvent; onToggle: (id: st
         <span className={`shrink-0 w-16 text-center px-1 py-0.5 rounded border text-[10px] font-semibold ${levelColor(event.level)}`}>{event.level}</span>
         <span className="shrink-0 w-20 text-stone-500 text-[10px] pt-0.5">{event.module}</span>
         <span className={`flex-1 break-words pt-0.5 ${event.level === 'ERROR' ? 'text-red-800' : 'text-stone-700'}`}>
-          {event.errorMessage || event.message}
+          {stripAnsi(event.errorMessage || event.message)}
           {hasDetails && <span className="ml-2 text-stone-400 text-[10px]">[Details]</span>}
           <ContextChips event={event} />
         </span>
@@ -69,12 +73,12 @@ function EventRow({ event, onToggle }: { event: ActivityEvent; onToggle: (id: st
           {event.eventType && <div className="text-stone-400">eventType: {event.eventType}</div>}
           {event.stage && <div className="text-stone-400">stage: {event.stage}</div>}
           {event.errorCode && <div className="text-red-700">errorCode: {event.errorCode}</div>}
-          {event.message !== event.errorMessage && <div>message: {event.message}</div>}
+          {event.message !== event.errorMessage && <div>message: {stripAnsi(event.message)}</div>}
           {Object.keys(event.details || {}).length > 0 && (
             <pre className="mt-2 p-2 bg-stone-50 border border-stone-200 rounded overflow-auto max-h-48">{JSON.stringify(event.details, null, 2)}</pre>
           )}
           {event.rawError && (
-            <pre className="mt-2 p-2 bg-red-50 border border-red-100 rounded overflow-auto max-h-48 text-red-800">{event.rawError}</pre>
+            <pre className="mt-2 p-2 bg-red-50 border border-red-100 rounded overflow-auto max-h-48 text-red-800">{stripAnsi(event.rawError)}</pre>
           )}
           <div className="text-stone-400">id: {event.id}</div>
         </div>
@@ -128,10 +132,10 @@ export function ActivityConsole() {
   const errorCount = useMemo(() => visible.filter(e => e.level === 'ERROR').length, [visible]);
 
   return (
-    <div className={`fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-stone-200 shadow-[0_-4px_24px_rgba(28,25,23,0.07)] transition-all duration-200 ${expanded ? 'h-[45vh]' : 'h-10'}`}>
+    <div data-testid="activity-console" className={`shrink-0 w-full z-50 bg-white border-t border-stone-200 shadow-[0_-4px_24px_rgba(28,25,23,0.07)] transition-all duration-200 ${expanded ? 'h-[45vh]' : 'h-10'}`}>
       <div className="flex items-center justify-between px-4 h-10 border-b border-stone-200 bg-stone-50">
         <div className="flex items-center gap-3">
-          <button onClick={() => setExpanded(!expanded)} className="text-[13px] font-semibold text-stone-700 hover:text-stone-900">
+          <button data-testid="activity-console-toggle" onClick={() => setExpanded(!expanded)} className="text-[13px] font-semibold text-stone-700 hover:text-stone-900">
             {expanded ? '−' : '+'} Activity Console
           </button>
           <StatusDot status={status} />

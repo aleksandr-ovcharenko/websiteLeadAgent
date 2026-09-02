@@ -23,11 +23,13 @@ export interface CrawledPage {
   title: string;
   metaDescription: string;
   h1: string;
+  canonicalUrl?: string;
   text: string;
   html: string;
   links: { text: string; href: string; source?: 'header' | 'footer' | 'body' }[];
   images: CrawledImage[];
   logo?: string;
+  logoHref?: string;
   favicon?: string;
   heroImage?: string;
   themeColors?: CrawledThemeColors;
@@ -55,14 +57,26 @@ export interface CrawlOptions {
   maxDepth?: number;
 }
 
+export interface HomepageCandidate {
+  url: string;
+  confidence: number;
+  reason: string;
+  pageIndex: number;
+}
+
 export interface CrawlResult {
   pages: CrawledPage[];
   navigation: NavigationNode[];
+  homepage: HomepageCandidate;
+  warnings: string[];
+  skipped: { url: string; reason: string }[];
 }
 
 export type RedesignStage =
   | 'NOT_SELECTED'
   | 'SELECTED_FOR_REDESIGN'
+  | 'CRAWL_READY'
+  | 'CRAWL_FAILED'
   | 'CONTENT_EXTRACTED'
   | 'CONTENT_TRANSFORMED'
   | 'CMS_IMPORTED'

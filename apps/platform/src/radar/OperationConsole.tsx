@@ -57,6 +57,11 @@ function statusColor(status: OpStatus) {
   }
 }
 
+function stripAnsi(s: string): string {
+  // eslint-disable-next-line no-control-regex
+  return s.replace(/\u001b\[[0-9;]*[mK]|[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, '');
+}
+
 export function OperationConsole({ runId, title, onClose }: { runId: string; title?: string; onClose?: () => void }) {
   const [run, setRun] = useState<OperationRun | null>(null);
   const [events, setEvents] = useState<OperationEvent[]>([]);
@@ -97,8 +102,18 @@ export function OperationConsole({ runId, title, onClose }: { runId: string; tit
   }, [events, autoScroll, expanded]);
 
   const copyToClipboard = () => {
-    const text = events.map((e) => `[${fmtTime(e.createdAt)}] ${e.level}${e.stage ? ` [${e.stage}]` : ''} ${e.message}`).join('\n');
-    navigator.clipboard.writeText(text).catch(() => {});
+    const lines = events.map((e) => `[${fmtTime(e.createdAt)}] ${e.level}${e.stage ? ` [${e.stage}]` : ''} ${stripAnsi(e.message)}`);
+    if (run?.status === 'FAILED' && run?.error) {
+      lines.push('');
+      lines.push('--- Error ---');
+      lines.push(stripAnsi(run.error?.message || JSON.stringify(run.error, null, 2)));
+    }
+    if (run?.result) {
+      lines.push('');
+      lines.push('--- Result ---');
+      lines.push(JSON.stringify(run.result, null, 2));
+    }
+    navigator.clipboard.writeText(lines.join('\n')).catch(() => {});
   };
 
   const output = events.map((e) => (
@@ -106,14 +121,17 @@ export function OperationConsole({ runId, title, onClose }: { runId: string; tit
       <span className="text-[#a8a29e] shrink-0">{fmtTime(e.createdAt)}</span>
       <span className={`shrink-0 w-16 font-medium ${levelColor(e.level)}`}>{e.level}</span>
       {e.stage ? <span className="shrink-0 text-[#a8a29e] w-24 truncate">{e.stage}</span> : null}
-      <span className={`break-words ${levelColor(e.level)}`}>{e.message}</span>
+      <span className={`break-words ${levelColor(e.level)}`}>{stripAnsi(e.message)}</span>
     </div>
   ));
 
   const errorBlock = run?.error ? (
     <div className="mt-3 p-3 rounded border bg-red-50 border-red-200 text-red-800 text-[12px] font-mono">
       <div className="font-semibold mb-1">Error</div>
-      {run.error?.message || JSON.stringify(run.error)}
+      <pre className="whitespace-pre-wrap break-words overflow-auto max-h-60">
+        {stripAnsi(run.error?.message || JSON.stringify(run.error, null, 2))}
+      </pre>
+      {run.error?.code && <div className="mt-1 text-red-700">code: {run.error.code}</div>}
     </div>
   ) : null;
 

@@ -1,10 +1,11 @@
-import { writeFile, mkdir } from 'node:fs/promises';
-import { join } from 'node:path';
+import { writeFile, mkdir, readFile } from 'node:fs/promises';
+import { join, dirname } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { crawlSite } from '../crawl/crawlSite.js';
 import { extractFromCrawl } from '../extract/extractFromCrawl.js';
 import { importToCms } from '../import/importToCms.js';
 import { validateGeneratedSite } from './validateSite.js';
+import type { CrawlResult } from '../types.js';
 
 function slugify(input: string): string {
   return input
@@ -27,18 +28,29 @@ export interface GenerateOptions {
   leadId: string;
   templateId?: string;
   force?: boolean;
+  crawlRunId?: string;
   prisma?: PrismaClient;
   onActivity?: ActivityHandler;
 }
 
-export async function generateSite(options: GenerateOptions) {
+export interface RunCrawlOptions {
+  leadId: string;
+  maxPages?: number;
+  maxDepth?: number;
+  timeoutMs?: number;
+  force?: boolean;
+  prisma?: PrismaClient;
+  onActivity?: ActivityHandler;
+}
+
+export async function runCrawl(options: RunCrawlOptions) {
   const prisma = options.prisma ?? new PrismaClient();
-  const templateId = options.templateId ?? 'construction-modern-v1';
   const onActivity = options.onActivity;
   const emit = async (level: 'INFO' | 'WARN' | 'ERROR', eventType: string, message: string, details?: Record<string, any>) => {
-    if (onActivity) await onActivity({ module: 'FACTORY', eventType, message, details, level }).catch(() => {});
+    if (onActivity) {
+      try { await onActivity({ module: 'FACTORY', eventType, message, details, level }); } catch { /* no-op */ }
+    }
   };
-
 
   const l = await (prisma as any).lead.findUnique({
     where: { id: options.leadId },
@@ -46,23 +58,23 @@ export async function generateSite(options: GenerateOptions) {
   });
   if (!l) throw new Error(`Lead not found: ${options.leadId}`);
 
-  await emit('INFO', 'FACTORY_STARTED', 'Starting site generation', { leadId: l.id });
-
   if (l.manualReviewStatus !== 'GOOD') {
     throw new Error(`Lead ${l.id} is not GOOD (status: ${l.manualReviewStatus})`);
   }
 
-  const lastRun = await (prisma as any).redesignRun.findFirst({
-    where: { leadId: l.id },
+  const baseUrl = l.website;
+  if (!baseUrl) throw new Error(`Lead has no website: ${l.id}`);
+
+  const activeRun = await (prisma as any).redesignRun.findFirst({
+    where: {
+      leadId: l.id,
+      stage: { notIn: ['CRAWL_FAILED', 'DEMO_GENERATED', 'DEMO_APPROVED', 'READY_TO_CONTACT'] },
+      errorMessage: null
+    },
     orderBy: { createdAt: 'desc' }
   });
-
-  if (!options.force && lastRun && !lastRun.errorMessage) {
-    throw new Error(`Redesign already in progress or completed. Use force to rerun.`);
-  }
-
-  if (options.force && l.site) {
-    await (prisma as any).site.delete({ where: { id: l.site.id } });
+  if (!options.force && activeRun) {
+    throw new Error(`Crawl or generation already in progress for lead ${l.id} (run ${activeRun.id}). Use force to start a new run.`);
   }
 
   const run = await (prisma as any).redesignRun.create({
@@ -77,20 +89,141 @@ export async function generateSite(options: GenerateOptions) {
     data: { redesignStage: 'SELECTED_FOR_REDESIGN' }
   });
 
-  const baseUrl = l.website;
-  if (!baseUrl) throw new Error(`Lead has no website: ${l.id}`);
-
-  const artifactDir = join('data', 'redesign', l.id);
+  const artifactDir = join('data', 'redesign', l.id, 'runs', run.id);
   await mkdir(artifactDir, { recursive: true });
 
   try {
-    await emit('INFO', 'FACTORY_CRAWL_STARTED', 'Crawling source website', { baseUrl });
-    const { pages: crawled, navigation } = await crawlSite({ baseUrl, maxPages: 40, maxDepth: 4 });
-    await emit('INFO', 'FACTORY_CRAWL_COMPLETED', `Crawled ${crawled.length} pages`, { pages: crawled.length });
+    await emit('INFO', 'FACTORY_CRAWL_STARTED', 'Crawling source website', { baseUrl, runId: run.id });
+    const crawlResult = await crawlSite({
+      baseUrl,
+      maxPages: options.maxPages ?? 40,
+      maxDepth: options.maxDepth ?? 4,
+      timeoutMs: options.timeoutMs ?? 30000
+    });
+
+    const crawlJsonPath = join(artifactDir, 'crawl.json');
+    const crawlArtifact = {
+      meta: {
+        runId: run.id,
+        leadId: l.id,
+        startUrl: baseUrl,
+        startedAt: new Date().toISOString(),
+        maxPages: options.maxPages ?? 40,
+        maxDepth: options.maxDepth ?? 4,
+        timeoutMs: options.timeoutMs ?? 30000
+      },
+      homepage: crawlResult.homepage,
+      warnings: crawlResult.warnings,
+      skipped: crawlResult.skipped,
+      pages: crawlResult.pages,
+      navigation: crawlResult.navigation
+    };
+    await writeFile(crawlJsonPath, JSON.stringify(crawlArtifact, null, 2));
+
+    await emit('INFO', 'FACTORY_CRAWL_COMPLETED', `Crawled ${crawlResult.pages.length} pages`, { pages: crawlResult.pages.length, homepage: crawlResult.homepage });
 
     await (prisma as any).redesignRun.update({
       where: { id: run.id },
-      data: { currentCrawl: crawled as any, stage: 'CONTENT_EXTRACTED' }
+      data: {
+        crawlJsonPath,
+        homepageCandidate: crawlResult.homepage as any,
+        currentCrawl: { homepage: crawlResult.homepage, pageCount: crawlResult.pages.length, warnings: crawlResult.warnings } as any,
+        stage: 'CRAWL_READY'
+      }
+    });
+    await (prisma as any).lead.update({
+      where: { id: l.id },
+      data: { redesignStage: 'CRAWL_READY' }
+    });
+
+    return { run, crawlResult, crawlJsonPath };
+  } catch (err: any) {
+    await emit('ERROR', 'FACTORY_CRAWL_FAILED', `Crawl failed: ${err?.message || String(err)}`, { error: err?.message || String(err) });
+    await (prisma as any).redesignRun.update({
+      where: { id: run.id },
+      data: { errorMessage: err?.message || String(err), stage: 'CRAWL_FAILED' }
+    });
+    await (prisma as any).lead.update({
+      where: { id: l.id },
+      data: { redesignStage: 'CRAWL_FAILED' }
+    });
+    throw err;
+  }
+}
+
+export async function generateSite(options: GenerateOptions) {
+  const prisma = options.prisma ?? new PrismaClient();
+  const templateId = options.templateId ?? 'construction-modern-v1';
+  const onActivity = options.onActivity;
+  const emit = async (level: 'INFO' | 'WARN' | 'ERROR', eventType: string, message: string, details?: Record<string, any>) => {
+    if (onActivity) {
+      try { await onActivity({ module: 'FACTORY', eventType, message, details, level }); } catch { /* no-op */ }
+    }
+  };
+
+  const l = await (prisma as any).lead.findUnique({
+    where: { id: options.leadId },
+    include: { site: true }
+  });
+  if (!l) throw new Error(`Lead not found: ${options.leadId}`);
+
+  await emit('INFO', 'FACTORY_STARTED', 'Starting site generation', { leadId: l.id });
+
+  if (l.manualReviewStatus !== 'GOOD') {
+    throw new Error(`Lead ${l.id} is not GOOD (status: ${l.manualReviewStatus})`);
+  }
+
+  let run: any;
+  let crawlResult: CrawlResult;
+  let crawlJsonPath: string;
+
+  if (options.crawlRunId) {
+    const existingRun = await (prisma as any).redesignRun.findUnique({
+      where: { id: options.crawlRunId },
+      include: { lead: true }
+    });
+    if (!existingRun) throw new Error(`Crawl run not found: ${options.crawlRunId}`);
+    if (existingRun.leadId !== l.id) throw new Error(`Crawl run ${options.crawlRunId} does not belong to lead ${l.id}`);
+    if (!options.force && existingRun.stage !== 'CRAWL_READY' && existingRun.stage !== 'SELECTED_FOR_REDESIGN' && existingRun.stage !== 'CRAWL_FAILED') {
+      throw new Error(`Crawl run ${options.crawlRunId} is already ${existingRun.stage}. Use force to regenerate.`);
+    }
+    if (!existingRun.crawlJsonPath) throw new Error(`Crawl run ${options.crawlRunId} has no crawl artifact`);
+
+    crawlJsonPath = existingRun.crawlJsonPath;
+    const raw = await readFile(crawlJsonPath, 'utf8');
+    crawlResult = JSON.parse(raw) as CrawlResult;
+    run = existingRun;
+
+    if (options.force) {
+      await (prisma as any).redesignRun.update({
+        where: { id: run.id },
+        data: { errorMessage: null, stage: 'CRAWL_READY' }
+      });
+    }
+  } else {
+    // Backward compatibility: crawl now and continue.
+    const cr = await runCrawl({ ...options });
+    run = cr.run;
+    crawlResult = cr.crawlResult;
+    crawlJsonPath = cr.crawlJsonPath;
+  }
+
+  // Do NOT delete the existing Site. The canonical Site must survive retries.
+  // Force now means "regenerate imported/generated content while preserving Site.id".
+  const existingSite = l.site;
+  const baseUrl = crawlResult.homepage?.url || l.website;
+  const artifactDir = dirname(crawlJsonPath);
+
+  try {
+    const crawled = crawlResult.pages;
+    const navigation = crawlResult.navigation;
+
+    await (prisma as any).redesignRun.update({
+      where: { id: run.id },
+      data: {
+        currentCrawl: { homepage: crawlResult.homepage, pageCount: crawled.length, warnings: crawlResult.warnings } as any,
+        stage: 'CONTENT_EXTRACTED'
+      }
     });
     await (prisma as any).lead.update({
       where: { id: l.id },
@@ -98,29 +231,31 @@ export async function generateSite(options: GenerateOptions) {
     });
 
     const content = extractFromCrawl(crawled, baseUrl, navigation);
-    await writeFile(join(artifactDir, 'content.json'), JSON.stringify(content, null, 2));
+    const contentJsonPath = join(artifactDir, 'content.json');
+    await writeFile(contentJsonPath, JSON.stringify(content, null, 2));
     await emit('INFO', 'FACTORY_CONTENT_TRANSFORMED', 'Content extracted and transformed', { pages: content?.pages?.length ?? 0 });
 
     await (prisma as any).redesignRun.update({
       where: { id: run.id },
-      data: { contentJsonPath: join(artifactDir, 'content.json'), stage: 'CONTENT_TRANSFORMED' }
+      data: { contentJsonPath, stage: 'CONTENT_TRANSFORMED' }
     });
     await (prisma as any).lead.update({
       where: { id: l.id },
       data: { redesignStage: 'CONTENT_TRANSFORMED' }
     });
 
-    const siteSlugBase = slugify(l.companyName || l.websiteDomain || 'site');
-    const siteSlug = `${siteSlugBase}-${l.id.slice(-6)}`;
+    const siteSlug = existingSite?.slug || `${slugify(l.companyName || l.websiteDomain || 'site')}-${l.id.slice(-6)}`;
+    const previewSlug = existingSite?.previewToken || randomToken();
 
     const domain = l.websiteDomain || l.website.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
     await emit('INFO', 'FACTORY_CMS_IMPORT_STARTED', 'Importing to CMS');
-    const { siteId, previewSlug, demoVariantId } = await importToCms({
+    const { siteId, demoVariantId } = await importToCms({
       leadId: l.id,
+      lead: { id: l.id, companyName: l.companyName, phone: l.phone, address: l.address },
       siteName: l.companyName || 'Generated Site',
       siteSlug,
-      previewSlug: randomToken(),
+      previewSlug,
       templateId,
       content,
       artifactDir,
@@ -128,27 +263,9 @@ export async function generateSite(options: GenerateOptions) {
     }, prisma);
     await emit('INFO', 'FACTORY_CMS_IMPORT_COMPLETED', 'CMS import completed', { siteId, demoVariantId, previewSlug });
 
-    await (prisma as any).site.update({
+    await prisma.site.update({
       where: { id: siteId },
-      data: {
-        domain,
-        status: 'ACTIVE',
-        settings: { previewUrl: `http://localhost:3000/showcase/${previewSlug}` }
-      } as any
-    });
-
-    await (prisma as any).siteSettings.update({
-      where: { siteId },
-      data: {
-        companyName: l.companyName || 'Generated Site',
-        phone: l.phone || content.company?.phone,
-        email: content.company?.email,
-        address: l.address || content.company?.address,
-        workingHours: content.company?.workingHours,
-        previewUrl: `http://localhost:3000/showcase/${previewSlug}`,
-        language: 'ru',
-        timezone: 'Europe/Minsk'
-      } as any
+      data: { domain, status: 'ACTIVE', settings: { previewUrl: `http://localhost:3000/showcase/${previewSlug}` } as any }
     });
 
     await (prisma as any).redesignRun.update({

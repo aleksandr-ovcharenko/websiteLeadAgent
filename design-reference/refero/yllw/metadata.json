@@ -1,0 +1,37 @@
+{
+  "id": "yllw",
+  "name": "Yllw",
+  "source": "https://styles.refero.design/style/9483a10e-e098-4f94-ae22-ab5a63702243",
+  "theme": "light",
+  "description": "Swiss-Bauhaus print monograph — oversized Grotesk on warm putty paper, hairline rules, no shadows.",
+  "colors": {
+    "puttyStone": "#cac7b4",
+    "signalYellow": "#ffdd00",
+    "ink": "#000000",
+    "paper": "#ffffff",
+    "carbon": "#191919",
+    "smoke": "#cccccc"
+  },
+  "fonts": {
+    "primary": "Gd Grio Vf",
+    "display": "Gd Grio Vf",
+    "body": "Gd Grio Vf",
+    "substitutes": {
+      "Gd Grio Vf": "Inter Variable, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif"
+    }
+  },
+  "tokens": {
+    "canvas": "#cac7b4",
+    "paperCard": "#ffffff",
+    "signalBanner": "#ffdd00",
+    "carbonBlock": "#191919",
+    "ink": "#000000",
+    "border": "#000000",
+    "sectionGap": "64-96px",
+    "elementGap": "16-24px",
+    "buttonRadius": "2px",
+    "cardRadius": "6px",
+    "navRadius": "2px",
+    "pageMaxWidth": "1400px"
+  }
+}

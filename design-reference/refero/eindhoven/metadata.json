@@ -1,0 +1,35 @@
+{
+  "id": "eindhoven",
+  "name": "Eindhoven Design District",
+  "source": "https://styles.refero.design/style/c90b584e-de5b-4971-9e13-8ab991bd96c0",
+  "theme": "light",
+  "description": "Editorial brutalism on white paper — a municipal design manifesto in oversized type, sparse photographs, and absolute restraint.",
+  "colors": {
+    "charcoalInk": "#000000",
+    "paperWhite": "#ffffff",
+    "newsprintGray": "#e8e8e8",
+    "pewter": "#bfbfbf",
+    "signalRed": "#ff0000"
+  },
+  "fonts": {
+    "primary": "HelveticaNow",
+    "display": "HelveticaNow",
+    "body": "HelveticaNow",
+    "substitutes": {
+      "HelveticaNow": "Helvetica Neue, Inter, Neue Haas Grotesk, ui-sans-serif, system-ui, sans-serif"
+    }
+  },
+  "tokens": {
+    "canvas": "#ffffff",
+    "secondaryCanvas": "#e8e8e8",
+    "ink": "#000000",
+    "muted": "#bfbfbf",
+    "editorialAccent": "#ff0000",
+    "sectionGap": "80px",
+    "elementGap": "20px",
+    "buttonRadius": "500px",
+    "cardRadius": "0px",
+    "imageRadius": "0px",
+    "pageMaxWidth": "1200px"
+  }
+}

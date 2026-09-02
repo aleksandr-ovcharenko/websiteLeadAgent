@@ -3,6 +3,7 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { RenderContext } from '../types.js';
 import { constructionModernV1Manifest } from './manifest.js';
+import { isPresetId, presetCSS } from './stylePresets.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -299,6 +300,10 @@ export function constructionModernV1(ctx: RenderContext): string {
   const borderColor = theme.borderColor || '#C8D5CE';
   const darkColor = '#111827';
 
+  const stylePreset = isPresetId(ctx.stylePreset) ? ctx.stylePreset : undefined;
+  const stylePresetTag = stylePreset ? presetCSS(stylePreset) : '';
+  const bodyAttr = stylePreset ? ` data-style="${stylePreset}"` : '';
+
   const themeStyle = `<style>:root {
   --bg: ${bgColor};
   --fg: ${textColor};
@@ -371,7 +376,8 @@ export function constructionModernV1(ctx: RenderContext): string {
   const scriptBlock = `<script>window.__CMS__=${JSON.stringify(cmsPayload)};window.__CMS_ROUTE__=${JSON.stringify({ route: ctx.route, subRoute: ctx.subRoute })};</script>`;
 
   let result = html
-    .replace(/<head>/, `<head>\n    ${themeStyle}`)
+    .replace(/<head>/, `<head>\n    ${themeStyle}\n    ${stylePresetTag}`)
+    .replace(/<body>/, `<body${bodyAttr}>`)
     .replace('<title>', `<meta name="robots" content="noindex, nofollow" />\n    <title>`)
     .replace(/<title>[^<]*<\/title>/, `<title>${company.name}</title>`)
     .replace(/{{COMPANY_NAME}}/g, company.name)

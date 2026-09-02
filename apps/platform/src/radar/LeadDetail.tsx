@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Button } from '../cms/ui';
+import { api } from '../cms/api';
 import { LeadScoreRing, scoreHue, ScorePill } from './RadarScoreRing';
 import { computeQualification, STAGE_LABELS, STAGE_ICONS, stageColor } from './qualification';
+import { CrawlViewer } from './CrawlViewer';
 
 type Lead = any;
 
@@ -44,6 +46,8 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
   const [generating, setGenerating] = useState(false);
   const [optimistic, setOptimistic] = useState<Record<string, 'RUNNING' | 'PENDING'>>({});
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [crawlRuns, setCrawlRuns] = useState<any[]>([]);
+  const [viewingCrawl, setViewingCrawl] = useState<any>(null);
 
   useEffect(() => {
     setNote(lead.manualReviewNote || '');
@@ -52,6 +56,13 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
     setSelecting(false);
     setGenerating(false);
     setOptimistic({});
+    setCrawlRuns([]);
+    setViewingCrawl(null);
+    if (lead.id) {
+      api.getFactoryRuns(lead.id)
+        .then(({ runs }) => setCrawlRuns(runs || []))
+        .catch(() => setCrawlRuns([]));
+    }
   }, [lead.id]);
 
   useEffect(() => {
@@ -76,6 +87,17 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
   const screenshotUrl = lead.id ? `/audit/${lead.id}/${tab}.png` : '';
   const fullUrl = lead.id ? `/audit/${lead.id}/${tab}-full.png` : '';
   const hasWebsite = !!lead.website;
+
+  const tlsWarning: { status?: string; error?: string; message?: string } | null = (() => {
+    const raw = lead.auditErrorMessage;
+    if (!raw) return null;
+    if (typeof raw === 'string' && raw.trim().startsWith('{')) {
+      try { return JSON.parse(raw); } catch { return null; }
+    }
+    if (typeof raw === 'object') return raw;
+    return null;
+  })();
+  const hasTlsWarning = tlsWarning?.status === 'INVALID_CERTIFICATE';
 
   const { stages, firstBlocking, firstBlockingIndex, readyForReview } = computeQualification(lead, optimistic);
   const auditStatus = (optimistic.audit || lead.auditStatus || 'PENDING') as string;
@@ -122,9 +144,21 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
     }
   };
 
+  const handleCrawl = async () => {
+    onStart('CRAWL_SITE', { leadId: lead.id });
+  };
+
+  const handleViewCrawl = (run: any) => setViewingCrawl(run);
+  const closeCrawl = () => setViewingCrawl(null);
+
   const handleGenerate = async () => {
     setGenerating(true);
-    onStart('GENERATE_SITE', { leadId: lead.id });
+    const crawlRun = crawlRuns[0];
+    if (crawlRun && (crawlRun.stage === 'CRAWL_READY' || crawlRun.stage === 'CRAWL_FAILED')) {
+      onStart('GENERATE_SITE', { leadId: lead.id, crawlRunId: crawlRun.id });
+    } else {
+      onStart('GENERATE_SITE', { leadId: lead.id });
+    }
   };
 
   const primaryAction = () => {
@@ -137,10 +171,23 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
       const action = failed ? () => handleRetryStage(firstBlocking.id) : () => handleRunFullQualification(false);
       return { label, action, variant: 'primary' as const };
     }
-    if (lead.site) return { label: 'Open site', action: () => { if (lead.site) window.open(`/showcase/${lead.site.previewToken}`, '_blank'); } };
-    if (review === 'GOOD' && lead.redesignStage === 'NOT_SELECTED') return { label: selecting ? 'Selecting…' : 'Select for redesign', action: handleSelect, disabled: selecting };
-    if (review === 'GOOD' && ['SELECTED_FOR_REDESIGN', 'CONTENT_EXTRACTED', 'CONTENT_TRANSFORMED', 'CMS_IMPORTED'].includes(lead.redesignStage || '')) return { label: generating ? 'Generating…' : 'Generate demo', action: handleGenerate, disabled: generating };
-    if (review === 'GOOD') return { label: 'Generate demo', action: handleGenerate };
+    if (lead.site || ['DEMO_GENERATED', 'DEMO_APPROVED', 'READY_TO_CONTACT'].includes(lead.redesignStage || '')) {
+      return { label: 'Open site', action: () => { if (lead.site) window.open(`/showcase/${lead.site.previewToken}`, '_blank'); } };
+    }
+    if (review === 'GOOD' && lead.redesignStage === 'NOT_SELECTED') {
+      return { label: selecting ? 'Selecting…' : 'Select for redesign', action: handleSelect, disabled: selecting };
+    }
+    const crawlRun = crawlRuns[0];
+    if (review === 'GOOD' && (lead.redesignStage === 'CRAWL_READY' || (crawlRun && crawlRun.stage === 'CRAWL_READY'))) {
+      return { label: generating ? 'Generating…' : 'Generate demo', action: handleGenerate, disabled: generating };
+    }
+    if (review === 'GOOD' && ['SELECTED_FOR_REDESIGN', 'CRAWL_FAILED'].includes(lead.redesignStage || '')) {
+      return { label: 'Crawl site', action: handleCrawl };
+    }
+    if (review === 'GOOD' && ['CONTENT_EXTRACTED', 'CONTENT_TRANSFORMED', 'CMS_IMPORTED'].includes(lead.redesignStage || '')) {
+      return { label: generating ? 'Generating…' : 'Generate demo', action: handleGenerate, disabled: generating };
+    }
+    if (review === 'GOOD') return { label: 'Select for redesign', action: handleSelect, disabled: selecting };
     return null;
   };
 
@@ -150,7 +197,10 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
     : null;
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[420px] bg-white border-l border-[#e5e3df] flex flex-col z-40 shadow-[-4px_0_24px_rgba(28,25,23,0.07)]">
+    <div
+      data-testid="lead-detail"
+      className="fixed top-0 right-0 w-[420px] bg-white border-l border-[#e5e3df] flex flex-col z-40 shadow-[-4px_0_24px_rgba(28,25,23,0.07)]"
+      style={{ bottom: 'var(--console-height, 0px)' }}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#f0ede8] shrink-0">
         <span className="text-[11px] font-mono text-[#a8a29e]">Lead detail</span>
         <button onClick={onClose} className="text-[#a8a29e] hover:text-[#1c1917]">×</button>
@@ -205,6 +255,11 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
                 {lead.categories?.[0] && <span className="text-[11px] text-[#a8a29e]">· {lead.categories[0]}</span>}
                 {lead.city && <span className="text-[11px] text-[#a8a29e]">· {lead.city}</span>}
               </div>
+              {hasTlsWarning && (
+                <div className="w-full mt-2 p-2 rounded border bg-amber-50 border-amber-200 text-amber-800 text-[11px] font-mono">
+                  <span className="font-semibold">TLS warning:</span> {tlsWarning?.message} ({tlsWarning?.error})
+                </div>
+              )}
             </div>
             <div className="flex flex-col items-center shrink-0">
               <LeadScoreRing score={score} size={48} />
@@ -369,7 +424,7 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
       <div className="shrink-0 border-t border-[#e5e3df] p-4 space-y-3">
         <div className="text-[10px] font-mono text-[#a8a29e] uppercase tracking-wider">Decision</div>
         {readyForReview ? (
-          <div className="flex rounded overflow-hidden border border-[#ddd9d4] divide-x">
+          <div data-testid="lead-decision-buttons" className="flex rounded overflow-hidden border border-[#ddd9d4] divide-x">
             {(['BAD', 'UNSURE', 'GOOD'] as const).map((s) => {
               const active = review === s;
               return (
@@ -401,9 +456,9 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
           placeholder={readyForReview ? 'Review note (optional)' : 'Notes disabled until ready'}
           className={`w-full h-16 p-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] font-mono resize-none ${!readyForReview ? 'opacity-50' : ''}`}
         />
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {action && (
-            <Button size="sm" disabled={action.disabled} onClick={() => { (action as any).action(); }} className="flex-1">
+            <Button data-testid="lead-detail-primary-action" size="sm" disabled={action.disabled} onClick={() => { (action as any).action(); }} className="flex-1">
               {action.label}
             </Button>
           )}
@@ -413,11 +468,15 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
           {auditStatus === 'SUCCESS' && !stages.some(s => s.status === 'RUNNING') && (
             <Button size="sm" variant="secondary" onClick={() => handleRunFullQualification(true)}>Re-qualify</Button>
           )}
+          {crawlRuns[0] && (
+            <Button size="sm" variant="secondary" onClick={() => handleViewCrawl(crawlRuns[0])}>View crawl</Button>
+          )}
           {lead.website && (
             <a href={lead.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-2 py-1 text-[11px] font-mono text-[#57534e] border border-[#e5e3df] rounded hover:bg-[#f5f4f2]">Open original ↗</a>
           )}
         </div>
       </div>
+      {viewingCrawl && <CrawlViewer run={viewingCrawl} onClose={closeCrawl} />}
     </div>
   );
 }

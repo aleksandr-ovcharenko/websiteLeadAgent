@@ -60,6 +60,7 @@ export interface RenderContext {
   route: string;
   subRoute?: string;
   manifest?: TemplateManifest;
+  stylePreset?: string;
 }
 
 export interface Template {

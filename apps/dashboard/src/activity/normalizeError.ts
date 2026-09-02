@@ -6,7 +6,18 @@ export interface NormalizedError {
   action?: string;
 }
 
+function stripAnsi(s: string): string {
+  // eslint-disable-next-line no-control-regex
+  return s.replace(/\u001b\[[0-9;]*m|\u001b\[[0-9;]*[A-Za-z]/g, '');
+}
+
 const PATTERNS: { code: string; test: (message: string) => boolean; friendly: string; action?: string }[] = [
+  {
+    code: 'TLS_CERTIFICATE_INVALID',
+    test: (m) => /ERR_CERT_DATE_INVALID|ERR_CERT_AUTHORITY_INVALID|ERR_CERT_COMMON_NAME_INVALID/i.test(m),
+    friendly: 'TLS certificate is expired or invalid.',
+    action: 'Continuing audit with certificate validation ignored where safe.',
+  },
   {
     code: 'PLAYWRIGHT_BROWSER_MISSING',
     test: (m) => /Executable doesn't exist at|chromium.*not.*install|playwright.*chromium|browserType\.launch/i.test(m),
@@ -63,17 +74,17 @@ const PATTERNS: { code: string; test: (message: string) => boolean; friendly: st
 
 export function normalizeError(error: unknown): NormalizedError {
   const err = error instanceof Error ? error : new Error(String(error));
-  const rawMessage = err.message || 'Unknown error';
-  const stack = err.stack || '';
+  const rawMessage = stripAnsi(err.message || 'Unknown error');
+  const stack = stripAnsi(err.stack || '');
 
   for (const pattern of PATTERNS) {
     if (pattern.test(rawMessage)) {
       return {
         code: pattern.code,
-        friendlyMessage: pattern.friendly,
+        friendlyMessage: stripAnsi(pattern.friendly),
         rawMessage,
         stack,
-        action: pattern.action,
+        action: pattern.action ? stripAnsi(pattern.action) : undefined,
       };
     }
   }

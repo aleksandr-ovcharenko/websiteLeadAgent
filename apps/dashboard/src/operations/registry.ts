@@ -8,7 +8,7 @@ import { GeminiVisualAnalysisProvider } from '../../../auditor/src/visualAnalysi
 import { OpenAiVisualAnalysisProvider } from '../../../auditor/src/visualAnalysis/openAiVisualAnalysisProvider.js';
 import { computeLeadScoreV2 } from '../../../auditor/src/scoring/scoreLeadV2.js';
 import { enrichLeads } from '../../../collector/src/enrichment/enrichLeads.js';
-import { generateSite } from '@minsk/redesign-engine';
+import { generateSite, runCrawl } from '@minsk/redesign-engine';
 import type { RunContext } from './OperationService.js';
 import { ActivityService } from '../activity/ActivityService.js';
 import { QualificationOrchestrator } from '../qualification/QualificationOrchestrator.js';
@@ -313,16 +313,16 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
       },
     },
 
-    GENERATE_SITE: {
-      label: 'Generate site',
+    CRAWL_SITE: {
+      label: 'Crawl site',
       category: 'factory',
-      description: 'Run the redesign pipeline: crawl, extract, transform, import and render.',
+      description: 'Crawl the source website, discover the homepage, and produce an immutable crawl.json artifact.',
       requiredRole: 'SUPER_ADMIN',
       inputSchema: { leadId: 'string', force: 'boolean' },
       supportsCancel: false,
       handler: async (ctx, input) => {
-        await ctx.stage('select', `Starting site generation for ${input.leadId}`);
-        const result = await generateSite({
+        await ctx.stage('crawl', `Starting site crawl for ${input.leadId}`);
+        const { run, crawlResult, crawlJsonPath } = await runCrawl({
           leadId: input.leadId,
           force: input.force ?? false,
           prisma: deps.prisma,
@@ -338,7 +338,42 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
             });
           },
         });
-        await ctx.success(`Site generated: ${result.previewSlug}`, { stage: 'site_rendered', metadata: result });
+        const homepage = crawlResult.homepage;
+        await ctx.success(`Crawl ready: ${homepage.url}`, {
+          stage: 'crawl_ready',
+          metadata: { redesignRunId: run.id, crawlJsonPath, homepage, pages: crawlResult.pages.length },
+        });
+        return { redesignRunId: run.id, crawlJsonPath, homepage, pages: crawlResult.pages.length };
+      },
+    },
+
+    GENERATE_SITE: {
+      label: 'Generate site',
+      category: 'factory',
+      description: 'Generate the demo site from a previously produced crawl artifact (crawlRunId).',
+      requiredRole: 'SUPER_ADMIN',
+      inputSchema: { leadId: 'string', crawlRunId: 'string', force: 'boolean' },
+      supportsCancel: false,
+      handler: async (ctx, input) => {
+        await ctx.stage('generate', `Starting site generation for ${input.leadId} using crawl ${input.crawlRunId}`);
+        const result = await generateSite({
+          leadId: input.leadId,
+          crawlRunId: input.crawlRunId,
+          force: input.force ?? false,
+          prisma: deps.prisma,
+          onActivity: async (event: { level?: 'INFO' | 'WARN' | 'ERROR'; module: string; eventType: string; message: string; details?: Record<string, any> }) => {
+            await deps.activity.log({
+              level: event.level ?? 'INFO',
+              module: 'FACTORY',
+              eventType: event.eventType,
+              message: event.message,
+              runId: ctx.runId,
+              leadId: input.leadId,
+              details: event.details,
+            });
+          },
+        });
+        await ctx.success(`Site generated: ${result.previewSlug}`, { stage: 'demo_generated', metadata: result });
         return result;
       },
     },

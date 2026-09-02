@@ -24,7 +24,7 @@ export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qua
   const [runs, setRuns] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
+  const load = () => {
     setLoading(true);
     Promise.all([
       api.getLeadStats(discoveryRunId || undefined),
@@ -36,6 +36,13 @@ export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qua
       })
       .catch((e) => console.error('Radar stats failed', e))
       .finally(() => setLoading(false));
+  };
+
+  useEffect(() => {
+    let mounted = true;
+    load();
+    const interval = setInterval(() => { if (mounted) load(); }, 5000);
+    return () => { mounted = false; clearInterval(interval); };
   }, [discoveryRunId]);
 
   const cards: { label: string; value: keyof RadarStatsData; positive?: boolean; warn?: boolean }[] = [

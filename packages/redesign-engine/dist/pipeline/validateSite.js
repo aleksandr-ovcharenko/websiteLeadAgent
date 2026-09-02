@@ -33,7 +33,7 @@ export async function validateGeneratedSite(options) {
         return { ok: false, score: 0, total: 1, missing, warnings };
     }
     const themeConfig = (site.themeConfig || {});
-    const theme = themeConfig.theme || {};
+    const theme = themeConfig.theme || { primaryColor: themeConfig.primaryColor, textColor: themeConfig.textColor, backgroundColor: themeConfig.backgroundColor };
     const hero = themeConfig.hero || {};
     const about = themeConfig.about || {};
     const cta = themeConfig.cta || {};

@@ -76,7 +76,7 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
     let mounted = true;
     const load = async () => { if (mounted) await refresh(false); };
     load();
-    const interval = setInterval(() => { if (mounted) refresh(true); }, 10000);
+    const interval = setInterval(() => { if (mounted) refresh(true); }, 3000);
     return () => { mounted = false; clearInterval(interval); };
   }, [mode, discoveryRunId, filters.q, filters.websiteStatus, filters.auditStatus, filters.manual, quick, filters.sort]);
 
@@ -159,7 +159,7 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
               </thead>
               <tbody className="divide-y divide-[#f0eeeb]">
                 {leads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-[#fafaf9] cursor-pointer" onClick={() => { setSelectedLead(lead); setSelectedLeadId(lead.id); }}>
+                  <tr data-testid="radar-lead-row" key={lead.id} className="hover:bg-[#fafaf9] cursor-pointer" onClick={() => { setSelectedLead(lead); setSelectedLeadId(lead.id); }}>
                     <td className="px-3 py-2">
                       <div className="text-[#1c1917] font-medium truncate max-w-[180px]">{lead.companyName}</div>
                       <div className="text-[10px] text-[#a8a29e] font-mono">{lead.categories?.[0] || '—'}</div>
@@ -183,7 +183,7 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
                     <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                       <div className="flex gap-1">
                         {lead.website && (
-                          <Button size="sm" onClick={() => startOperation('RUN_FULL_QUALIFICATION', { leadId: lead.id })}>Qualify</Button>
+                          <Button data-testid="qualify-button" size="sm" onClick={() => startOperation('RUN_FULL_QUALIFICATION', { leadId: lead.id })}>Qualify</Button>
                         )}
                         {lead.site && (
                           <a href={`/showcase/${lead.site.previewToken}`} target="_blank" rel="noreferrer" className="text-[#276749] hover:underline text-[11px]">Open</a>

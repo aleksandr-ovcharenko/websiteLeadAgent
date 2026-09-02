@@ -3,7 +3,6 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { prisma, requireSuperAdmin } from './auth.js';
 import { captureSitePreview, getScreenshotStoragePath, getScreenshotUrl } from '../../../packages/screenshot/src/index.js';
-// @ts-expect-error no built declaration file
 import { getPipelineStageLabel, generateSite } from '@minsk/redesign-engine';
 
 const router = express.Router();
@@ -200,8 +199,10 @@ router.get('/site-screenshots/:siteId/preview.png', async (req: Request, res: Re
   }
 });
 
-router.get('/api/factory/runs', requireSuperAdmin, async (_req: Request, res: Response) => {
+router.get('/api/factory/runs', requireSuperAdmin, async (req: Request, res: Response) => {
+  const leadId = typeof req.query.leadId === 'string' ? req.query.leadId : undefined;
   const raw = await prisma.redesignRun.findMany({
+    where: leadId ? { leadId } : undefined,
     orderBy: { createdAt: 'desc' },
     include: {
       lead: { select: { id: true, companyName: true } },
@@ -212,6 +213,8 @@ router.get('/api/factory/runs', requireSuperAdmin, async (_req: Request, res: Re
   const stageOrder = [
     'NOT_SELECTED',
     'SELECTED_FOR_REDESIGN',
+    'CRAWL_READY',
+    'CRAWL_FAILED',
     'CONTENT_EXTRACTED',
     'CONTENT_TRANSFORMED',
     'CMS_IMPORTED',
@@ -225,7 +228,7 @@ router.get('/api/factory/runs', requireSuperAdmin, async (_req: Request, res: Re
   const stageIndex = (stage: string) => stageOrder.indexOf(stage || '');
 
   const runs = raw.map((run: any, i: number) => {
-    const totalStages = 7;
+    const totalStages = 8;
     const idx = stageIndex(run.stage);
     const isFailed = !!run.errorMessage;
     const isCompleted = ['DEMO_GENERATED', 'DEMO_APPROVED', 'READY_TO_CONTACT'].includes(run.stage);
@@ -254,6 +257,8 @@ router.get('/api/factory/runs', requireSuperAdmin, async (_req: Request, res: Re
       failedStage: isFailed ? currentStage : undefined,
       failedReason: run.errorMessage || undefined,
       leadId: run.leadId,
+      crawlJsonPath: run.crawlJsonPath,
+      homepage: run.homepageCandidate,
       siteId: run.site?.id,
       forgeId: run.site?.id,
       previewToken: run.site?.previewToken,
@@ -306,6 +311,19 @@ router.delete('/api/platform/sites/:siteId/variants/:variantId', async (req: Req
   res.json({ ok: true });
 });
 
+router.get('/api/factory/runs/:runId/crawl', requireSuperAdmin, async (req: Request, res: Response) => {
+  const runId = String(req.params.runId);
+  const run = await prisma.redesignRun.findUnique({ where: { id: runId } });
+  if (!run || !run.crawlJsonPath) { res.status(404).json({ error: 'not_found' }); return; }
+  try {
+    const data = await fs.readFile(run.crawlJsonPath, 'utf8');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(data);
+  } catch (err: any) {
+    res.status(500).json({ error: 'read_failed', message: err?.message });
+  }
+});
+
 router.post('/api/factory/runs/:runId/retry', requireSuperAdmin, async (req: Request, res: Response) => {
   const runId = String(req.params.runId);
   const run = await prisma.redesignRun.findUnique({
@@ -313,9 +331,11 @@ router.post('/api/factory/runs/:runId/retry', requireSuperAdmin, async (req: Req
     include: { site: { select: { id: true, templateId: true } } }
   });
   if (!run) { res.status(404).json({ error: 'not_found' }); return; }
+  if (!run.crawlJsonPath) { res.status(400).json({ error: 'no_crawl_artifact' }); return; }
 
   const result = await generateSite({
     leadId: run.leadId,
+    crawlRunId: run.id,
     templateId: run.site?.templateId || 'construction-modern-v1',
     force: true,
     prisma,

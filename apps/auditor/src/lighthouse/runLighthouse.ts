@@ -46,7 +46,14 @@ export async function runLighthouseForLead(input: { leadId: string; url: string 
   await mkdir(outDir, { recursive: true });
 
   const chrome = await chromeLauncher.launch({
-    chromeFlags: ['--headless', '--no-sandbox', '--disable-gpu']
+    chromeFlags: [
+      '--headless',
+      '--no-sandbox',
+      '--disable-gpu',
+      '--ignore-certificate-errors',
+      '--ignore-certificate-errors-spki-list',
+      '--allow-insecure-localhost'
+    ]
   });
 
   try {

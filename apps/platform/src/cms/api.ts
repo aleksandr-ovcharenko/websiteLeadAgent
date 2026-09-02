@@ -60,7 +60,8 @@ export const api = {
   setRedesignStage: (leadId: string, stage: string) => request(`/api/leads/${leadId}/redesign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage }) }) as Promise<{ ok: boolean; lead: any }>,
 
   // Factory
-  getFactoryRuns: () => request('/api/factory/runs') as Promise<{ runs: any[] }>,
+  getFactoryRuns: (leadId?: string) => request(`/api/factory/runs${leadId ? `?leadId=${encodeURIComponent(leadId)}` : ''}`) as Promise<{ runs: any[] }>,
+  getCrawlArtifact: (runId: string) => request(`/api/factory/runs/${runId}/crawl`) as Promise<any>,
   retryFactoryRun: (runId: string) => request(`/api/factory/runs/${runId}/retry`, { method: 'POST' }) as Promise<any>,
 
   // Discovery

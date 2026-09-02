@@ -1,4 +1,5 @@
 import { chromium } from 'playwright';
+import { discoverHomepage } from './homepageDiscovery.js';
 function normalizeUrl(base, href) {
     try {
         const u = new URL(href, base);
@@ -14,7 +15,8 @@ function normalizeUrl(base, href) {
         }
         if (!u.search)
             u.search = '';
-        u.pathname = u.pathname.replace(/\/$/, '') || '/';
+        // Canonicalize /index.html and /index.htm to the directory root, then strip trailing slash.
+        u.pathname = u.pathname.replace(/\/index\.html?$/i, '').replace(/\/+$/, '') || '/';
         return u.toString().replace(/\?$/, '');
     }
     catch {
@@ -161,9 +163,30 @@ export async function crawlSite(options) {
     const pages = [];
     const allHeaderLinks = [];
     const allFooterLinks = [];
+    const warnings = [];
+    const skipped = [];
+    // Always probe the origin root with the highest priority so homepage discovery has a real homepage candidate.
+    try {
+        const origin = new URL(baseUrl).origin + '/';
+        const originRoot = normalizeUrl(baseUrl, origin);
+        if (originRoot && originRoot !== baseUrl) {
+            queue.push({ url: originRoot, depth: 0, priority: -100 });
+        }
+    }
+    catch {
+        warnings.push('Could not derive origin root from baseUrl');
+    }
     function enqueue(nu, depth, priority, source) {
-        if (seen.has(nu) || !shouldCrawlUrl(nu) || depth > maxDepth)
+        if (seen.has(nu))
             return;
+        if (depth > maxDepth) {
+            skipped.push({ url: nu, reason: `depth ${depth} > maxDepth ${maxDepth}` });
+            return;
+        }
+        if (!shouldCrawlUrl(nu)) {
+            skipped.push({ url: nu, reason: 'blocked_by_rules' });
+            return;
+        }
         queue.push({ url: nu, depth, priority });
         // Sort so navigation/sitemap links are crawled first, then by depth.
         queue.sort((a, b) => a.priority - b.priority || a.depth - b.depth);
@@ -315,12 +338,27 @@ export async function crawlSite(options) {
                         const header = document.querySelector('header');
                         const nav = document.querySelector('nav, [role="navigation"]');
                         const area = header || nav;
+                        let src = null;
+                        let href = null;
                         if (area) {
                             const logoImg = area.querySelector('img[alt*="logo" i], img[class*="logo" i], a[href="/"] img, a[href="./"] img');
                             if (logoImg?.src)
-                                return new URL(logoImg.getAttribute('src') || logoImg.src, baseHref).toString();
+                                src = new URL(logoImg.getAttribute('src') || logoImg.src, baseHref).toString();
+                            const logoLink = logoImg?.closest('a[href]');
+                            if (logoLink?.href)
+                                href = normalizeUrl(baseHref, logoLink.getAttribute('href') || logoLink.href);
                         }
-                        return null;
+                        if (!href) {
+                            // Fallback: look for an explicit "home" link in header/nav.
+                            for (const a of Array.from(document.querySelectorAll('header a[href], nav a[href]'))) {
+                                const text = (a.textContent || '').toLowerCase();
+                                if (/главная|home|на главную|main|index/.test(text)) {
+                                    href = normalizeUrl(baseHref, a.getAttribute('href') || '');
+                                    break;
+                                }
+                            }
+                        }
+                        return { src, href };
                     }
                     function parseIconSize(sizes) {
                         if (!sizes)
@@ -462,6 +500,8 @@ export async function crawlSite(options) {
                     const title = document.title || '';
                     const meta = document.querySelector('meta[name="description"]')?.content ?? '';
                     const h1 = document.querySelector('h1')?.textContent?.trim() ?? '';
+                    const canonicalLink = document.querySelector('link[rel="canonical"]');
+                    const canonicalUrl = canonicalLink?.href ? normalizeUrl(baseHref, canonicalLink.href) : null;
                     const body = document.body?.innerText ?? '';
                     const html = document.documentElement?.outerHTML ?? '';
                     const headerEl = document.querySelector('header');
@@ -482,6 +522,7 @@ export async function crawlSite(options) {
                         title,
                         meta,
                         h1,
+                        canonicalUrl,
                         text: body.slice(0, 12000),
                         html,
                         logo,
@@ -499,11 +540,13 @@ export async function crawlSite(options) {
                     title: data.title,
                     metaDescription: data.meta,
                     h1: data.h1,
+                    canonicalUrl: data.canonicalUrl || undefined,
                     text: data.text,
                     html: data.html,
                     links: data.links,
                     images: data.images,
-                    logo: data.logo || undefined,
+                    logo: data.logo.src || undefined,
+                    logoHref: data.logo.href || undefined,
                     favicon: data.favicon || undefined,
                     heroImage: data.heroImage || undefined,
                     themeColors: data.themeColors,
@@ -542,6 +585,7 @@ export async function crawlSite(options) {
             }
             catch (err) {
                 console.warn('crawl page failed', url, err);
+                skipped.push({ url, reason: err?.message || 'page_crawl_failed' });
             }
             finally {
                 await page.close().catch(() => { });
@@ -564,5 +608,14 @@ export async function crawlSite(options) {
         firstPageFooterNav = buildNavTree(allFooterLinks, baseUrl);
     }
     const navigation = mergeHeaderAndFooter(firstPageHeaderNav, firstPageFooterNav);
-    return { pages, navigation };
+    const originRoot = (() => {
+        try {
+            return new URL(baseUrl).origin + '/';
+        }
+        catch {
+            return baseUrl;
+        }
+    })();
+    const homepage = discoverHomepage(pages, baseUrl, navigation, originRoot, warnings);
+    return { pages, navigation, homepage, warnings, skipped };
 }

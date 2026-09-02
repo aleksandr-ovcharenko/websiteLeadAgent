@@ -1,0 +1,32 @@
+{
+  "id": "manna",
+  "name": "MANNA",
+  "source": "https://styles.refero.design/style/d83fd0b1-afde-41ff-b970-c622bfed9f59",
+  "theme": "light",
+  "description": "Architecture monograph at golden hour — warm bone pages, rust accent panels, and oversized grotesk display type floating over full-bleed photography.",
+  "colors": {
+    "bone": "#f2edde",
+    "rust": "#af6446",
+    "ink": "#000000"
+  },
+  "fonts": {
+    "primary": "Scto Grotesk A",
+    "display": "Scto Grotesk A",
+    "body": "Merlo",
+    "substitutes": {
+      "Scto Grotesk A": "Space Grotesk, ui-sans-serif, system-ui, sans-serif",
+      "Merlo": "Söhne, Inter, ui-sans-serif, system-ui, sans-serif"
+    }
+  },
+  "tokens": {
+    "canvas": "#f2edde",
+    "accentPanel": "#af6446",
+    "ink": "#000000",
+    "sectionGap": "60px",
+    "elementGap": "12-20px",
+    "imageBorder": "1px solid #000000",
+    "imageRadius": "0px",
+    "buttonRadius": "0px",
+    "cardRadius": "0px"
+  }
+}

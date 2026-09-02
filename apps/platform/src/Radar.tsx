@@ -464,8 +464,8 @@ function SidePanel({ lead, onClose, onReview, onGenerate, onQueue, onNavigate, h
   useEffect(() => { setScreenshotTab("desktop"); }, [lead.id]);
 
   return (
-    <div className="fixed inset-y-0 right-0 w-[400px] bg-white border-l border-[#e5e3df] flex flex-col z-40"
-      style={{ boxShadow: "-4px 0 24px rgba(28,25,23,0.07)", animation: "drawerIn 0.18s ease" }}>
+    <div className="fixed top-0 right-0 w-[400px] bg-white border-l border-[#e5e3df] flex flex-col z-40"
+      style={{ boxShadow: "-4px 0 24px rgba(28,25,23,0.07)", animation: "drawerIn 0.18s ease", bottom: 'var(--console-height, 0px)' }}>
 
       {/* ── Narrow nav bar ── */}
       <div className="flex items-center gap-1 px-3 py-2 border-b border-[#f0ede8] shrink-0">

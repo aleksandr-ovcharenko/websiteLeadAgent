@@ -20,7 +20,19 @@ output
 .vscode
 .idea
 
+# Crawl artifacts
+/data/redesign/
+
+# Dashboard local QA data: crawl artifacts, generated site media, desktop/mobile screenshots
+apps/dashboard/data/
+
+# Desktop/mobile screenshot artifacts saved by QA capture scripts
+apps/dashboard/*.png
+
+# Redesign-engine local generated data
+packages/redesign-engine/data/
+
 # Extracted design reference assets
-/design-reference
+/design-reference/extracted
 apps/platform/dist/
 docs/screenshots/product-qa/

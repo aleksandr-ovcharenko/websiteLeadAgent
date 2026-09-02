@@ -64,6 +64,8 @@ enum VisualAnalysisStatus {
 enum RedesignStage {
   NOT_SELECTED
   SELECTED_FOR_REDESIGN
+  CRAWL_READY
+  CRAWL_FAILED
   CONTENT_EXTRACTED
   CONTENT_TRANSFORMED
   CMS_IMPORTED
@@ -308,6 +310,10 @@ model SiteSettings {
   id        String   @id @default(cuid())
   siteId    String   @unique
   companyName String?
+  legalName String?
+  unp       String?
+  founded   String?
+  employees String?
   logoMediaId String?
   faviconMediaId String?
   phone     String?
@@ -504,6 +510,7 @@ model Vacancy {
   requirements String?
   conditions String?
   contact   String?
+  sourceUrl String?
   status    PageStatus @default(DRAFT)
   publishedAt DateTime?
   createdAt DateTime @default(now())
@@ -554,9 +561,11 @@ model MenuItem {
 model RedesignRun {
   id        String   @id @default(cuid())
   leadId    String
-  siteId    String?  @unique
+  siteId    String?
   stage     RedesignStage @default(NOT_SELECTED)
   contentJsonPath String?
+  crawlJsonPath String?
+  homepageCandidate Json?
   currentCrawl Json?
   currentScreenshots Json?
   redesignScreenshots Json?

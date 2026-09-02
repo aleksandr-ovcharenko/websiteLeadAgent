@@ -138,7 +138,7 @@ function backHref(target: string, returnTo?: 'home' | 'collection' | null) {
 }
 
 // ─── Shared font style ───────────────────────────────────────────────────────
-const GEO: React.CSSProperties = { fontFamily: "'Geologica', sans-serif" }
+const GEO: React.CSSProperties = { fontFamily: 'var(--font-display)' }
 
 // ─── Eyebrow label ───────────────────────────────────────────────────────────
 function Eyebrow({ children }: { children: React.ReactNode }) {
@@ -367,6 +367,7 @@ function Hero() {
   const titleWords = title.split(/\s+/).filter(Boolean)
   return (
     <section
+      data-hero="hero"
       className="relative overflow-hidden"
       style={{ height: '100svh', minHeight: '640px', background: 'var(--dark)' }}
     >
@@ -2026,7 +2027,7 @@ export default function App() {
   const matchedPage = route ? PAGES.find((p: any) => p.slug === route) : null
 
   return (
-    <div style={{ fontFamily: "'Inter', sans-serif", background: 'var(--bg)', color: 'var(--fg)' }}>
+    <div style={{ fontFamily: 'var(--font-body)', background: 'var(--bg)', color: 'var(--fg)' }}>
       <Header menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
       <main>
         {!route ? (

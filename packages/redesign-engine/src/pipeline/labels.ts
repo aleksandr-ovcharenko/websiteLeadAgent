@@ -7,6 +7,8 @@ import { RedesignStage } from '@prisma/client';
 export const PIPELINE_STAGE_LABELS: Record<RedesignStage, string> = {
   [RedesignStage.NOT_SELECTED]: 'Not started',
   [RedesignStage.SELECTED_FOR_REDESIGN]: 'Lead selected',
+  [RedesignStage.CRAWL_READY]: 'Crawl ready',
+  [RedesignStage.CRAWL_FAILED]: 'Crawl failed',
   [RedesignStage.CONTENT_EXTRACTED]: 'Content extraction',
   [RedesignStage.CONTENT_TRANSFORMED]: 'Content transformation',
   [RedesignStage.CMS_IMPORTED]: 'CMS import',

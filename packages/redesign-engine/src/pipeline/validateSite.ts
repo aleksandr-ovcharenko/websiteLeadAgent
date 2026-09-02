@@ -49,7 +49,7 @@ export async function validateGeneratedSite(options: ValidateOptions): Promise<V
   }
 
   const themeConfig = (site.themeConfig || {}) as any;
-  const theme = themeConfig.theme || {};
+  const theme = themeConfig.theme || { primaryColor: themeConfig.primaryColor, textColor: themeConfig.textColor, backgroundColor: themeConfig.backgroundColor };
   const hero = themeConfig.hero || {};
   const about = themeConfig.about || {};
   const cta = themeConfig.cta || {};

@@ -1,5 +1,6 @@
 import { chromium, type Browser, type Page } from 'playwright';
 import type { CrawlOptions, CrawledPage, CrawlResult, NavigationNode } from '../types.js';
+import { discoverHomepage } from './homepageDiscovery.js';
 
 function normalizeUrl(base: string, href: string): string | null {
   try {
@@ -13,7 +14,8 @@ function normalizeUrl(base: string, href: string): string | null {
       if (!keep.has(k.toLowerCase())) u.searchParams.delete(k);
     }
     if (!u.search) u.search = '';
-    u.pathname = u.pathname.replace(/\/$/, '') || '/';
+    // Canonicalize /index.html and /index.htm to the directory root, then strip trailing slash.
+    u.pathname = u.pathname.replace(/\/index\.html?$/i, '').replace(/\/+$/, '') || '/';
     return u.toString().replace(/\?$/, '');
   } catch {
     return null;
@@ -103,9 +105,10 @@ type ExtractedNav = {
   title: string;
   meta: string;
   h1: string;
+  canonicalUrl: string | null;
   text: string;
   html: string;
-  logo: string | null;
+  logo: { src: string | null; href: string | null };
   favicon: string | null;
   heroImage: string | null;
   themeColors: PageThemeColors;
@@ -200,9 +203,30 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
   const pages: CrawledPage[] = [];
   const allHeaderLinks: RawLink[] = [];
   const allFooterLinks: RawLink[] = [];
+  const warnings: string[] = [];
+  const skipped: { url: string; reason: string }[] = [];
+
+  // Always probe the origin root with the highest priority so homepage discovery has a real homepage candidate.
+  try {
+    const origin = new URL(baseUrl).origin + '/';
+    const originRoot = normalizeUrl(baseUrl, origin);
+    if (originRoot && originRoot !== baseUrl) {
+      queue.push({ url: originRoot, depth: 0, priority: -100 });
+    }
+  } catch {
+    warnings.push('Could not derive origin root from baseUrl');
+  }
 
   function enqueue(nu: string, depth: number, priority: number, source: 'header' | 'footer' | 'body') {
-    if (seen.has(nu) || !shouldCrawlUrl(nu) || depth > maxDepth) return;
+    if (seen.has(nu)) return;
+    if (depth > maxDepth) {
+      skipped.push({ url: nu, reason: `depth ${depth} > maxDepth ${maxDepth}` });
+      return;
+    }
+    if (!shouldCrawlUrl(nu)) {
+      skipped.push({ url: nu, reason: 'blocked_by_rules' });
+      return;
+    }
     queue.push({ url: nu, depth, priority });
     // Sort so navigation/sitemap links are crawled first, then by depth.
     queue.sort((a, b) => a.priority - b.priority || a.depth - b.depth);
@@ -339,15 +363,29 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
               }) as RawLink[];
           }
 
-          function extractLogo(): string | null {
+          function extractLogo(): { src: string | null; href: string | null } {
             const header = document.querySelector('header') as HTMLElement | null;
             const nav = document.querySelector('nav, [role="navigation"]') as HTMLElement | null;
             const area = header || nav;
+            let src: string | null = null;
+            let href: string | null = null;
             if (area) {
               const logoImg = area.querySelector('img[alt*="logo" i], img[class*="logo" i], a[href="/"] img, a[href="./"] img') as HTMLImageElement | null;
-              if (logoImg?.src) return new URL(logoImg.getAttribute('src') || logoImg.src, baseHref).toString();
+              if (logoImg?.src) src = new URL(logoImg.getAttribute('src') || logoImg.src, baseHref).toString();
+              const logoLink = logoImg?.closest('a[href]') as HTMLAnchorElement | null;
+              if (logoLink?.href) href = normalizeUrl(baseHref, logoLink.getAttribute('href') || logoLink.href);
             }
-            return null;
+            if (!href) {
+              // Fallback: look for an explicit "home" link in header/nav.
+              for (const a of Array.from(document.querySelectorAll('header a[href], nav a[href]'))) {
+                const text = (a.textContent || '').toLowerCase();
+                if (/главная|home|на главную|main|index/.test(text)) {
+                  href = normalizeUrl(baseHref, (a as HTMLAnchorElement).getAttribute('href') || '');
+                  break;
+                }
+              }
+            }
+            return { src, href };
           }
 
           function parseIconSize(sizes?: string): number {
@@ -481,6 +519,8 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
           const title = document.title || '';
           const meta = (document.querySelector('meta[name="description"]') as HTMLMetaElement)?.content ?? '';
           const h1 = document.querySelector('h1')?.textContent?.trim() ?? '';
+          const canonicalLink = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+          const canonicalUrl = canonicalLink?.href ? normalizeUrl(baseHref, canonicalLink.href) : null;
           const body = document.body?.innerText ?? '';
           const html = document.documentElement?.outerHTML ?? '';
 
@@ -506,6 +546,7 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
             title,
             meta,
             h1,
+            canonicalUrl,
             text: body.slice(0, 12000),
             html,
             logo,
@@ -524,11 +565,13 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
           title: data.title,
           metaDescription: data.meta,
           h1: data.h1,
+          canonicalUrl: data.canonicalUrl || undefined,
           text: data.text,
           html: data.html,
           links: data.links,
           images: data.images,
-          logo: data.logo || undefined,
+          logo: data.logo.src || undefined,
+          logoHref: data.logo.href || undefined,
           favicon: data.favicon || undefined,
           heroImage: data.heroImage || undefined,
           themeColors: data.themeColors,
@@ -562,8 +605,9 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
             enqueue(nu, depth + 1, priority, link.source);
           }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn('crawl page failed', url, err);
+        skipped.push({ url, reason: err?.message || 'page_crawl_failed' });
       } finally {
         await page.close().catch(() => {});
         await context.close().catch(() => {});
@@ -585,5 +629,11 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
   }
   const navigation = mergeHeaderAndFooter(firstPageHeaderNav, firstPageFooterNav);
 
-  return { pages, navigation };
+  const originRoot = (() => {
+    try { return new URL(baseUrl).origin + '/'; } catch { return baseUrl; }
+  })();
+
+  const homepage = discoverHomepage(pages, baseUrl, navigation, originRoot, warnings);
+
+  return { pages, navigation, homepage, warnings, skipped };
 }
