@@ -59,28 +59,28 @@ export function NewsList({ onNavigate }: NewsListProps) {
       />
 
       {visible.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded p-12 text-center">
-          <p className="text-[13px] text-gray-400 mb-3">No news found.</p>
+        <div className="bg-surface border border-border rounded p-12 text-center">
+          <p className="text-[13px] text-text-subtle mb-3">No news found.</p>
           <Button variant="primary" size="sm" onClick={() => onNavigate('news-editor', 'new')}>Add news</Button>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded overflow-hidden">
+        <div className="bg-surface border border-border rounded overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-200">
-                {['Title', 'Slug', 'Status', 'Updated', ''].map(col => <th key={col} className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-4 py-2 bg-gray-50 whitespace-nowrap">{col}</th>)}
+              <tr className="border-b border-border">
+                {['Title', 'Slug', 'Status', 'Updated', ''].map(col => <th key={col} className="text-left text-[11px] font-semibold text-text-subtle uppercase tracking-wider px-4 py-2 bg-surface-raised whitespace-nowrap">{col}</th>)}
               </tr>
             </thead>
             <tbody>
               {visible.map((n: any) => (
-                <tr key={n.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60 transition-colors group">
-                  <td className="px-4 py-2"><button onClick={() => onNavigate('news-editor', n.id)} className="text-[13px] font-medium text-gray-900 hover:text-[#16a34a] transition-colors text-left">{n.title}</button></td>
-                  <td className="px-4 py-2 text-[12px] text-gray-400 mono">{n.slug}</td>
+                <tr key={n.id} className="border-b border-border last:border-0 hover:bg-surface-raised/60 transition-colors group">
+                  <td className="px-4 py-2"><button onClick={() => onNavigate('news-editor', n.id)} className="text-[13px] font-medium text-text hover:text-accent transition-colors text-left">{n.title}</button></td>
+                  <td className="px-4 py-2 text-[12px] text-text-subtle mono">{n.slug}</td>
                   <td className="px-4 py-2"><Badge variant={uiStatus(n.status)} /></td>
-                  <td className="px-4 py-2 text-[12px] text-gray-400 whitespace-nowrap">{formatDate(n.updatedAt)}</td>
+                  <td className="px-4 py-2 text-[12px] text-text-subtle whitespace-nowrap">{formatDate(n.updatedAt)}</td>
                   <td className="px-4 py-2 text-right w-10">
                     <DropdownMenu
-                      trigger={<button className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors opacity-0 group-hover:opacity-100"><IconMore size={13} /></button>}
+                      trigger={<button className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:bg-surface-hover hover:text-text-muted transition-colors opacity-0 group-hover:opacity-100"><IconMore size={13} /></button>}
                       items={[
                         { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('news-editor', n.id) },
                         { label: 'Preview', icon: <IconEye size={12} />, onClick: () => window.open(`/showcase/${n.site?.previewToken || ''}/news/${n.slug}`, '_blank') },
@@ -102,13 +102,13 @@ export function NewsList({ onNavigate }: NewsListProps) {
 
 type SaveState = 'saved' | 'saving' | 'unsaved'
 function SaveIndicator({ state }: { state: SaveState }) {
-  if (state === 'saving') return <span className="flex items-center gap-1.5 text-[12px] text-gray-400"><span className="inline-block w-3 h-3 rounded-full border border-gray-300 border-t-gray-500 animate-spin" />Saving…</span>
-  if (state === 'unsaved') return <span className="flex items-center gap-1.5 text-[12px] text-amber-500"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />Unsaved changes</span>
-  return <span className="flex items-center gap-1.5 text-[12px] text-gray-400"><IconCheck size={12} className="text-emerald-500 flex-shrink-0" />Saved</span>
+  if (state === 'saving') return <span className="flex items-center gap-1.5 text-[12px] text-text-subtle"><span className="inline-block w-3 h-3 rounded-full border border-border border-t-gray-500 animate-spin" />Saving…</span>
+  if (state === 'unsaved') return <span className="flex items-center gap-1.5 text-[12px] text-warning"><span className="w-1.5 h-1.5 rounded-full bg-warning flex-shrink-0" />Unsaved changes</span>
+  return <span className="flex items-center gap-1.5 text-[12px] text-text-subtle"><IconCheck size={12} className="text-success flex-shrink-0" />Saved</span>
 }
 
 function SideSection({ title, children, noBorder }: { title: string; children: React.ReactNode; noBorder?: boolean }) {
-  return <div className={`px-5 py-4 ${noBorder ? '' : 'border-b border-gray-100'}`}><p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-3">{title}</p>{children}</div>
+  return <div className={`px-5 py-4 ${noBorder ? '' : 'border-b border-border'}`}><p className="text-[11px] font-semibold uppercase tracking-wider text-text-subtle mb-3">{title}</p>{children}</div>
 }
 
 interface NewsEditorProps {
@@ -170,11 +170,11 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 h-[46px] flex items-center gap-3">
+      <div className="flex-shrink-0 bg-surface border-b border-border px-4 h-[46px] flex items-center gap-3">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <button onClick={() => onNavigate('news')} className="flex items-center gap-1 text-[12px] text-gray-400 hover:text-gray-700 transition-colors"><IconChevronLeft size={13} />News</button>
-          <span className="text-gray-200">/</span>
-          <span className="text-[13px] font-medium text-gray-800 truncate">{title || 'New post'}</span>
+          <button onClick={() => onNavigate('news')} className="flex items-center gap-1 text-[12px] text-text-subtle hover:text-text transition-colors"><IconChevronLeft size={13} />News</button>
+          <span className="text-text-subtle">/</span>
+          <span className="text-[13px] font-medium text-text truncate">{title || 'New post'}</span>
           <span className="flex-shrink-0"><Badge variant={status} /></span>
         </div>
         <SaveIndicator state={saveState} />
@@ -186,41 +186,41 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 overflow-y-auto bg-[#f4f5f7] p-6">
+        <div className="flex-1 overflow-y-auto bg-bg p-6">
           <div className="max-w-[680px] mx-auto flex flex-col gap-5">
-            <div className="bg-white border border-gray-200 rounded px-5 py-4">
-              <input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Post title" className="w-full text-[20px] font-semibold text-gray-900 placeholder-gray-300 bg-transparent border-0 focus:outline-none leading-tight" />
+            <div className="bg-surface border border-border rounded px-5 py-4">
+              <input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Post title" className="w-full text-[20px] font-semibold text-text placeholder-text-subtle bg-transparent border-0 focus:outline-none leading-tight" />
             </div>
 
-            <div className="bg-white border border-gray-200 rounded p-4 flex flex-col gap-3.5">
+            <div className="bg-surface border border-border rounded p-4 flex flex-col gap-3.5">
               <Textarea label="Excerpt" value={excerpt} onChange={v => { setExcerpt(v); markDirty() }} rows={2} placeholder="Short summary shown in listings…" />
               <div className="flex flex-col gap-1">
-                <label className="text-[12px] font-medium text-gray-600">Content</label>
-                <textarea value={content} onChange={e => { setContent(e.target.value); markDirty() }} rows={12} placeholder="Write the post content here. Use blank lines between paragraphs." className="w-full border border-gray-300 rounded text-[13px] text-gray-900 placeholder-gray-400 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#16a34a] focus:border-[#16a34a] resize-y leading-relaxed" />
-                <p className="text-[10px] text-gray-400 text-right">{content.length} chars</p>
+                <label className="text-[12px] font-medium text-text-muted">Content</label>
+                <textarea value={content} onChange={e => { setContent(e.target.value); markDirty() }} rows={12} placeholder="Write the post content here. Use blank lines between paragraphs." className="w-full border border-border rounded text-[13px] text-text placeholder-text-subtle px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent resize-y leading-relaxed" />
+                <p className="text-[10px] text-text-subtle text-right">{content.length} chars</p>
               </div>
             </div>
 
             <div>
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Cover image</p>
-              <div className="bg-white border border-gray-200 rounded p-4">
+              <p className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider mb-2">Cover image</p>
+              <div className="bg-surface border border-border rounded p-4">
                 {coverImageId ? (
                   <div className="flex items-center gap-3 mb-3">
                     <img src={`/api/cms/sites/${siteId}/media` /* no direct url */} alt="" className="w-16 h-16 object-cover rounded border" onError={() => undefined} />
-                    <span className="text-[12px] text-gray-600 mono">{coverImageId}</span>
-                    <button onClick={() => { setCoverImageId(''); markDirty() }} className="ml-auto text-red-500 text-[12px]">Remove</button>
+                    <span className="text-[12px] text-text-muted mono">{coverImageId}</span>
+                    <button onClick={() => { setCoverImageId(''); markDirty() }} className="ml-auto text-danger text-[12px]">Remove</button>
                   </div>
                 ) : null}
-                <label className="h-[120px] border border-dashed border-gray-300 rounded flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-gray-50 hover:border-[#16a34a] hover:text-[#16a34a] cursor-pointer transition-colors">
+                <label className="h-[120px] border border-dashed border-border rounded flex flex-col items-center justify-center gap-2 text-text-subtle hover:bg-surface-raised hover:border-accent hover:text-accent cursor-pointer transition-colors">
                   <input type="file" accept="image/*" onChange={handleFile} className="hidden" />
-                  {uploading ? <span className="text-[12px]">Uploading…</span> : <><IconUpload size={18} /><span className="text-[12px]">Click to upload or drag image here</span><span className="text-[11px] text-gray-300">JPG, PNG — recommended 1200×800</span></>}
+                  {uploading ? <span className="text-[12px]">Uploading…</span> : <><IconUpload size={18} /><span className="text-[12px]">Click to upload or drag image here</span><span className="text-[11px] text-text-subtle">JPG, PNG — recommended 1200×800</span></>}
                 </label>
               </div>
             </div>
           </div>
         </div>
 
-        <aside className="w-[272px] flex-shrink-0 border-l border-gray-200 bg-white overflow-y-auto">
+        <aside className="w-[272px] flex-shrink-0 border-l border-border bg-surface overflow-y-auto">
           <SideSection title="Publication">
             <Select label="Status" value={status} onChange={v => { setStatus(v as any); markDirty() }} options={[{ value: 'published', label: 'Published' }, { value: 'draft', label: 'Draft' }, { value: 'archived', label: 'Archived' }]} />
             <div className="mt-3">
@@ -233,14 +233,14 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
           <SideSection title="SEO">
             <Input label="Title" value={seoTitle} onChange={v => { setSeoTitle(v); markDirty() }} placeholder="Defaults to post title" />
             <div className="flex flex-col gap-1 mt-3">
-              <label className="text-[12px] font-medium text-gray-600">Description</label>
-              <textarea value={seoDesc} onChange={e => { setSeoDesc(e.target.value); markDirty() }} rows={3} placeholder="Brief description for search results" className="w-full border border-gray-300 rounded text-[12px] text-gray-900 placeholder-gray-400 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#16a34a] focus:border-[#16a34a] resize-none leading-relaxed" />
-              <p className="text-[10px] text-gray-400 text-right">{seoDesc.length}/160</p>
+              <label className="text-[12px] font-medium text-text-muted">Description</label>
+              <textarea value={seoDesc} onChange={e => { setSeoDesc(e.target.value); markDirty() }} rows={3} placeholder="Brief description for search results" className="w-full border border-border rounded text-[12px] text-text placeholder-text-subtle px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent resize-none leading-relaxed" />
+              <p className="text-[10px] text-text-subtle text-right">{seoDesc.length}/160</p>
             </div>
           </SideSection>
           {!isNew && (
             <SideSection title="Danger zone" noBorder>
-              <button onClick={async () => { try { await api.deleteNews(siteId, item!.id); await refresh(); onNavigate('news') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-gray-500 hover:text-red-600 transition-colors py-1.5">Delete post</button>
+              <button onClick={async () => { try { await api.deleteNews(siteId, item!.id); await refresh(); onNavigate('news') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-text-muted hover:text-danger transition-colors py-1.5">Delete post</button>
             </SideSection>
           )}
         </aside>

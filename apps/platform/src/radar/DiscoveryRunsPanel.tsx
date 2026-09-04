@@ -73,25 +73,25 @@ export default function DiscoveryRunsPanel({ open, onReloadLeads, onDuplicate }:
   if (!open) return null;
 
   return (
-    <div className="fixed right-4 top-[100px] z-50 w-[400px] max-h-[calc(100vh-120px)] overflow-y-auto bg-white border border-[#e5e3df] rounded-lg shadow-xl p-4">
+    <div className="fixed right-4 top-[100px] z-50 w-[400px] max-h-[calc(100vh-120px)] overflow-y-auto bg-surface border border-border rounded-lg shadow-xl p-4">
       <div className="flex items-center justify-between mb-3">
-        <h3 className="text-[13px] font-semibold text-[#1c1917]">Discovery history</h3>
-        <button onClick={refresh} className="text-[12px] text-[#276749] hover:underline">Refresh</button>
+        <h3 className="text-[13px] font-semibold text-text">Discovery history</h3>
+        <button onClick={refresh} className="text-[12px] text-accent hover:underline">Refresh</button>
       </div>
-      {error && <div className="text-[11px] text-red-600 mb-2">{error}</div>}
-      {loading && runs.length === 0 && <div className="text-[12px] text-[#a8a29e]">Loading…</div>}
-      {!loading && runs.length === 0 && <div className="text-[12px] text-[#a8a29e]">No discovery runs yet</div>}
+      {error && <div className="text-[11px] text-danger mb-2">{error}</div>}
+      {loading && runs.length === 0 && <div className="text-[12px] text-text-subtle">Loading…</div>}
+      {!loading && runs.length === 0 && <div className="text-[12px] text-text-subtle">No discovery runs yet</div>}
       <div className="space-y-2">
         {runs.map((run) => (
-          <div key={run.id} className="border border-[#e5e3df] rounded p-2.5 text-[12px]">
+          <div key={run.id} className="border border-border rounded p-2.5 text-[12px]">
             <div className="flex items-center justify-between">
               <span className="font-medium">{run.provider}</span>
               <StatusBadge status={run.status} />
             </div>
-            <div className="text-[#57534e] mt-1 truncate">{run.query}</div>
-            {run.location && <div className="text-[#a8a29e]">{run.location}</div>}
-            <div className="text-[#a8a29e] mt-1">Limit: {run.limit} · {run.createdCount} new / {run.duplicateCount} dup</div>
-            {run.errorMessage && <div className="text-red-600 text-[11px] mt-1 truncate">{run.errorMessage}</div>}
+            <div className="text-text mt-1 truncate">{run.query}</div>
+            {run.location && <div className="text-text-subtle">{run.location}</div>}
+            <div className="text-text-subtle mt-1">Limit: {run.limit} · {run.createdCount} new / {run.duplicateCount} dup</div>
+            {run.errorMessage && <div className="text-danger text-[11px] mt-1 truncate">{run.errorMessage}</div>}
             <div className="flex gap-2 mt-2">
               <Button size="sm" onClick={() => runAgain(run.id)} disabled={busy === run.id}>
                 {busy === run.id ? '…' : 'Run again'}
@@ -109,13 +109,13 @@ export default function DiscoveryRunsPanel({ open, onReloadLeads, onDuplicate }:
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
-    PENDING: 'bg-gray-100 text-gray-500',
-    RUNNING: 'bg-amber-50 text-amber-700',
-    DISCOVERING: 'bg-amber-50 text-amber-700',
-    ENRICHING: 'bg-blue-50 text-blue-700',
-    QUALIFYING: 'bg-purple-50 text-purple-700',
-    COMPLETED: 'bg-emerald-50 text-emerald-700',
-    FAILED: 'bg-red-50 text-red-700',
+    PENDING: 'bg-surface-hover text-text-muted',
+    RUNNING: 'bg-warning-subtle text-warning',
+    DISCOVERING: 'bg-warning-subtle text-warning',
+    ENRICHING: 'bg-info-subtle text-info',
+    QUALIFYING: 'bg-info-subtle text-info',
+    COMPLETED: 'bg-success-subtle text-success',
+    FAILED: 'bg-danger-subtle text-danger',
   };
   return (
     <span className={`text-[10px] px-1.5 py-0.5 rounded ${styles[status] || styles.PENDING}`}>

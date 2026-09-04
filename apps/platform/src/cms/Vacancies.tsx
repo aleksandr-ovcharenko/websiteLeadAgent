@@ -59,29 +59,29 @@ export function VacanciesList({ onNavigate }: VacanciesListProps) {
       />
 
       {visible.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded p-12 text-center">
-          <p className="text-[13px] text-gray-400 mb-3">No vacancies found.</p>
+        <div className="bg-surface border border-border rounded p-12 text-center">
+          <p className="text-[13px] text-text-subtle mb-3">No vacancies found.</p>
           <Button variant="primary" size="sm" onClick={() => onNavigate('vacancy-editor', 'new')}>Add vacancy</Button>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded overflow-hidden">
+        <div className="bg-surface border border-border rounded overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-200">
-                {['Title', 'Location', 'Status', 'Published', 'Updated', ''].map(col => <th key={col} className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-4 py-2 bg-gray-50 whitespace-nowrap">{col}</th>)}
+              <tr className="border-b border-border">
+                {['Title', 'Location', 'Status', 'Published', 'Updated', ''].map(col => <th key={col} className="text-left text-[11px] font-semibold text-text-subtle uppercase tracking-wider px-4 py-2 bg-surface-raised whitespace-nowrap">{col}</th>)}
               </tr>
             </thead>
             <tbody>
               {visible.map((v: any) => (
-                <tr key={v.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60 transition-colors group">
-                  <td className="px-4 py-2"><button onClick={() => onNavigate('vacancy-editor', v.id)} className="text-[13px] font-medium text-gray-900 hover:text-[#16a34a] transition-colors text-left">{v.title}</button></td>
-                  <td className="px-4 py-2 text-[12px] text-gray-400">{v.location}</td>
+                <tr key={v.id} className="border-b border-border last:border-0 hover:bg-surface-raised/60 transition-colors group">
+                  <td className="px-4 py-2"><button onClick={() => onNavigate('vacancy-editor', v.id)} className="text-[13px] font-medium text-text hover:text-accent transition-colors text-left">{v.title}</button></td>
+                  <td className="px-4 py-2 text-[12px] text-text-subtle">{v.location}</td>
                   <td className="px-4 py-2"><Badge variant={uiStatus(v.status)} /></td>
-                  <td className="px-4 py-2 text-[12px] text-gray-400 whitespace-nowrap">{formatDate(v.publishedAt)}</td>
-                  <td className="px-4 py-2 text-[12px] text-gray-400 whitespace-nowrap">{formatDate(v.updatedAt)}</td>
+                  <td className="px-4 py-2 text-[12px] text-text-subtle whitespace-nowrap">{formatDate(v.publishedAt)}</td>
+                  <td className="px-4 py-2 text-[12px] text-text-subtle whitespace-nowrap">{formatDate(v.updatedAt)}</td>
                   <td className="px-4 py-2 text-right w-10">
                     <DropdownMenu
-                      trigger={<button className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors opacity-0 group-hover:opacity-100"><IconMore size={13} /></button>}
+                      trigger={<button className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:bg-surface-hover hover:text-text-muted transition-colors opacity-0 group-hover:opacity-100"><IconMore size={13} /></button>}
                       items={[
                         { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('vacancy-editor', v.id) },
                         { label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(v.id), danger: true, divider: true },
@@ -102,9 +102,9 @@ export function VacanciesList({ onNavigate }: VacanciesListProps) {
 
 type SaveState = 'saved' | 'saving' | 'unsaved'
 function SaveIndicator({ state }: { state: SaveState }) {
-  if (state === 'saving') return <span className="flex items-center gap-1.5 text-[12px] text-gray-400"><span className="inline-block w-3 h-3 rounded-full border border-gray-300 border-t-gray-500 animate-spin" />Saving…</span>
-  if (state === 'unsaved') return <span className="flex items-center gap-1.5 text-[12px] text-amber-500"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />Unsaved changes</span>
-  return <span className="flex items-center gap-1.5 text-[12px] text-gray-400"><IconCheck size={12} className="text-emerald-500 flex-shrink-0" />Saved</span>
+  if (state === 'saving') return <span className="flex items-center gap-1.5 text-[12px] text-text-subtle"><span className="inline-block w-3 h-3 rounded-full border border-border border-t-gray-500 animate-spin" />Saving…</span>
+  if (state === 'unsaved') return <span className="flex items-center gap-1.5 text-[12px] text-warning"><span className="w-1.5 h-1.5 rounded-full bg-warning flex-shrink-0" />Unsaved changes</span>
+  return <span className="flex items-center gap-1.5 text-[12px] text-text-subtle"><IconCheck size={12} className="text-success flex-shrink-0" />Saved</span>
 }
 
 interface VacancyEditorProps {
@@ -148,11 +148,11 @@ export function VacancyEditor({ vacancyId, onNavigate }: VacancyEditorProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 h-[46px] flex items-center gap-3">
+      <div className="flex-shrink-0 bg-surface border-b border-border px-4 h-[46px] flex items-center gap-3">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <button onClick={() => onNavigate('vacancies')} className="flex items-center gap-1 text-[12px] text-gray-400 hover:text-gray-700 transition-colors"><IconChevronLeft size={13} />Vacancies</button>
-          <span className="text-gray-200">/</span>
-          <span className="text-[13px] font-medium text-gray-800 truncate">{title || 'New vacancy'}</span>
+          <button onClick={() => onNavigate('vacancies')} className="flex items-center gap-1 text-[12px] text-text-subtle hover:text-text transition-colors"><IconChevronLeft size={13} />Vacancies</button>
+          <span className="text-text-subtle">/</span>
+          <span className="text-[13px] font-medium text-text truncate">{title || 'New vacancy'}</span>
           <span className="flex-shrink-0"><Badge variant={status} /></span>
         </div>
         <SaveIndicator state={saveState} />
@@ -162,13 +162,13 @@ export function VacancyEditor({ vacancyId, onNavigate }: VacancyEditorProps) {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto bg-[#f4f5f7] p-6">
+      <div className="flex-1 overflow-y-auto bg-bg p-6">
         <div className="max-w-[680px] mx-auto flex flex-col gap-5">
-          <div className="bg-white border border-gray-200 rounded px-5 py-4">
-            <input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Vacancy title" className="w-full text-[20px] font-semibold text-gray-900 placeholder-gray-300 bg-transparent border-0 focus:outline-none leading-tight" />
+          <div className="bg-surface border border-border rounded px-5 py-4">
+            <input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Vacancy title" className="w-full text-[20px] font-semibold text-text placeholder-text-subtle bg-transparent border-0 focus:outline-none leading-tight" />
           </div>
 
-          <div className="bg-white border border-gray-200 rounded p-4 flex flex-col gap-3.5">
+          <div className="bg-surface border border-border rounded p-4 flex flex-col gap-3.5">
             <div className="grid grid-cols-2 gap-3">
               <Input label="Slug" value={slug} onChange={v => { setSlug(v); markDirty() }} />
               <Input label="Location" value={location} onChange={v => { setLocation(v); markDirty() }} placeholder="City, office" />
@@ -181,8 +181,8 @@ export function VacancyEditor({ vacancyId, onNavigate }: VacancyEditorProps) {
           </div>
 
           {!isNew && (
-            <div className="bg-white border border-gray-200 rounded p-4">
-              <button onClick={async () => { try { await api.deleteVacancy(siteId, item!.id); await refresh(); onNavigate('vacancies') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-gray-500 hover:text-red-600 transition-colors py-1.5">Delete vacancy</button>
+            <div className="bg-surface border border-border rounded p-4">
+              <button onClick={async () => { try { await api.deleteVacancy(siteId, item!.id); await refresh(); onNavigate('vacancies') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-text-muted hover:text-danger transition-colors py-1.5">Delete vacancy</button>
             </div>
           )}
         </div>

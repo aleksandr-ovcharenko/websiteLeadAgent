@@ -32,7 +32,7 @@ function getInitialState(mode: Mode): { view: PrimaryView; filters: Filters } {
 function statusBadge(status?: string | null, type: 'audit' | 'lighthouse' | 'ai' = 'audit') {
   const s = status || 'PENDING';
   const label = { audit: { PENDING: 'Audit', SUCCESS: 'Audited', FAILED: 'Failed' }, lighthouse: { PENDING: 'Lighthouse', SUCCESS: 'Lighthouse', FAILED: 'Failed' }, ai: { PENDING: 'AI', SUCCESS: 'AI', FAILED: 'Failed' } }[type];
-  const color = s === 'SUCCESS' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : s === 'FAILED' ? 'text-red-700 bg-red-50 border-red-200' : 'text-amber-700 bg-amber-50 border-amber-200';
+  const color = s === 'SUCCESS' ? 'text-success bg-success-subtle border-success-subtle' : s === 'FAILED' ? 'text-danger bg-danger-subtle border-danger-subtle' : 'text-warning bg-warning-subtle border-warning-subtle';
   return <span className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-mono ${color}`}>{(label as any)[s] || s}</span>;
 }
 
@@ -154,16 +154,16 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-      <div className="bg-white border-b border-[#e5e3df] px-6 h-[52px] flex items-center justify-between shrink-0">
-        <h1 className="text-[14px] font-semibold text-[#1c1917]">Leads</h1>
+      <div className="bg-surface border-b border-border px-6 h-[52px] flex items-center justify-between shrink-0">
+        <h1 className="text-[14px] font-semibold text-text">Leads</h1>
         <div className="flex items-center gap-2">
-          {refreshing && <span className="text-[11px] text-[#a8a29e] font-mono">Updating…</span>}
+          {refreshing && <span className="text-[11px] text-text-subtle font-mono">Updating…</span>}
           <Button size="sm" variant="secondary" onClick={() => refresh(false)}>Refresh</Button>
         </div>
       </div>
 
       <div className={`p-6 ${selectedLead ? 'pr-[420px]' : ''}`}>
-        {error && <div className="mb-4 text-[12px] text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
+        {error && <div className="mb-4 text-[12px] text-danger bg-danger-subtle border border-danger-subtle rounded px-3 py-2">{error}</div>}
         <RadarStats discoveryRunId={discoveryRunId} onRunChange={setDiscoveryRunId} onQualify={qualifyRun} qualifying={qualifying} />
         <RadarFilters
           filters={filters}
@@ -173,46 +173,46 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
           counts={counts}
         />
 
-        {loading && <div className="text-[13px] text-[#a8a29e]">Loading leads…</div>}
-        {!loading && leads.length === 0 && <div className="text-[13px] text-[#a8a29e]">No leads match the filter.</div>}
+        {loading && <div className="text-[13px] text-text-subtle">Loading leads…</div>}
+        {!loading && leads.length === 0 && <div className="text-[13px] text-text-subtle">No leads match the filter.</div>}
 
         {!loading && leads.length > 0 && (
-          <div className="bg-white border border-[#e5e3df] rounded-md overflow-hidden">
+          <div className="bg-surface border border-border rounded-md overflow-hidden">
             <table className="w-full text-left text-[12px]">
-              <thead className="bg-[#fafaf9] border-b border-[#e5e3df]">
+              <thead className="bg-surface-raised border-b border-border">
                 <tr>
-                  <th className="px-3 py-2 font-medium text-[#57534e]">Company</th>
-                  <th className="px-3 py-2 font-medium text-[#57534e]">Website</th>
-                  <th className="px-3 py-2 font-medium text-[#57534e]">Score</th>
-                  <th className="px-3 py-2 font-medium text-[#57534e]">Visual</th>
-                  <th className="px-3 py-2 font-medium text-[#57534e]">Tech</th>
-                  <th className="px-3 py-2 font-medium text-[#57534e]">Business</th>
-                  <th className="px-3 py-2 font-medium text-[#57534e]">Audit</th>
-                  <th className="px-3 py-2 font-medium text-[#57534e]">AI</th>
-                  <th className="px-3 py-2 font-medium text-[#57534e]">Review</th>
-                  <th className="px-3 py-2 font-medium text-[#57534e]">Actions</th>
+                  <th className="px-3 py-2 font-medium text-text">Company</th>
+                  <th className="px-3 py-2 font-medium text-text">Website</th>
+                  <th className="px-3 py-2 font-medium text-text">Score</th>
+                  <th className="px-3 py-2 font-medium text-text">Visual</th>
+                  <th className="px-3 py-2 font-medium text-text">Tech</th>
+                  <th className="px-3 py-2 font-medium text-text">Business</th>
+                  <th className="px-3 py-2 font-medium text-text">Audit</th>
+                  <th className="px-3 py-2 font-medium text-text">AI</th>
+                  <th className="px-3 py-2 font-medium text-text">Review</th>
+                  <th className="px-3 py-2 font-medium text-text">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#f0eeeb]">
+              <tbody className="divide-y divide-border">
                 {leads.map((lead) => (
-                  <tr data-testid="radar-lead-row" key={lead.id} className="hover:bg-[#fafaf9] cursor-pointer" onClick={() => { setSelectedLead(lead); setSelectedLeadId(lead.id); }}>
+                  <tr data-testid="radar-lead-row" key={lead.id} className="hover:bg-surface-raised cursor-pointer" onClick={() => { setSelectedLead(lead); setSelectedLeadId(lead.id); }}>
                     <td className="px-3 py-2">
-                      <div className="text-[#1c1917] font-medium truncate max-w-[180px]">{lead.companyName}</div>
-                      <div className="text-[10px] text-[#a8a29e] font-mono">{lead.categories?.[0] || '—'}</div>
+                      <div className="text-text font-medium truncate max-w-[180px]">{lead.companyName}</div>
+                      <div className="text-[10px] text-text-subtle font-mono">{lead.categories?.[0] || '—'}</div>
                     </td>
                     <td className="px-3 py-2">
                       {lead.website ? (
-                        <a href={lead.website} target="_blank" rel="noreferrer" className="text-[#276749] hover:underline truncate max-w-[120px] inline-block" onClick={(e) => e.stopPropagation()}>{lead.websiteDomain || lead.website}</a>
-                      ) : <span className="text-[10px] text-red-700 font-mono">No website</span>}
+                        <a href={lead.website} target="_blank" rel="noreferrer" className="text-accent hover:underline truncate max-w-[120px] inline-block" onClick={(e) => e.stopPropagation()}>{lead.websiteDomain || lead.website}</a>
+                      ) : <span className="text-[10px] text-danger font-mono">No website</span>}
                     </td>
                     <td className="px-3 py-2"><div className="flex items-center gap-2"><LeadScoreRing score={lead.leadScoreV2 ?? lead.leadScore} size={32} /></div></td>
-                    <td className="px-3 py-2 text-[11px] font-mono text-[#57534e]">{lead.visualQualityScore ?? '—'}</td>
-                    <td className="px-3 py-2 text-[11px] font-mono text-[#57534e]">{lead.technicalQualityScore ?? '—'}</td>
-                    <td className="px-3 py-2 text-[11px] font-mono text-[#57534e]">{lead.businessConfidenceScore ?? lead.businessScore ?? '—'}</td>
+                    <td className="px-3 py-2 text-[11px] font-mono text-text">{lead.visualQualityScore ?? '—'}</td>
+                    <td className="px-3 py-2 text-[11px] font-mono text-text">{lead.technicalQualityScore ?? '—'}</td>
+                    <td className="px-3 py-2 text-[11px] font-mono text-text">{lead.businessConfidenceScore ?? lead.businessScore ?? '—'}</td>
                     <td className="px-3 py-2">{statusBadge(lead.auditStatus, 'audit')}</td>
                     <td className="px-3 py-2">{statusBadge(lead.visualAnalysis?.status, 'ai')}</td>
                     <td className="px-3 py-2">
-                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${lead.manualReviewStatus === 'GOOD' ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : lead.manualReviewStatus === 'BAD' ? 'text-red-700 bg-red-50 border-red-200' : lead.manualReviewStatus === 'UNSURE' ? 'text-amber-700 bg-amber-50 border-amber-200' : 'text-[#57534e] bg-[#f5f4f2] border-[#e5e3df]'}`}>
+                      <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded border ${lead.manualReviewStatus === 'GOOD' ? 'text-success bg-success-subtle border-success-subtle' : lead.manualReviewStatus === 'BAD' ? 'text-danger bg-danger-subtle border-danger-subtle' : lead.manualReviewStatus === 'UNSURE' ? 'text-warning bg-warning-subtle border-warning-subtle' : 'text-text bg-surface-raised border-border'}`}>
                         {lead.manualReviewStatus || 'UNREVIEWED'}
                       </span>
                     </td>
@@ -222,7 +222,7 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
                           <Button data-testid="qualify-button" size="sm" onClick={() => startOperation('RUN_FULL_QUALIFICATION', { leadId: lead.id })}>Qualify</Button>
                         )}
                         {lead.site && (
-                          <a href={`/showcase/${lead.site.previewToken}`} target="_blank" rel="noreferrer" className="text-[#276749] hover:underline text-[11px]">Open</a>
+                          <a href={`/showcase/${lead.site.previewToken}`} target="_blank" rel="noreferrer" className="text-accent hover:underline text-[11px]">Open</a>
                         )}
                       </div>
                     </td>

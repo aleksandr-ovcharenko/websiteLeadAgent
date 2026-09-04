@@ -40,20 +40,20 @@ function elapsed(start?: string | null, end?: string | null) {
 
 function levelColor(level: string) {
   switch (level) {
-    case 'SUCCESS': return 'text-emerald-700';
-    case 'WARN': return 'text-amber-700';
-    case 'ERROR': return 'text-red-700';
-    default: return 'text-[#57534e]';
+    case 'SUCCESS': return 'text-success';
+    case 'WARN': return 'text-warning';
+    case 'ERROR': return 'text-danger';
+    default: return 'text-text';
   }
 }
 
 function statusColor(status: OpStatus) {
   switch (status) {
-    case 'SUCCESS': return 'text-emerald-700 bg-emerald-50 border-emerald-200';
-    case 'FAILED': return 'text-red-700 bg-red-50 border-red-200';
-    case 'CANCELLED': return 'text-gray-600 bg-gray-100 border-gray-200';
-    case 'RUNNING': return 'text-emerald-700 bg-emerald-50 border-emerald-200';
-    default: return 'text-amber-700 bg-amber-50 border-amber-200';
+    case 'SUCCESS': return 'text-success bg-success-subtle border-success-subtle';
+    case 'FAILED': return 'text-danger bg-danger-subtle border-danger-subtle';
+    case 'CANCELLED': return 'text-text-muted bg-surface-hover border-border';
+    case 'RUNNING': return 'text-success bg-success-subtle border-success-subtle';
+    default: return 'text-warning bg-warning-subtle border-warning-subtle';
   }
 }
 
@@ -118,25 +118,25 @@ export function OperationConsole({ runId, title, onClose }: { runId: string; tit
 
   const output = events.map((e) => (
     <div key={e.id} className="flex gap-2 text-[12px] font-mono leading-5">
-      <span className="text-[#a8a29e] shrink-0">{fmtTime(e.createdAt)}</span>
+      <span className="text-text-subtle shrink-0">{fmtTime(e.createdAt)}</span>
       <span className={`shrink-0 w-16 font-medium ${levelColor(e.level)}`}>{e.level}</span>
-      {e.stage ? <span className="shrink-0 text-[#a8a29e] w-24 truncate">{e.stage}</span> : null}
+      {e.stage ? <span className="shrink-0 text-text-subtle w-24 truncate">{e.stage}</span> : null}
       <span className={`break-words ${levelColor(e.level)}`}>{stripAnsi(e.message)}</span>
     </div>
   ));
 
   const errorBlock = run?.error ? (
-    <div className="mt-3 p-3 rounded border bg-red-50 border-red-200 text-red-800 text-[12px] font-mono">
+    <div className="mt-3 p-3 rounded border bg-danger-subtle border-danger-subtle text-danger text-[12px] font-mono">
       <div className="font-semibold mb-1">Error</div>
       <pre className="whitespace-pre-wrap break-words overflow-auto max-h-60">
         {stripAnsi(run.error?.message || JSON.stringify(run.error, null, 2))}
       </pre>
-      {run.error?.code && <div className="mt-1 text-red-700">code: {run.error.code}</div>}
+      {run.error?.code && <div className="mt-1 text-danger">code: {run.error.code}</div>}
     </div>
   ) : null;
 
   const resultBlock = run?.result ? (
-    <div className="mt-3 p-3 rounded border bg-emerald-50 border-emerald-200 text-emerald-900 text-[12px] font-mono">
+    <div className="mt-3 p-3 rounded border bg-success-subtle border-success-subtle text-success text-[12px] font-mono">
       <div className="font-semibold mb-1">Result</div>
       <pre className="whitespace-pre-wrap">{JSON.stringify(run.result, null, 2)}</pre>
     </div>
@@ -146,22 +146,22 @@ export function OperationConsole({ runId, title, onClose }: { runId: string; tit
   const label = title || (run ? run.operationId : 'Operation');
 
   return (
-    <div data-testid="operation-console" className={`bg-white border border-[#e5e3df] rounded-[8px] shadow-sm overflow-hidden ${expanded ? '' : 'h-[54px]'}`}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#e5e3df] bg-[#fafaf9]">
+    <div data-testid="operation-console" className={`bg-surface border border-border rounded-[8px] shadow-sm overflow-hidden ${expanded ? '' : 'h-[54px]'}`}>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-surface-raised">
         <div className="flex items-center gap-3">
-          <button onClick={() => setExpanded(!expanded)} className="text-[#57534e] hover:text-[#1c1917] text-[13px] font-semibold">
+          <button onClick={() => setExpanded(!expanded)} className="text-text hover:text-text text-[13px] font-semibold">
             {expanded ? '−' : '+'} {label}
           </button>
           <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wider px-2 py-0.5 rounded border ${statusColor(status)}`}>
-            {status === 'RUNNING' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+            {status === 'RUNNING' && <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />}
             {status}
           </span>
-          <span className="text-[11px] text-[#a8a29e]">
+          <span className="text-[11px] text-text-subtle">
             {run?.startedAt ? `${fmtTime(run.startedAt)} — ${elapsed(run.startedAt, run.finishedAt)}` : 'starting...'}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1 text-[11px] text-[#57534e] cursor-pointer">
+          <label className="flex items-center gap-1 text-[11px] text-text cursor-pointer">
             <input type="checkbox" checked={autoScroll} onChange={(e) => setAutoScroll(e.target.checked)} className="rounded" />
             Auto-scroll
           </label>
@@ -173,10 +173,10 @@ export function OperationConsole({ runId, title, onClose }: { runId: string; tit
       {expanded && (
         <div className="p-3 min-h-[120px]">
           {lastError && (
-            <div className="mb-2 text-red-700 text-[12px]">{lastError}</div>
+            <div className="mb-2 text-danger text-[12px]">{lastError}</div>
           )}
           <div ref={scrollRef} className="max-h-[360px] overflow-y-auto font-mono space-y-1 pr-2">
-            {output.length ? output : <div className="text-[#a8a29e] text-[12px]">No output yet.</div>}
+            {output.length ? output : <div className="text-text-subtle text-[12px]">No output yet.</div>}
           </div>
           {resultBlock}
           {errorBlock}

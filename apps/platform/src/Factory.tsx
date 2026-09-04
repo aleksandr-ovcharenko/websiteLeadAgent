@@ -54,17 +54,17 @@ function buildStages(run: PipelineRun) {
 
 function StatusBadge({ status }: { status: RunStatus }) {
   const styles: Record<RunStatus, string> = {
-    queued: 'text-gray-500 bg-gray-100 border-gray-200',
-    running: 'text-emerald-700 bg-emerald-50 border-emerald-200',
-    failed: 'text-red-600 bg-red-50 border-red-200',
-    completed: 'text-gray-600 bg-gray-100 border-gray-200',
+    queued: 'text-text-muted bg-surface-hover border-border',
+    running: 'text-success bg-success-subtle border-success-subtle',
+    failed: 'text-danger bg-danger-subtle border-danger-subtle',
+    completed: 'text-text-muted bg-surface-hover border-border',
   }
   const labels: Record<RunStatus, string> = {
     queued: 'QUEUED', running: 'RUNNING', failed: 'FAILED', completed: 'COMPLETED',
   }
   return (
     <span className={`inline-flex items-center gap-1.5 text-[10px] font-bold tracking-wider px-2 py-0.5 rounded border ${styles[status]}`}>
-      {status === 'running' && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />}
+      {status === 'running' && <span className="w-1.5 h-1.5 rounded-full bg-success animate-pulse" />}
       {labels[status]}
     </span>
   )
@@ -75,23 +75,23 @@ function StageRow({ stage }: { stage: { name: string; status: 'done' | 'running'
     <div className="flex items-center gap-3 py-1.5">
       <div className="w-5 flex items-center justify-center flex-shrink-0">
         {stage.status === 'done' && (
-          <span className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center">
-            <IconCheck size={9} className="text-white" />
+          <span className="w-4 h-4 rounded-full bg-success flex items-center justify-center">
+            <IconCheck size={9} className="text-text-inverse" />
           </span>
         )}
         {stage.status === 'running' && (
-          <span className="w-4 h-4 rounded-full border-2 border-[#16a34a] flex items-center justify-center">
-            <span className="w-1.5 h-1.5 rounded-full bg-[#16a34a] animate-pulse" />
+          <span className="w-4 h-4 rounded-full border-2 border-accent flex items-center justify-center">
+            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
           </span>
         )}
         {stage.status === 'failed' && (
-          <span className="w-4 h-4 rounded-full bg-red-500 flex items-center justify-center">
-            <IconX size={8} className="text-white" />
+          <span className="w-4 h-4 rounded-full bg-danger flex items-center justify-center">
+            <IconX size={8} className="text-text-inverse" />
           </span>
         )}
-        {stage.status === 'pending' && <span className="w-3.5 h-3.5 rounded-full border-2 border-gray-200" />}
+        {stage.status === 'pending' && <span className="w-3.5 h-3.5 rounded-full border-2 border-border" />}
       </div>
-      <span className="text-[12px] text-gray-700">{stage.name}</span>
+      <span className="text-[12px] text-text">{stage.name}</span>
     </div>
   )
 }
@@ -117,32 +117,32 @@ function ArtifactPanel({ runId }: { runId: string }) {
   }, [runId, tab])
 
   return (
-    <div className="px-5 py-4 border-b border-gray-100">
-      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Artifacts</p>
+    <div className="px-5 py-4 border-b border-border">
+      <p className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider mb-2">Artifacts</p>
       <div className="flex gap-2 mb-2">
         <button
           onClick={() => setTab('crawl')}
-          className={`text-[11px] px-2 py-1 rounded border ${tab === 'crawl' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+          className={`text-[11px] px-2 py-1 rounded border ${tab === 'crawl' ? 'bg-success-subtle border-success-subtle text-success' : 'bg-surface border-border text-text-muted hover:bg-surface-raised'}`}
         >
           crawl.json
         </button>
         <button
           onClick={() => setTab('source')}
-          className={`text-[11px] px-2 py-1 rounded border ${tab === 'source' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+          className={`text-[11px] px-2 py-1 rounded border ${tab === 'source' ? 'bg-success-subtle border-success-subtle text-success' : 'bg-surface border-border text-text-muted hover:bg-surface-raised'}`}
         >
           source-documents.json
         </button>
         <button
           onClick={() => setTab('semantic')}
-          className={`text-[11px] px-2 py-1 rounded border ${tab === 'semantic' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+          className={`text-[11px] px-2 py-1 rounded border ${tab === 'semantic' ? 'bg-success-subtle border-success-subtle text-success' : 'bg-surface border-border text-text-muted hover:bg-surface-raised'}`}
         >
           source-content-graph.json
         </button>
       </div>
-      {loading && <p className="text-[11px] text-gray-400">Loading…</p>}
-      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      {loading && <p className="text-[11px] text-text-subtle">Loading…</p>}
+      {error && <p className="text-[11px] text-danger">{error}</p>}
       {!loading && !error && data && (
-        <pre className="text-[10px] text-gray-600 bg-gray-50 border border-gray-100 rounded p-2 overflow-auto max-h-[260px]">
+        <pre className="text-[10px] text-text-muted bg-surface-raised border border-border rounded p-2 overflow-auto max-h-[260px]">
           {JSON.stringify(data, null, 2)}
         </pre>
       )}
@@ -203,38 +203,38 @@ export default function Factory({ onNavigate }: FactoryProps) {
 
   if (loading) {
     return (
-      <div className="flex-1 flex flex-col overflow-hidden bg-[#f4f5f7] items-center justify-center">
-        <div className="text-[13px] font-mono text-gray-400">Loading Factory…</div>
+      <div className="flex-1 flex flex-col overflow-hidden bg-bg items-center justify-center">
+        <div className="text-[13px] font-mono text-text-subtle">Loading Factory…</div>
       </div>
     )
   }
 
   if (error) {
     return (
-      <div className="flex-1 flex flex-col overflow-hidden bg-[#f4f5f7] items-center justify-center">
-        <div className="text-[13px] font-mono text-red-600 mb-3">{error}</div>
+      <div className="flex-1 flex flex-col overflow-hidden bg-bg items-center justify-center">
+        <div className="text-[13px] font-mono text-danger mb-3">{error}</div>
         <Button size="sm" onClick={refresh}>Try again</Button>
       </div>
     )
   }
 
   return (
-    <div className="flex-1 flex flex-col overflow-hidden bg-[#f4f5f7]">
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-5 h-[46px] flex items-center gap-3">
-        <span className="text-[13px] font-semibold text-gray-900">Factory</span>
-        <span className="text-[12px] text-gray-400">Generation pipeline</span>
+    <div className="flex-1 flex flex-col overflow-hidden bg-bg">
+      <div className="flex-shrink-0 bg-surface border-b border-border px-5 h-[46px] flex items-center gap-3">
+        <span className="text-[13px] font-semibold text-text">Factory</span>
+        <span className="text-[12px] text-text-subtle">Generation pipeline</span>
         <div className="flex-1" />
-        <div className="flex items-center gap-3 text-[12px] text-gray-400">
+        <div className="flex items-center gap-3 text-[12px] text-text-subtle">
           <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span className="w-1.5 h-1.5 rounded-full bg-success" />
             {runs.filter(r => r.status === 'running').length} running
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+            <span className="w-1.5 h-1.5 rounded-full bg-warning" />
             {runs.filter(r => r.status === 'queued').length} queued
           </span>
           <span className="flex items-center gap-1.5">
-            <span className="w-1.5 h-1.5 rounded-full bg-red-400" />
+            <span className="w-1.5 h-1.5 rounded-full bg-danger" />
             {runs.filter(r => r.status === 'failed').length} failed
           </span>
         </div>
@@ -244,16 +244,16 @@ export default function Factory({ onNavigate }: FactoryProps) {
         <div className="flex-1 overflow-y-auto p-5">
           <div className="max-w-[900px]">
             {runs.length === 0 ? (
-              <div className="bg-white border border-gray-200 rounded py-14 text-center text-[13px] text-gray-400">
+              <div className="bg-surface border border-border rounded py-14 text-center text-[13px] text-text-subtle">
                 No factory runs yet
               </div>
             ) : (
-              <div className="bg-white border border-gray-200 rounded overflow-hidden">
+              <div className="bg-surface border border-border rounded overflow-hidden">
                 <table className="w-full">
                   <thead>
-                    <tr className="border-b border-gray-200">
+                    <tr className="border-b border-border">
                       {['#', 'Company', 'Status', 'Stage', 'Progress', 'Started', 'Duration', ''].map(col => (
-                        <th key={col} className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-4 py-2 bg-gray-50 whitespace-nowrap">
+                        <th key={col} className="text-left text-[11px] font-semibold text-text-subtle uppercase tracking-wider px-4 py-2 bg-surface-raised whitespace-nowrap">
                           {col}
                         </th>
                       ))}
@@ -264,36 +264,36 @@ export default function Factory({ onNavigate }: FactoryProps) {
                       <tr
                         key={run.id}
                         onClick={() => setSelectedRunId(run.id === selectedRunId ? null : run.id)}
-                        className={`border-b border-gray-100 last:border-0 cursor-pointer transition-colors ${selectedRunId === run.id ? 'bg-[#f0fdf4]' : 'hover:bg-gray-50/60'}`}
+                        className={`border-b border-border last:border-0 cursor-pointer transition-colors ${selectedRunId === run.id ? 'bg-success-subtle' : 'hover:bg-surface-raised/60'}`}
                       >
-                        <td className="px-4 py-2.5 text-[11px] text-gray-400 mono whitespace-nowrap">#{run.runNumber}</td>
+                        <td className="px-4 py-2.5 text-[11px] text-text-subtle mono whitespace-nowrap">#{run.runNumber}</td>
                         <td className="px-4 py-2.5">
                           <div>
-                            <p className="text-[13px] font-medium text-gray-900">{run.company}</p>
-                            {run.domain !== '—' && <p className="text-[11px] text-gray-400 mono">{run.domain}</p>}
+                            <p className="text-[13px] font-medium text-text">{run.company}</p>
+                            {run.domain !== '—' && <p className="text-[11px] text-text-subtle mono">{run.domain}</p>}
                           </div>
                         </td>
                         <td className="px-4 py-2.5"><StatusBadge status={run.status} /></td>
-                        <td className="px-4 py-2.5 text-[12px] text-gray-600 max-w-[140px] truncate">
-                          {run.status === 'failed' ? <span className="text-red-500">{run.failedStage}</span> : run.currentStage}
+                        <td className="px-4 py-2.5 text-[12px] text-text-muted max-w-[140px] truncate">
+                          {run.status === 'failed' ? <span className="text-danger">{run.failedStage}</span> : run.currentStage}
                         </td>
                         <td className="px-4 py-2.5">
                           {run.status !== 'queued' && (
                             <div className="flex items-center gap-2">
-                              <div className="w-[48px] h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                              <div className="w-[48px] h-1.5 bg-surface-hover rounded-full overflow-hidden">
                                 <div
-                                  className={`h-full rounded-full ${run.status === 'failed' ? 'bg-red-400' : 'bg-[#16a34a]'}`}
+                                  className={`h-full rounded-full ${run.status === 'failed' ? 'bg-danger' : 'bg-accent'}`}
                                   style={{ width: `${(run.stagesDone / run.stagesTotal) * 100}%` }}
                                 />
                               </div>
-                              <span className="text-[11px] text-gray-500 mono whitespace-nowrap">{run.stagesDone}/{run.stagesTotal}</span>
+                              <span className="text-[11px] text-text-muted mono whitespace-nowrap">{run.stagesDone}/{run.stagesTotal}</span>
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-2.5 text-[12px] text-gray-400 whitespace-nowrap">{run.started}</td>
-                        <td className="px-4 py-2.5 text-[12px] text-gray-400 mono whitespace-nowrap">{run.duration}</td>
+                        <td className="px-4 py-2.5 text-[12px] text-text-subtle whitespace-nowrap">{run.started}</td>
+                        <td className="px-4 py-2.5 text-[12px] text-text-subtle mono whitespace-nowrap">{run.duration}</td>
                         <td className="px-4 py-2.5 text-right">
-                          <IconChevronRight size={13} className={`${selectedRunId === run.id ? 'text-[#16a34a]' : 'text-gray-300'} transition-colors`} />
+                          <IconChevronRight size={13} className={`${selectedRunId === run.id ? 'text-accent' : 'text-text-subtle'} transition-colors`} />
                         </td>
                       </tr>
                     ))}
@@ -305,26 +305,26 @@ export default function Factory({ onNavigate }: FactoryProps) {
         </div>
 
         {selectedRun && (
-          <aside className="w-[320px] flex-shrink-0 border-l border-gray-200 bg-white overflow-y-auto">
-            <div className="px-5 py-4 border-b border-gray-100 flex items-start justify-between">
+          <aside className="w-[320px] flex-shrink-0 border-l border-border bg-surface overflow-y-auto">
+            <div className="px-5 py-4 border-b border-border flex items-start justify-between">
               <div>
-                <p className="text-[13px] font-semibold text-gray-900">{selectedRun.company}</p>
-                <p className="text-[11px] text-gray-400">Generation run #{selectedRun.runNumber}</p>
+                <p className="text-[13px] font-semibold text-text">{selectedRun.company}</p>
+                <p className="text-[11px] text-text-subtle">Generation run #{selectedRun.runNumber}</p>
               </div>
-              <button onClick={() => setSelectedRunId(null)} className="text-gray-400 hover:text-gray-600 transition-colors mt-0.5">
+              <button onClick={() => setSelectedRunId(null)} className="text-text-subtle hover:text-text-muted transition-colors mt-0.5">
                 <IconX size={14} />
               </button>
             </div>
 
-            <div className="px-5 py-3 border-b border-gray-100 flex items-center gap-2">
+            <div className="px-5 py-3 border-b border-border flex items-center gap-2">
               <StatusBadge status={selectedRun.status} />
-              <span className="text-[12px] text-gray-400">{selectedRun.started} · {selectedRun.duration}</span>
+              <span className="text-[12px] text-text-subtle">{selectedRun.started} · {selectedRun.duration}</span>
             </div>
 
             {selectedRun.status === 'failed' && (
-              <div className="mx-5 mt-4 mb-2 bg-red-50 border border-red-200 rounded p-3.5">
-                <p className="text-[12px] font-semibold text-red-700 mb-1">Failed at: {selectedRun.failedStage}</p>
-                <p className="text-[12px] text-red-600 leading-relaxed">{selectedRun.failedReason}</p>
+              <div className="mx-5 mt-4 mb-2 bg-danger-subtle border border-danger-subtle rounded p-3.5">
+                <p className="text-[12px] font-semibold text-danger mb-1">Failed at: {selectedRun.failedStage}</p>
+                <p className="text-[12px] text-danger leading-relaxed">{selectedRun.failedReason}</p>
                 <div className="flex items-center gap-2 mt-3">
                   <Button variant="primary" size="sm" disabled={retrying === selectedRun.id} onClick={() => handleRetry(selectedRun)}>
                     {retrying === selectedRun.id ? 'Retrying…' : 'Retry'}
@@ -334,7 +334,7 @@ export default function Factory({ onNavigate }: FactoryProps) {
             )}
 
             {activeRunId && (
-              <div className="px-5 py-3 border-b border-gray-100">
+              <div className="px-5 py-3 border-b border-border">
                 <OperationConsole runId={activeRunId} title={activeTitle} onClose={() => setActiveRunId(null)} />
               </div>
             )}
@@ -342,7 +342,7 @@ export default function Factory({ onNavigate }: FactoryProps) {
             <ArtifactPanel runId={selectedRun.id} />
 
             <div className="px-5 py-4">
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Pipeline stages</p>
+              <p className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider mb-3">Pipeline stages</p>
               <div className="flex flex-col divide-y divide-gray-50">
                 {buildStages(selectedRun).map((stage, i) => (
                   <StageRow key={i} stage={stage} />
@@ -351,14 +351,14 @@ export default function Factory({ onNavigate }: FactoryProps) {
             </div>
 
             {selectedRun.status === 'completed' && selectedRun.forgeId && (
-              <div className="px-5 py-4 border-t border-gray-100">
-                <p className="text-[11px] text-gray-400 mb-2.5">Demo ready — site available in Forge.</p>
+              <div className="px-5 py-4 border-t border-border">
+                <p className="text-[11px] text-text-subtle mb-2.5">Demo ready — site available in Forge.</p>
                 <Button variant="primary" size="sm" onClick={() => onNavigate('forge')}>Open in Forge →</Button>
               </div>
             )}
 
             {selectedRun.previewToken && (
-              <div className="px-5 py-4 border-t border-gray-100">
+              <div className="px-5 py-4 border-t border-border">
                 <Button variant="secondary" size="sm" onClick={() => window.open(`/showcase/${selectedRun.previewToken}`, '_blank')}>
                   Open Showcase
                 </Button>
@@ -369,7 +369,7 @@ export default function Factory({ onNavigate }: FactoryProps) {
       </div>
 
       {toast && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[100] bg-[#1a2332] text-white text-[12px] px-4 py-2.5 rounded-lg shadow-xl flex items-center gap-2.5 pointer-events-none">
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-[100] bg-surface-inverse text-text-inverse text-[12px] px-4 py-2.5 rounded-lg shadow-xl flex items-center gap-2.5 pointer-events-none">
           {toast.message}
         </div>
       )}

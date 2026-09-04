@@ -49,53 +49,53 @@ export default function Users({ onNavigate }: UsersProps) {
     <div className="p-5 max-w-[900px]">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-[15px] font-semibold text-gray-900">Team</h1>
-          <p className="text-[12px] text-gray-400 mt-0.5">Manage access to this site</p>
+          <h1 className="text-[15px] font-semibold text-text">Team</h1>
+          <p className="text-[12px] text-text-subtle mt-0.5">Manage access to this site</p>
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded overflow-hidden mb-4">
+      <div className="bg-surface border border-border rounded overflow-hidden mb-4">
         <table className="w-full">
           <thead>
-            <tr className="border-b border-gray-200">
-              {['User', 'Role', 'Added', ''].map(col => <th key={col} className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-4 py-2 bg-gray-50 whitespace-nowrap">{col}</th>)}
+            <tr className="border-b border-border">
+              {['User', 'Role', 'Added', ''].map(col => <th key={col} className="text-left text-[11px] font-semibold text-text-subtle uppercase tracking-wider px-4 py-2 bg-surface-raised whitespace-nowrap">{col}</th>)}
             </tr>
           </thead>
           <tbody>
             {users.map((u: any) => (
-              <tr key={u.id} className="border-b border-gray-100 last:border-0">
+              <tr key={u.id} className="border-b border-border last:border-0">
                 <td className="px-4 py-2">
-                  <p className="text-[13px] font-medium text-gray-900">{u.user?.email || u.email}</p>
-                  {u.userId === currentUser?.id && <span className="text-[10px] text-gray-400">You</span>}
+                  <p className="text-[13px] font-medium text-text">{u.user?.email || u.email}</p>
+                  {u.userId === currentUser?.id && <span className="text-[10px] text-text-subtle">You</span>}
                 </td>
                 <td className="px-4 py-2">
                   {canManage ? (
-                    <select value={u.role} onChange={e => updateRole(u.userId || u.id, e.target.value)} className="h-8 px-2 border border-gray-300 rounded text-[12px] bg-white">
+                    <select value={u.role} onChange={e => updateRole(u.userId || u.id, e.target.value)} className="h-8 px-2 border border-border rounded text-[12px] bg-surface">
                       {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
                     </select>
                   ) : (
-                    <span className="text-[12px] text-gray-600">{ROLES.find(r => r.value === u.role)?.label || u.role}</span>
+                    <span className="text-[12px] text-text-muted">{ROLES.find(r => r.value === u.role)?.label || u.role}</span>
                   )}
                 </td>
-                <td className="px-4 py-2 text-[12px] text-gray-400 whitespace-nowrap">{formatDate(u.createdAt)}</td>
+                <td className="px-4 py-2 text-[12px] text-text-subtle whitespace-nowrap">{formatDate(u.createdAt)}</td>
                 <td className="px-4 py-2 text-right">
                   {canManage && u.userId !== currentUser?.id && (
-                    <button onClick={() => remove(u.userId || u.id)} className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors ml-auto"><IconTrash size={13} /></button>
+                    <button onClick={() => remove(u.userId || u.id)} className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:text-danger hover:bg-danger-subtle transition-colors ml-auto"><IconTrash size={13} /></button>
                   )}
                 </td>
               </tr>
             ))}
-            {users.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-[13px] text-gray-400">No team members yet.</td></tr>}
+            {users.length === 0 && <tr><td colSpan={4} className="px-4 py-8 text-center text-[13px] text-text-subtle">No team members yet.</td></tr>}
           </tbody>
         </table>
       </div>
 
       {canManage && (
-        <form onSubmit={handleInvite} className="bg-white border border-gray-200 rounded p-4 flex items-end gap-3">
+        <form onSubmit={handleInvite} className="bg-surface border border-border rounded p-4 flex items-end gap-3">
           <div className="flex-1"><Input label="Email" type="email" value={email} onChange={v => setEmail(v)} placeholder="colleague@example.com" /></div>
           <div>
-            <label className="text-[12px] font-medium text-gray-600 block mb-1">Role</label>
-            <select value={newRole} onChange={e => setNewRole(e.target.value)} className="h-9 px-2 border border-gray-300 rounded text-[12px] bg-white">
+            <label className="text-[12px] font-medium text-text-muted block mb-1">Role</label>
+            <select value={newRole} onChange={e => setNewRole(e.target.value)} className="h-9 px-2 border border-border rounded text-[12px] bg-surface">
               {ROLES.map(r => <option key={r.value} value={r.value}>{r.label}</option>)}
             </select>
           </div>

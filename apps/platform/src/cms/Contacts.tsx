@@ -52,13 +52,13 @@ export default function Contacts({ onNavigate }: ContactsProps) {
     <div className="p-5 max-w-[680px]">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-[15px] font-semibold text-gray-900">Contacts</h1>
-          <p className="text-[12px] text-gray-400 mt-0.5">Edit phone, email, address and departments</p>
+          <h1 className="text-[15px] font-semibold text-text">Contacts</h1>
+          <p className="text-[12px] text-text-subtle mt-0.5">Edit phone, email, address and departments</p>
         </div>
         <Button variant="primary" onClick={handleSave} disabled={saving}>{saving ? 'Saving…' : 'Save contacts'}</Button>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded overflow-hidden p-5 flex flex-col gap-4">
+      <div className="bg-surface border border-border rounded overflow-hidden p-5 flex flex-col gap-4">
         <div className="grid grid-cols-2 gap-4">
           <Input label="Address" value={data.address || ''} onChange={v => patch({ address: v })} />
           <Input label="Working hours" value={data.workingHours || ''} onChange={v => patch({ workingHours: v })} />
@@ -68,8 +68,8 @@ export default function Contacts({ onNavigate }: ContactsProps) {
           <Input label="Email" value={data.email || ''} onChange={v => patch({ email: v })} />
         </div>
 
-        <div className="border-t border-gray-100 pt-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-3">Departments</p>
+        <div className="border-t border-border pt-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-text-subtle mb-3">Departments</p>
           <div className="flex flex-col gap-3">
             {(data.departments || []).map((dept, i) => (
               <div key={i} className="grid grid-cols-3 gap-3 items-end">
@@ -77,7 +77,7 @@ export default function Contacts({ onNavigate }: ContactsProps) {
                 <Input label="Phone" value={dept.phone || ''} onChange={v => { const d = [...(data.departments || [])]; d[i] = { ...dept, phone: v }; patch({ departments: d }) }} />
                 <div className="flex items-center gap-2">
                   <Input label="Email" value={dept.email || ''} onChange={v => { const d = [...(data.departments || [])]; d[i] = { ...dept, email: v }; patch({ departments: d }) }} />
-                  <button onClick={() => { const d = [...(data.departments || [])]; d.splice(i, 1); patch({ departments: d }) }} className="text-red-500 text-[12px] mb-2">Remove</button>
+                  <button onClick={() => { const d = [...(data.departments || [])]; d.splice(i, 1); patch({ departments: d }) }} className="text-danger text-[12px] mb-2">Remove</button>
                 </div>
               </div>
             ))}
@@ -85,8 +85,8 @@ export default function Contacts({ onNavigate }: ContactsProps) {
           </div>
         </div>
 
-        <div className="border-t border-gray-100 pt-4">
-          <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-3">Sections</p>
+        <div className="border-t border-border pt-4">
+          <p className="text-[11px] font-semibold uppercase tracking-wider text-text-subtle mb-3">Sections</p>
           <div className="grid grid-cols-2 gap-4">
             <Input label="Reception label" value={data.reception?.label || ''} onChange={v => patch({ reception: { ...data.reception, label: v } })} />
             <Input label="Reception value" value={data.reception?.value || ''} onChange={v => patch({ reception: { ...data.reception, value: v } })} />

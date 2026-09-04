@@ -19,7 +19,7 @@ function NavItem({ label, active, onClick, cta }: { label: string; active: boole
   return (
     <button
       onClick={onClick}
-      className={`w-full text-left px-3 py-2 rounded-[5px] text-[13px] transition-colors duration-150 ${active ? "bg-[#f0f9f4] text-[#276749] font-medium" : cta ? "bg-[#276749] text-white hover:bg-[#15803d]" : "text-[#57534e] hover:bg-[#f5f4f2]"}`}>
+      className={`w-full text-left px-3 py-2 rounded-[5px] text-[13px] transition-colors duration-150 ${active ? "bg-success-subtle text-accent font-medium" : cta ? "bg-accent text-text-inverse hover:bg-accent-hover" : "text-text hover:bg-surface-raised"}`}>
       {label}
     </button>
   );
@@ -27,10 +27,10 @@ function NavItem({ label, active, onClick, cta }: { label: string; active: boole
 
 function Sidebar({ view, onNew, go }: { view: string; onNew: (p?: string) => void; go: (path: string) => void }) {
   return (
-    <div className="w-[216px] shrink-0 bg-white border-r border-[#e5e3df] flex flex-col">
-      <div className="px-5 py-[18px] border-b border-[#e5e3df]">
-        <div className="text-[10px] font-mono font-medium text-[#c0bdb8] uppercase tracking-widest">WebsiteLeadAgent</div>
-        <div className="text-[13px] font-semibold text-[#1c1917] mt-0.5">Super Admin</div>
+    <div className="w-[216px] shrink-0 bg-surface border-r border-border flex flex-col">
+      <div className="px-5 py-[18px] border-b border-border">
+        <div className="text-[10px] font-mono font-medium text-text-subtle uppercase tracking-widest">WebsiteLeadAgent</div>
+        <div className="text-[13px] font-semibold text-text mt-0.5">Super Admin</div>
       </div>
       <nav className="p-2.5 space-y-px">
         <NavItem label="Leads" active={view === 'leads'} onClick={() => go('/radar')} />
@@ -41,9 +41,9 @@ function Sidebar({ view, onNew, go }: { view: string; onNew: (p?: string) => voi
         <NavItem label="Discovery providers" active={view === 'providers'} onClick={() => go('/radar/providers')} />
         <NavItem label="Search presets" active={view === 'presets'} onClick={() => go('/radar/presets')} />
       </nav>
-      <div className="mt-auto p-4 border-t border-[#e5e3df] space-y-2">
-        <div className="text-[10px] font-mono text-[#a8a29e]">admin@system.internal</div>
-        <div className="text-[10px] font-mono text-[#ddd9d4]">g · u · b · j · k</div>
+      <div className="mt-auto p-4 border-t border-border space-y-2">
+        <div className="text-[10px] font-mono text-text-subtle">admin@system.internal</div>
+        <div className="text-[10px] font-mono text-text-subtle">g · u · b · j · k</div>
       </div>
     </div>
   );
@@ -73,7 +73,7 @@ export default function RadarConfiguration() {
   const reload = () => {};
 
   return (
-    <div className="min-h-full bg-[#f5f4f2] flex">
+    <div className="min-h-full bg-surface-raised flex">
       <Sidebar view={view} onNew={openNew} go={go} />
       {view === 'leads' && <RadarLeads mode="all" />}
       {view === 'audit' && <RadarLeads mode="audit" />}

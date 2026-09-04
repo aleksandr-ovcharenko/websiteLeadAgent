@@ -133,16 +133,16 @@ const STATUS_CONFIG: Record<ReviewStatus, {
   activeBorder: string;
   hoverBg: string;
 }> = {
-  GOOD:       { label: "Good",       bg: "#f0f9f4", text: "#276749", border: "#c3dece", activeBg: "#276749", activeText: "#fff", activeBorder: "#276749", hoverBg: "#e6f5ed" },
-  UNSURE:     { label: "Unsure",     bg: "#fdf8ee", text: "#92600a", border: "#e8d5a3", activeBg: "#92600a", activeText: "#fff", activeBorder: "#92600a", hoverBg: "#fdf3de" },
-  BAD:        { label: "Bad",        bg: "#fdf2f2", text: "#9b1c1c", border: "#f0b8b8", activeBg: "#9b1c1c", activeText: "#fff", activeBorder: "#9b1c1c", hoverBg: "#fde8e8" },
-  UNREVIEWED: { label: "Unreviewed", bg: "#f5f4f2", text: "#78716c", border: "#ddd9d4", activeBg: "#44403c", activeText: "#fff", activeBorder: "#44403c", hoverBg: "#efede9" },
+  GOOD:       { label: "Good",       bg: "var(--color-success-subtle)", text: "var(--color-success)", border: "var(--color-success-subtle)", activeBg: "var(--color-success)", activeText: "var(--color-text-inverse)", activeBorder: "var(--color-success)", hoverBg: "var(--color-success-subtle)" },
+  UNSURE:     { label: "Unsure",     bg: "var(--color-warning-subtle)", text: "var(--color-warning)", border: "var(--color-warning-subtle)", activeBg: "var(--color-warning)", activeText: "var(--color-text-inverse)", activeBorder: "var(--color-warning)", hoverBg: "var(--color-warning-subtle)" },
+  BAD:        { label: "Bad",        bg: "var(--color-danger-subtle)", text: "var(--color-danger)", border: "var(--color-danger-subtle)", activeBg: "var(--color-danger)", activeText: "var(--color-text-inverse)", activeBorder: "var(--color-danger)", hoverBg: "var(--color-danger-subtle)" },
+  UNREVIEWED: { label: "Unreviewed", bg: "var(--color-surface-raised)", text: "var(--color-text-muted)", border: "var(--color-border)", activeBg: "var(--color-surface-inverse)", activeText: "var(--color-text-inverse)", activeBorder: "var(--color-surface-inverse)", hoverBg: "var(--color-surface-hover)" },
 };
 
 function scoreHue(score: number) {
-  if (score >= 75) return { text: "#276749", ring: "#52b788" };
-  if (score >= 50) return { text: "#57534e", ring: "#a8a29e" };
-  return { text: "#92600a", ring: "#d4a847" };
+  if (score >= 75) return { text: "var(--color-success)", ring: "var(--color-success)" };
+  if (score >= 50) return { text: "var(--color-text)", ring: "var(--color-border)" };
+  return { text: "var(--color-warning)", ring: "var(--color-warning)" };
 }
 
 // ─── Primitive UI ─────────────────────────────────────────────────────────────
@@ -172,8 +172,8 @@ function ScoreRow({ label, value, max = 100 }: { label: string; value: number; m
   const { ring } = scoreHue(pct);
   return (
     <div className="flex items-center gap-2">
-      <span className="text-[11px] font-mono text-[#a8a29e] w-[72px] shrink-0">{label}</span>
-      <div className="flex-1 h-[2px] rounded-full bg-[#ebe9e5] overflow-hidden">
+      <span className="text-[11px] font-mono text-text-subtle w-[72px] shrink-0">{label}</span>
+      <div className="flex-1 h-[2px] rounded-full bg-surface-hover overflow-hidden">
         <div className="h-full rounded-full transition-all duration-300" style={{ width: `${pct}%`, background: ring }} />
       </div>
       <ScorePill value={value} max={max} />
@@ -189,7 +189,7 @@ function LeadScoreRing({ score }: { score: number }) {
   return (
     <div className="relative w-11 h-11 shrink-0">
       <svg width="44" height="44" viewBox="0 0 44 44" fill="none" style={{ transform: "rotate(-90deg)" }}>
-        <circle cx="22" cy="22" r={r} stroke="#ebe9e5" strokeWidth="3" fill="none" />
+        <circle cx="22" cy="22" r={r} stroke="var(--color-surface-hover)" strokeWidth="3" fill="none" />
         <circle cx="22" cy="22" r={r} stroke={ring} strokeWidth="3" fill="none"
           strokeDasharray={`${(score / 100) * circ} ${circ}`} strokeLinecap="round"
           style={{ transition: "stroke-dasharray 0.35s ease" }} />
@@ -215,7 +215,7 @@ function ReviewButtons({
     { s: "BAD",   icon: "×", key: "B" },
   ];
   return (
-    <div className="flex rounded-[5px] overflow-hidden border border-[#ddd9d4] divide-x divide-[#ddd9d4]">
+    <div className="flex rounded-[5px] overflow-hidden border border-border divide-x divide-border">
       {opts.map(({ s, icon, key }) => {
         const active = status === s;
         const c = STATUS_CONFIG[s];
@@ -225,8 +225,8 @@ function ReviewButtons({
             onClick={e => { e.stopPropagation(); onReview(leadId, s); }}
             style={active
               ? { background: c.activeBg, color: c.activeText, borderColor: c.activeBorder }
-              : { background: "transparent", color: "#78716c" }}
-            className={`flex items-center gap-1 px-2.5 py-[5px] text-[11px] font-mono transition-colors duration-150 ${!active ? "hover:bg-[#f5f4f2]" : ""}`}>
+              : { background: "transparent", color: "var(--color-text-muted)" }}
+            className={`flex items-center gap-1 px-2.5 py-[5px] text-[11px] font-mono transition-colors duration-150 ${!active ? "hover:bg-surface-raised" : ""}`}>
             <span>{icon}</span>
             {showLabels && <span>{c.label}</span>}
           </button>
@@ -244,7 +244,7 @@ function Screenshot({ url, domain, auditFailed, aspectClass = "aspect-[16/10]" }
   const [hovered, setHovered] = useState(false);
   const [failed, setFailed] = useState(false);
   return (
-    <div className={`relative overflow-hidden bg-[#f0ede8] ${aspectClass}`}
+    <div className={`relative overflow-hidden bg-surface-hover ${aspectClass}`}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}>
       {!failed ? (
@@ -252,9 +252,9 @@ function Screenshot({ url, domain, auditFailed, aspectClass = "aspect-[16/10]" }
           className="w-full h-full object-cover object-top" />
       ) : (
         <div className="w-full h-full flex flex-col items-center justify-center p-4 text-center">
-          <span className="text-[#a8a29e] text-[11px] font-mono mb-2">No preview</span>
+          <span className="text-text-subtle text-[11px] font-mono mb-2">No preview</span>
           <a href={`https://${domain}`} target="_blank" rel="noopener noreferrer"
-            className="text-[#276749] text-[11px] font-mono hover:underline">
+            className="text-accent text-[11px] font-mono hover:underline">
             {domain} ↗
           </a>
         </div>
@@ -263,14 +263,14 @@ function Screenshot({ url, domain, auditFailed, aspectClass = "aspect-[16/10]" }
         <a href={`https://${domain}`} target="_blank" rel="noopener noreferrer"
           onClick={e => e.stopPropagation()}
           style={{ opacity: hovered ? 1 : 0, transition: "opacity 0.15s ease" }}
-          className="absolute inset-0 flex items-center justify-center bg-[#1c1917]/60">
-          <span className="text-white text-[11px] font-mono px-3 py-1.5 rounded border border-white/30 bg-white/10 backdrop-blur-sm">
+          className="absolute inset-0 flex items-center justify-center bg-surface-inverse/60">
+          <span className="text-text-inverse text-[11px] font-mono px-3 py-1.5 rounded border border-text-inverse/30 bg-surface/10 backdrop-blur-sm">
             Open original site ↗
           </span>
         </a>
       )}
       {auditFailed && (
-        <div className="absolute bottom-0 left-0 right-0 bg-[#92600a]/90 text-white text-[10px] font-mono px-2 py-1 text-center">
+        <div className="absolute bottom-0 left-0 right-0 bg-warning/90 text-text-inverse text-[10px] font-mono px-2 py-1 text-center">
           Audit failed
         </div>
       )}
@@ -323,25 +323,25 @@ function FilterBar({
     || filterAudit !== "all" || minScore > 0;
 
   return (
-    <div className="bg-white border border-[#e5e3df] rounded-md px-4 py-2.5 flex items-center gap-3">
+    <div className="bg-surface border border-border rounded-md px-4 py-2.5 flex items-center gap-3">
       {/* Search */}
       <div className="relative">
-        <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#c0bdb8]" width="12" height="12" viewBox="0 0 12 12" fill="none">
+        <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-subtle" width="12" height="12" viewBox="0 0 12 12" fill="none">
           <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.2"/>
           <path d="M8 8l2.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
         </svg>
         <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Search leads…"
-          className="h-[30px] pl-7 pr-3 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] text-[#1c1917] placeholder-[#c0bdb8] focus:outline-none focus:border-[#a8a29e] font-mono w-44 transition-colors duration-150" />
+          className="h-[30px] pl-7 pr-3 text-[12px] border border-border rounded bg-surface-raised text-text placeholder-text-subtle focus:outline-none focus:border-border font-mono w-44 transition-colors duration-150" />
       </div>
 
       {/* Status tabs */}
-      <div className="flex border border-[#e5e3df] rounded-[5px] overflow-hidden divide-x divide-[#e5e3df]">
+      <div className="flex border border-border rounded-[5px] overflow-hidden divide-x divide-border">
         {(["ALL", "UNREVIEWED", "GOOD", "BAD"] as (ReviewStatus | "ALL")[]).map(s => {
           const active = filterStatus === s;
           const label = s === "ALL" ? "All" : STATUS_CONFIG[s as ReviewStatus].label;
           return (
             <button key={s} onClick={() => onStatus(s)}
-              className={`px-2.5 h-[30px] text-[11px] font-mono transition-colors duration-150 ${active ? "bg-[#1c1917] text-white" : "text-[#78716c] hover:bg-[#f5f4f2]"}`}>
+              className={`px-2.5 h-[30px] text-[11px] font-mono transition-colors duration-150 ${active ? "bg-surface-inverse text-text-inverse" : "text-text-muted hover:bg-surface-raised"}`}>
               {label}
             </button>
           );
@@ -351,27 +351,27 @@ function FilterBar({
       {/* Filters popover */}
       <div className="relative" ref={popRef}>
         <button onClick={() => setFiltersOpen(v => !v)}
-          className={`flex items-center gap-1.5 h-[30px] px-3 text-[11px] font-mono border rounded-[5px] transition-colors duration-150 ${hasActiveFilters ? "border-[#276749] text-[#276749] bg-[#f0f9f4]" : "border-[#e5e3df] text-[#78716c] hover:bg-[#f5f4f2]"}`}>
+          className={`flex items-center gap-1.5 h-[30px] px-3 text-[11px] font-mono border rounded-[5px] transition-colors duration-150 ${hasActiveFilters ? "border-accent text-accent bg-success-subtle" : "border-border text-text-muted hover:bg-surface-raised"}`}>
           <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
             <path d="M1 2.5h9M2.5 5.5h6M4 8.5h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
           </svg>
           Filters
-          {hasActiveFilters && <span className="w-1.5 h-1.5 rounded-full bg-[#276749]" />}
+          {hasActiveFilters && <span className="w-1.5 h-1.5 rounded-full bg-accent" />}
         </button>
         {filtersOpen && (
-          <div className="absolute top-full left-0 mt-1.5 w-64 bg-white border border-[#e5e3df] rounded-md shadow-lg z-30 p-4 space-y-4"
+          <div className="absolute top-full left-0 mt-1.5 w-64 bg-surface border border-border rounded-md shadow-lg z-30 p-4 space-y-4"
             style={{ animation: "popIn 0.12s ease" }}>
             <div>
-              <label className="block text-[10px] font-mono font-medium text-[#a8a29e] uppercase tracking-wider mb-1.5">Category</label>
+              <label className="block text-[10px] font-mono font-medium text-text-subtle uppercase tracking-wider mb-1.5">Category</label>
               <select value={filterCategory} onChange={e => onCategory(e.target.value)}
-                className="w-full h-[30px] px-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] text-[#57534e] focus:outline-none font-mono">
+                className="w-full h-[30px] px-2 text-[12px] border border-border rounded bg-surface-raised text-text focus:outline-none font-mono">
                 {categories.map(c => <option key={c}>{c}</option>)}
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-mono font-medium text-[#a8a29e] uppercase tracking-wider mb-1.5">Audit</label>
+              <label className="block text-[10px] font-mono font-medium text-text-subtle uppercase tracking-wider mb-1.5">Audit</label>
               <select value={filterAudit} onChange={e => onAudit(e.target.value)}
-                className="w-full h-[30px] px-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] text-[#57534e] focus:outline-none font-mono">
+                className="w-full h-[30px] px-2 text-[12px] border border-border rounded bg-surface-raised text-text focus:outline-none font-mono">
                 <option value="all">All</option>
                 <option value="complete">Complete</option>
                 <option value="pending">Pending</option>
@@ -379,15 +379,15 @@ function FilterBar({
               </select>
             </div>
             <div>
-              <label className="block text-[10px] font-mono font-medium text-[#a8a29e] uppercase tracking-wider mb-1.5">
-                Min lead score — <span className="text-[#57534e]">{minScore}</span>
+              <label className="block text-[10px] font-mono font-medium text-text-subtle uppercase tracking-wider mb-1.5">
+                Min lead score — <span className="text-text">{minScore}</span>
               </label>
               <input type="range" min={0} max={100} step={5} value={minScore} onChange={e => onMinScore(Number(e.target.value))}
-                className="w-full accent-[#276749]" />
+                className="w-full accent-accent" />
             </div>
             {hasActiveFilters && (
               <button onClick={() => { onStatus("ALL"); onCategory("All categories"); onAudit("all"); onMinScore(0); }}
-                className="text-[11px] font-mono text-[#9b1c1c] hover:underline">
+                className="text-[11px] font-mono text-danger hover:underline">
                 Clear filters
               </button>
             )}
@@ -397,9 +397,9 @@ function FilterBar({
 
       {/* Sort + count */}
       <div className="ml-auto flex items-center gap-3">
-        <span className="text-[11px] font-mono text-[#c0bdb8] tabular-nums">{count}</span>
+        <span className="text-[11px] font-mono text-text-subtle tabular-nums">{count}</span>
         <select value={sortKey} onChange={e => onSort(e.target.value as SortKey)}
-          className="h-[30px] px-2 text-[11px] border border-[#e5e3df] rounded-[5px] bg-[#fafaf9] text-[#78716c] focus:outline-none font-mono">
+          className="h-[30px] px-2 text-[11px] border border-border rounded-[5px] bg-surface-raised text-text-muted focus:outline-none font-mono">
           {SORTS.map(s => <option key={s.key} value={s.key}>{s.label}</option>)}
         </select>
       </div>
@@ -414,16 +414,16 @@ function ToastStack({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: (id: st
     <div className="fixed bottom-5 left-1/2 -translate-x-1/2 flex flex-col gap-2 z-50 pointer-events-none">
       {toasts.map(t => (
         <div key={t.id}
-          className="pointer-events-auto flex items-center gap-3 bg-[#1c1917] text-white text-[12px] font-mono px-4 py-2.5 rounded-md shadow-lg"
+          className="pointer-events-auto flex items-center gap-3 bg-surface-inverse text-text-inverse text-[12px] font-mono px-4 py-2.5 rounded-md shadow-lg"
           style={{ animation: "toastIn 0.18s ease" }}>
-          <span className="text-[#e7e5e4]">{t.message}</span>
+          <span className="text-text-inverse">{t.message}</span>
           {t.undoFn && (
             <button onClick={() => { t.undoFn!(); onDismiss(t.id); }}
-              className="text-[#52b788] hover:text-white underline underline-offset-2 transition-colors duration-150">
+              className="text-success hover:text-text-inverse underline underline-offset-2 transition-colors duration-150">
               Undo
             </button>
           )}
-          <button onClick={() => onDismiss(t.id)} className="text-[#78716c] hover:text-[#a8a29e] ml-1 transition-colors duration-150">×</button>
+          <button onClick={() => onDismiss(t.id)} className="text-text-muted hover:text-text-subtle ml-1 transition-colors duration-150">×</button>
         </div>
       ))}
     </div>
@@ -437,13 +437,13 @@ function Collapsible({ title, children, defaultOpen = false }: {
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
-    <div className="border-t border-[#f0ede8]">
+    <div className="border-t border-border">
       <button onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-[#fafaf8] transition-colors duration-150">
-        <span className="text-[10px] font-mono font-medium text-[#a8a29e] uppercase tracking-wider">{title}</span>
+        className="w-full flex items-center justify-between px-5 py-3 text-left hover:bg-surface-raised transition-colors duration-150">
+        <span className="text-[10px] font-mono font-medium text-text-subtle uppercase tracking-wider">{title}</span>
         <svg width="10" height="10" viewBox="0 0 10 10" fill="none"
           style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform 0.15s ease" }}>
-          <path d="M2 3.5l3 3 3-3" stroke="#c0bdb8" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M2 3.5l3 3 3-3" stroke="var(--color-text-subtle)" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </button>
       {open && (
@@ -464,17 +464,17 @@ function SidePanel({ lead, onClose, onReview, onGenerate, onQueue, onNavigate, h
   useEffect(() => { setScreenshotTab("desktop"); }, [lead.id]);
 
   return (
-    <div className="fixed top-0 right-0 w-[400px] bg-white border-l border-[#e5e3df] flex flex-col z-40"
-      style={{ boxShadow: "-4px 0 24px rgba(28,25,23,0.07)", animation: "drawerIn 0.18s ease", bottom: 'var(--console-height, 0px)' }}>
+    <div className="fixed top-0 right-0 w-[400px] bg-surface border-l border-border flex flex-col z-40"
+      style={{ boxShadow: "-4px 0 24px var(--color-shadow)", animation: "drawerIn 0.18s ease", bottom: 'var(--console-height, 0px)' }}>
 
       {/* ── Narrow nav bar ── */}
-      <div className="flex items-center gap-1 px-3 py-2 border-b border-[#f0ede8] shrink-0">
+      <div className="flex items-center gap-1 px-3 py-2 border-b border-border shrink-0">
         {[
           { dir: "prev" as const, enabled: hasPrev, d: "M6.5 1.5L3 5l3.5 3.5", hint: "Previous (K)" },
           { dir: "next" as const, enabled: hasNext, d: "M3.5 1.5L7 5l-3.5 3.5", hint: "Next (J)" },
         ].map(({ dir, enabled, d, hint }) => (
           <button key={dir} onClick={() => onNavigate(dir)} disabled={!enabled} title={hint}
-            className="w-6 h-6 flex items-center justify-center rounded text-[#c0bdb8] disabled:opacity-25 hover:bg-[#f5f4f2] hover:text-[#57534e] transition-colors duration-150">
+            className="w-6 h-6 flex items-center justify-center rounded text-text-subtle disabled:opacity-25 hover:bg-surface-raised hover:text-text transition-colors duration-150">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path d={d} stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -482,11 +482,11 @@ function SidePanel({ lead, onClose, onReview, onGenerate, onQueue, onNavigate, h
         ))}
         <div className="ml-auto flex items-center gap-2">
           <a href={`https://${lead.domain}`} target="_blank" rel="noopener noreferrer"
-            className="text-[11px] font-mono text-[#a8a29e] hover:text-[#276749] transition-colors duration-150">
+            className="text-[11px] font-mono text-text-subtle hover:text-accent transition-colors duration-150">
             {lead.domain} ↗
           </a>
           <button onClick={onClose}
-            className="w-6 h-6 flex items-center justify-center rounded hover:bg-[#f5f4f2] text-[#a8a29e] transition-colors duration-150">
+            className="w-6 h-6 flex items-center justify-center rounded hover:bg-surface-raised text-text-subtle transition-colors duration-150">
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <path d="M1 1l8 8M9 1L1 9" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
             </svg>
@@ -498,12 +498,12 @@ function SidePanel({ lead, onClose, onReview, onGenerate, onQueue, onNavigate, h
       <div className="flex-1 overflow-y-auto">
 
         {/* 1. Screenshot — full width, no padding, tabs float above */}
-        <div className="relative bg-[#f0ede8]">
+        <div className="relative bg-surface-hover">
           {lead.screenshotMobileUrl && (
-            <div className="absolute top-3 left-3 z-10 flex rounded-[4px] overflow-hidden border border-white/30 shadow-sm">
+            <div className="absolute top-3 left-3 z-10 flex rounded-[4px] overflow-hidden border border-text-inverse/30 shadow-sm">
               {(["desktop", "mobile"] as const).map(t => (
                 <button key={t} onClick={() => setScreenshotTab(t)}
-                  className={`px-2.5 py-1 text-[10px] font-mono capitalize transition-colors duration-150 ${screenshotTab === t ? "bg-[#1c1917] text-white" : "bg-white/80 text-[#57534e] hover:bg-white"}`}>
+                  className={`px-2.5 py-1 text-[10px] font-mono capitalize transition-colors duration-150 ${screenshotTab === t ? "bg-surface-inverse text-text-inverse" : "bg-surface/80 text-text hover:bg-surface"}`}>
                   {t}
                 </button>
               ))}
@@ -516,7 +516,7 @@ function SidePanel({ lead, onClose, onReview, onGenerate, onQueue, onNavigate, h
               className="w-full h-full object-cover object-top"
             />
             {lead.auditStatus === "failed" && (
-              <div className="absolute bottom-0 left-0 right-0 bg-[#92600a]/90 text-white text-[10px] font-mono px-3 py-1.5 text-center">
+              <div className="absolute bottom-0 left-0 right-0 bg-warning/90 text-text-inverse text-[10px] font-mono px-3 py-1.5 text-center">
                 Audit failed — screenshot may be outdated
               </div>
             )}
@@ -524,28 +524,28 @@ function SidePanel({ lead, onClose, onReview, onGenerate, onQueue, onNavigate, h
         </div>
 
         {/* 2. Identity + lead score */}
-        <div className="px-5 pt-5 pb-4 border-b border-[#f0ede8]">
+        <div className="px-5 pt-5 pb-4 border-b border-border">
           <div className="flex items-start gap-3">
             <div className="flex-1 min-w-0">
-              <h2 className="font-semibold text-[16px] text-[#1c1917] leading-tight">{lead.company}</h2>
+              <h2 className="font-semibold text-[16px] text-text leading-tight">{lead.company}</h2>
               <div className="flex items-center gap-1.5 mt-1">
-                <span className="text-[12px] font-mono text-[#276749]">{lead.domain}</span>
-                <span className="text-[#ddd9d4]">·</span>
-                <span className="text-[12px] font-mono text-[#a8a29e]">{lead.category}</span>
+                <span className="text-[12px] font-mono text-accent">{lead.domain}</span>
+                <span className="text-text-subtle">·</span>
+                <span className="text-[12px] font-mono text-text-subtle">{lead.category}</span>
               </div>
             </div>
             {/* Lead score — prominent */}
             <div className="flex flex-col items-center shrink-0">
               <LeadScoreRing score={lead.leadScore} />
-              <span className="text-[10px] font-mono text-[#a8a29e] mt-1">Lead score</span>
+              <span className="text-[10px] font-mono text-text-subtle mt-1">Lead score</span>
             </div>
           </div>
 
           {/* Redesign potential — the key signal, shown prominently */}
-          <div className="mt-4 flex items-center gap-3 bg-[#f5f4f2] rounded-[6px] px-4 py-3">
+          <div className="mt-4 flex items-center gap-3 bg-surface-raised rounded-[6px] px-4 py-3">
             <div className="flex-1">
-              <div className="text-[10px] font-mono text-[#a8a29e] uppercase tracking-wider mb-1">Redesign potential</div>
-              <div className="h-[3px] rounded-full bg-[#e5e3df] overflow-hidden">
+              <div className="text-[10px] font-mono text-text-subtle uppercase tracking-wider mb-1">Redesign potential</div>
+              <div className="h-[3px] rounded-full bg-surface-hover overflow-hidden">
                 <div className="h-full rounded-full transition-all duration-500"
                   style={{ width: `${lead.ai.redesignPotential}%`, background: scoreHue(lead.ai.redesignPotential).ring }} />
               </div>
@@ -558,37 +558,37 @@ function SidePanel({ lead, onClose, onReview, onGenerate, onQueue, onNavigate, h
         </div>
 
         {/* 3. AI verdict — the core decision input */}
-        <div className="px-5 pt-4 pb-5 border-b border-[#f0ede8]">
-          <div className="text-[10px] font-mono font-medium text-[#a8a29e] uppercase tracking-wider mb-2">AI Assessment</div>
-          <p className="text-[13px] text-[#44403c] leading-[1.6]">{lead.ai.summary}</p>
+        <div className="px-5 pt-4 pb-5 border-b border-border">
+          <div className="text-[10px] font-mono font-medium text-text-subtle uppercase tracking-wider mb-2">AI Assessment</div>
+          <p className="text-[13px] text-text leading-[1.6]">{lead.ai.summary}</p>
 
           <div className="mt-4 grid grid-cols-2 gap-3">
             {/* Problems */}
             <div>
-              <div className="text-[10px] font-mono text-[#a8a29e] mb-2 flex items-center gap-1">
-                <span className="w-3 h-px bg-[#e0a0a0] inline-block" />
+              <div className="text-[10px] font-mono text-text-subtle mb-2 flex items-center gap-1">
+                <span className="w-3 h-px bg-danger-subtle inline-block" />
                 Problems
               </div>
               <div className="space-y-1.5">
                 {lead.ai.problems.map(p => (
                   <div key={p} className="flex items-start gap-1.5">
-                    <span className="text-[#c0807e] text-[11px] shrink-0 mt-[1px]">—</span>
-                    <span className="text-[12px] text-[#57534e] leading-[1.4]">{p}</span>
+                    <span className="text-danger-subtle text-[11px] shrink-0 mt-[1px]">—</span>
+                    <span className="text-[12px] text-text leading-[1.4]">{p}</span>
                   </div>
                 ))}
               </div>
             </div>
             {/* Strengths */}
             <div>
-              <div className="text-[10px] font-mono text-[#a8a29e] mb-2 flex items-center gap-1">
-                <span className="w-3 h-px bg-[#7cc4a4] inline-block" />
+              <div className="text-[10px] font-mono text-text-subtle mb-2 flex items-center gap-1">
+                <span className="w-3 h-px bg-success-subtle inline-block" />
                 Strengths
               </div>
               <div className="space-y-1.5">
                 {lead.ai.strengths.map(s => (
                   <div key={s} className="flex items-start gap-1.5">
-                    <span className="text-[#52b788] text-[11px] shrink-0 mt-[1px]">+</span>
-                    <span className="text-[12px] text-[#57534e] leading-[1.4]">{s}</span>
+                    <span className="text-success text-[11px] shrink-0 mt-[1px]">+</span>
+                    <span className="text-[12px] text-text leading-[1.4]">{s}</span>
                   </div>
                 ))}
               </div>
@@ -605,25 +605,25 @@ function SidePanel({ lead, onClose, onReview, onGenerate, onQueue, onNavigate, h
               <ScoreRow label="Technical" value={lead.technicalScore} />
             </div>
 
-            <div className="pt-2 border-t border-[#f0ede8]">
-              <div className="text-[10px] font-mono text-[#a8a29e] mb-2">Lighthouse</div>
+            <div className="pt-2 border-t border-border">
+              <div className="text-[10px] font-mono text-text-subtle mb-2">Lighthouse</div>
               {lead.auditStatus === "failed" ? (
-                <div className="text-[12px] font-mono text-[#92600a]">Audit failed</div>
+                <div className="text-[12px] font-mono text-warning">Audit failed</div>
               ) : (
                 <div className="flex gap-5">
                   {[["Perf", lead.lighthousePerf], ["A11y", lead.lighthouseA11y], ["SEO", lead.lighthouseSeo]].map(([l, v]) => (
                     <div key={l as string} className="text-center">
                       <div style={{ color: scoreHue(v as number).text }}
                         className="text-[15px] font-mono font-semibold tabular-nums">{v}</div>
-                      <div className="text-[10px] font-mono text-[#a8a29e]">{l}</div>
+                      <div className="text-[10px] font-mono text-text-subtle">{l}</div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="pt-2 border-t border-[#f0ede8]">
-              <div className="text-[10px] font-mono text-[#a8a29e] mb-2">AI sub-scores</div>
+            <div className="pt-2 border-t border-border">
+              <div className="text-[10px] font-mono text-text-subtle mb-2">AI sub-scores</div>
               <div className="space-y-1.5">
                 {[
                   ["Modernity", lead.ai.modernity], ["Visual quality", lead.ai.visualQuality],
@@ -633,13 +633,13 @@ function SidePanel({ lead, onClose, onReview, onGenerate, onQueue, onNavigate, h
               </div>
             </div>
 
-            <div className="pt-2 border-t border-[#f0ede8] flex gap-2">
+            <div className="pt-2 border-t border-border flex gap-2">
               <a href={`https://${lead.domain}`} target="_blank" rel="noopener noreferrer"
-                className="px-3 py-1.5 text-[11px] font-mono text-[#57534e] border border-[#e5e3df] rounded-[5px] hover:bg-[#f5f4f2] transition-colors duration-150">
+                className="px-3 py-1.5 text-[11px] font-mono text-text border border-border rounded-[5px] hover:bg-surface-raised transition-colors duration-150">
                 Open original site ↗
               </a>
               {lead.auditStatus === "complete" && (
-                <button className="px-3 py-1.5 text-[11px] font-mono text-[#57534e] border border-[#e5e3df] rounded-[5px] hover:bg-[#f5f4f2] transition-colors duration-150">
+                <button className="px-3 py-1.5 text-[11px] font-mono text-text border border-border rounded-[5px] hover:bg-surface-raised transition-colors duration-150">
                   View audit
                 </button>
               )}
@@ -652,7 +652,7 @@ function SidePanel({ lead, onClose, onReview, onGenerate, onQueue, onNavigate, h
       </div>
 
       {/* ── Sticky footer: single question, clear actions ── */}
-      <div className="shrink-0 border-t border-[#e5e3df] bg-white">
+      <div className="shrink-0 border-t border-border bg-surface">
         {/* Current status indicator */}
         {lead.reviewStatus !== "UNREVIEWED" && (
           <div className="px-5 pt-3 pb-0">
@@ -663,10 +663,10 @@ function SidePanel({ lead, onClose, onReview, onGenerate, onQueue, onNavigate, h
         {/* Decision buttons — Bad / Unsure / Good order (left=reject, right=accept) */}
         <div className="px-5 pt-3 pb-2">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-mono text-[#c0bdb8] uppercase tracking-wider">Decision</span>
-            <span className="text-[10px] font-mono text-[#ddd9d4]">B · U · G</span>
+            <span className="text-[10px] font-mono text-text-subtle uppercase tracking-wider">Decision</span>
+            <span className="text-[10px] font-mono text-text-subtle">B · U · G</span>
           </div>
-          <div className="flex rounded-[5px] overflow-hidden border border-[#ddd9d4] divide-x divide-[#ddd9d4]">
+          <div className="flex rounded-[5px] overflow-hidden border border-border divide-x divide-border">
             {([
               { s: "BAD"   as ReviewStatus, icon: "×", key: "B" },
               { s: "UNSURE" as ReviewStatus, icon: "?", key: "U" },
@@ -679,8 +679,8 @@ function SidePanel({ lead, onClose, onReview, onGenerate, onQueue, onNavigate, h
                   onClick={() => onReview(lead.id, s)}
                   style={active
                     ? { background: c.activeBg, color: c.activeText }
-                    : { background: "transparent", color: "#78716c" }}
-                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-mono font-medium transition-colors duration-150 ${!active ? "hover:bg-[#f5f4f2]" : ""}`}>
+                    : { background: "transparent", color: "var(--color-text-muted)" }}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[12px] font-mono font-medium transition-colors duration-150 ${!active ? "hover:bg-surface-raised" : ""}`}>
                   <span>{icon}</span>
                   <span>{c.label}</span>
                 </button>
@@ -692,15 +692,15 @@ function SidePanel({ lead, onClose, onReview, onGenerate, onQueue, onNavigate, h
         {/* Primary action — only shown when it makes sense */}
         <div className="px-5 pb-4">
           {lead.reviewStatus === "GOOD" && !lead.demoGenerated ? (
-            <button className="w-full py-2.5 bg-[#276749] text-white text-[13px] font-semibold rounded-[5px] hover:bg-[#1f5238] transition-colors duration-150">
+            <button className="w-full py-2.5 bg-accent text-text-inverse text-[13px] font-semibold rounded-[5px] hover:bg-accent-hover transition-colors duration-150">
               Generate demo
             </button>
           ) : lead.demoGenerated ? (
-            <button className="w-full py-2.5 bg-[#1c1917] text-white text-[13px] font-medium rounded-[5px] hover:bg-[#292524] transition-colors duration-150">
+            <button className="w-full py-2.5 bg-surface-inverse text-text-inverse text-[13px] font-medium rounded-[5px] hover:bg-surface-inverse transition-colors duration-150">
               View generated demo
             </button>
           ) : (
-            <div className="text-[11px] font-mono text-[#c0bdb8] text-center py-1">
+            <div className="text-[11px] font-mono text-text-subtle text-center py-1">
               Mark as Good to generate demo
             </div>
           )}
@@ -725,70 +725,70 @@ function ReviewRow({ lead, onSelect, onReview, onGenerate, selected, checked, on
 
   return (
     <div ref={rowRef} onClick={onSelect}
-      className={`flex border rounded-md overflow-hidden cursor-pointer bg-white transition-all duration-150
+      className={`flex border rounded-md overflow-hidden cursor-pointer bg-surface transition-all duration-150
         ${selected
-          ? "border-[#276749] shadow-[0_0_0_1px_#276749]"
+          ? "border-accent ring-1 ring-accent"
           : isFocused
-            ? "border-[#a8a29e]"
-            : "border-[#e5e3df] hover:border-[#d1cdc7] hover:shadow-sm"}`}>
+            ? "border-border"
+            : "border-border hover:border-border hover:shadow-sm"}`}>
 
       {/* Checkbox strip */}
-      <div className="w-8 shrink-0 flex items-start justify-center pt-4 border-r border-[#f0ede8] bg-[#fafaf9]"
+      <div className="w-8 shrink-0 flex items-start justify-center pt-4 border-r border-border bg-surface-raised"
         onClick={e => e.stopPropagation()}>
         <input type="checkbox" checked={checked} onChange={onCheck}
-          className="w-3 h-3 accent-[#276749] cursor-pointer mt-0.5" />
+          className="w-3 h-3 accent-accent cursor-pointer mt-0.5" />
       </div>
 
       {/* Screenshot — fixed aspect, consistent width */}
-      <div className="w-[200px] shrink-0 border-r border-[#f0ede8]" style={{ minHeight: 140 }}>
+      <div className="w-[200px] shrink-0 border-r border-border" style={{ minHeight: 140 }}>
         <Screenshot url={lead.screenshotUrl} domain={lead.domain}
           auditFailed={lead.auditStatus === "failed"} aspectClass="h-full w-full" />
       </div>
 
       {/* Company + AI — flex-1, primary info at top */}
-      <div className="flex-1 px-5 py-4 border-r border-[#f0ede8] min-w-0 flex flex-col justify-between">
+      <div className="flex-1 px-5 py-4 border-r border-border min-w-0 flex flex-col justify-between">
         {/* PRIMARY */}
         <div>
-          <div className="font-semibold text-[14px] text-[#1c1917] truncate leading-tight">{lead.company}</div>
+          <div className="font-semibold text-[14px] text-text truncate leading-tight">{lead.company}</div>
           {/* SECONDARY */}
           <div className="flex items-center gap-1.5 mt-0.5">
-            <span className="text-[11px] font-mono text-[#276749]">{lead.domain}</span>
-            <span className="text-[#ddd9d4]">·</span>
-            <span className="text-[11px] font-mono text-[#a8a29e]">{lead.category}</span>
+            <span className="text-[11px] font-mono text-accent">{lead.domain}</span>
+            <span className="text-text-subtle">·</span>
+            <span className="text-[11px] font-mono text-text-subtle">{lead.category}</span>
           </div>
         </div>
         {/* AI summary */}
-        <p className="text-[12px] text-[#57534e] leading-[1.5] mt-3 line-clamp-2">{lead.ai.summary}</p>
+        <p className="text-[12px] text-text leading-[1.5] mt-3 line-clamp-2">{lead.ai.summary}</p>
         {/* TERTIARY */}
         <div className="flex items-center gap-2 mt-3">
           <button onClick={e => { e.stopPropagation(); onSelect(); }}
-            className="text-[11px] font-mono text-[#c0bdb8] hover:text-[#276749] transition-colors duration-150">
+            className="text-[11px] font-mono text-text-subtle hover:text-accent transition-colors duration-150">
             View analysis →
           </button>
           {lead.selectedForRedesign && (
-            <span className="text-[10px] font-mono text-[#276749] bg-[#f0f9f4] border border-[#c3dece] px-1.5 py-0.5 rounded">
+            <span className="text-[10px] font-mono text-accent bg-success-subtle border border-success-subtle px-1.5 py-0.5 rounded">
               ✓ Queued
             </span>
           )}
           {lead.site && (
             <a href={`/showcase/${lead.site.previewToken}`} target="_blank" rel="noreferrer"
               onClick={e => e.stopPropagation()}
-              className="text-[10px] font-mono text-[#276749] hover:underline">
+              className="text-[10px] font-mono text-accent hover:underline">
               Demo
             </a>
           )}
           {lead.discoveredAt && (
-            <span className="text-[10px] font-mono text-[#c0bdb8] ml-auto">{lead.discoveredAt}</span>
+            <span className="text-[10px] font-mono text-text-subtle ml-auto">{lead.discoveredAt}</span>
           )}
         </div>
       </div>
 
       {/* Scores — lead score dominant, rest tertiary */}
-      <div className="w-[148px] shrink-0 px-4 py-4 border-r border-[#f0ede8] flex flex-col justify-center gap-3">
+      <div className="w-[148px] shrink-0 px-4 py-4 border-r border-border flex flex-col justify-center gap-3">
         {/* PRIMARY: score ring */}
         <div className="flex items-center gap-3">
           <LeadScoreRing score={lead.leadScore} />
-          <div className="text-[10px] font-mono text-[#a8a29e] leading-snug">Lead<br/>score</div>
+          <div className="text-[10px] font-mono text-text-subtle leading-snug">Lead<br/>score</div>
         </div>
         {/* TERTIARY: secondary scores */}
         <div className="space-y-1.5 pt-1">
@@ -798,7 +798,7 @@ function ReviewRow({ lead, onSelect, onReview, onGenerate, selected, checked, on
             { l: "Redesign", v: lead.redesignScore, max: 10 },
           ].map(({ l, v, max }) => (
             <div key={l} className="flex items-center justify-between gap-1">
-              <span className="text-[10px] font-mono text-[#c0bdb8]">{l}</span>
+              <span className="text-[10px] font-mono text-text-subtle">{l}</span>
               <ScorePill value={v} max={max} />
             </div>
           ))}
@@ -815,18 +815,18 @@ function ReviewRow({ lead, onSelect, onReview, onGenerate, selected, checked, on
         <div>
           {lead.reviewStatus === "GOOD" && !lead.demoGenerated ? (
             <button onClick={(e) => { e.stopPropagation(); onGenerate(lead.id); }}
-              className="w-full py-1.5 bg-[#276749] text-white text-[11px] font-medium rounded-[5px] hover:bg-[#1f5238] transition-colors duration-150">
+              className="w-full py-1.5 bg-accent text-text-inverse text-[11px] font-medium rounded-[5px] hover:bg-accent-hover transition-colors duration-150">
               Generate demo
             </button>
           ) : lead.demoGenerated ? (
             <button onClick={(e) => { e.stopPropagation(); lead.site && window.open(`/showcase/${lead.site.previewToken}`, "_blank"); }}
-              className="w-full py-1.5 bg-[#1c1917] text-white text-[11px] font-medium rounded-[5px] hover:bg-[#292524] transition-colors duration-150">
+              className="w-full py-1.5 bg-surface-inverse text-text-inverse text-[11px] font-medium rounded-[5px] hover:bg-surface-inverse transition-colors duration-150">
               View demo
             </button>
           ) : (
             <a href={`https://${lead.domain}`} target="_blank" rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
-              className="block w-full py-1.5 text-center text-[11px] font-mono text-[#78716c] border border-[#e5e3df] rounded-[5px] hover:bg-[#f5f4f2] transition-colors duration-150">
+              className="block w-full py-1.5 text-center text-[11px] font-mono text-text-muted border border-border rounded-[5px] hover:bg-surface-raised transition-colors duration-150">
               Open site ↗
             </a>
           )}
@@ -844,20 +844,20 @@ function TableRow({ lead, onSelect, onReview, onGenerate, selected, checked, onC
   selected: boolean; checked: boolean; onCheck: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
   return (
-    <tr className={`border-b border-[#f0ede8] cursor-pointer transition-colors duration-150 ${selected ? "bg-[#f5fbf7]" : "hover:bg-[#fafaf8]"}`}>
+    <tr className={`border-b border-border cursor-pointer transition-colors duration-150 ${selected ? "bg-success-subtle" : "hover:bg-surface-raised"}`}>
       <td className="py-2.5 pl-4 pr-2" onClick={e => e.stopPropagation()}>
-        <input type="checkbox" checked={checked} onChange={onCheck} className="w-3 h-3 accent-[#276749]" />
+        <input type="checkbox" checked={checked} onChange={onCheck} className="w-3 h-3 accent-accent" />
       </td>
       <td className="py-2.5 px-3" onClick={onSelect}>
-        <div className="w-14 h-9 rounded-[3px] overflow-hidden bg-[#f0ede8] border border-[#e5e3df]">
+        <div className="w-14 h-9 rounded-[3px] overflow-hidden bg-surface-hover border border-border">
           <img src={lead.screenshotUrl} alt="" className="w-full h-full object-cover object-top" />
         </div>
       </td>
       <td className="py-2.5 px-3" onClick={onSelect}>
-        <div className="font-medium text-[13px] text-[#1c1917]">{lead.company}</div>
-        <div className="text-[11px] font-mono text-[#a8a29e]">{lead.domain}</div>
+        <div className="font-medium text-[13px] text-text">{lead.company}</div>
+        <div className="text-[11px] font-mono text-text-subtle">{lead.domain}</div>
       </td>
-      <td className="py-2.5 px-3 text-[12px] text-[#78716c]" onClick={onSelect}>{lead.category}</td>
+      <td className="py-2.5 px-3 text-[12px] text-text-muted" onClick={onSelect}>{lead.category}</td>
       <td className="py-2.5 px-3" onClick={onSelect}>
         <LeadScoreRing score={lead.leadScore} />
       </td>
@@ -873,17 +873,17 @@ function TableRow({ lead, onSelect, onReview, onGenerate, selected, checked, onC
       <td className="py-2.5 px-4" onClick={e => e.stopPropagation()}>
         {lead.reviewStatus === "GOOD" && !lead.demoGenerated ? (
           <button onClick={() => onGenerate(lead.id)}
-            className="px-3 py-1 bg-[#276749] text-white text-[11px] font-medium rounded-[5px] hover:bg-[#1f5238] transition-colors duration-150 whitespace-nowrap">
+            className="px-3 py-1 bg-accent text-text-inverse text-[11px] font-medium rounded-[5px] hover:bg-accent-hover transition-colors duration-150 whitespace-nowrap">
             Generate
           </button>
         ) : lead.demoGenerated ? (
           <button onClick={() => lead.site && window.open(`/showcase/${lead.site.previewToken}`, "_blank")}
-            className="px-3 py-1 bg-[#1c1917] text-white text-[11px] font-medium rounded-[5px] hover:bg-[#292524] transition-colors duration-150 whitespace-nowrap">
+            className="px-3 py-1 bg-surface-inverse text-text-inverse text-[11px] font-medium rounded-[5px] hover:bg-surface-inverse transition-colors duration-150 whitespace-nowrap">
             View demo
           </button>
         ) : (
           <a href={`https://${lead.domain}`} target="_blank" rel="noopener noreferrer"
-            className="px-3 py-1 text-[11px] font-mono text-[#78716c] border border-[#e5e3df] rounded-[5px] hover:bg-[#f5f4f2] transition-colors duration-150 whitespace-nowrap">
+            className="px-3 py-1 text-[11px] font-mono text-text-muted border border-border rounded-[5px] hover:bg-surface-raised transition-colors duration-150 whitespace-nowrap">
             Open ↗
           </a>
         )}
@@ -899,14 +899,14 @@ function BulkBar({ count, onMarkBad, onMarkUnsure, onQueueRedesign, onClear }: {
   onQueueRedesign: () => void; onClear: () => void;
 }) {
   return (
-    <div className="bg-[#1c1917] text-white rounded-md px-4 py-2.5 flex items-center gap-3"
+    <div className="bg-surface-inverse text-text-inverse rounded-md px-4 py-2.5 flex items-center gap-3"
       style={{ animation: "fadeIn 0.15s ease" }}>
-      <span className="text-[11px] font-mono text-[#a8a29e]">{count} selected</span>
-      <div className="h-3 w-px bg-[#44403c]" />
-      <button onClick={onMarkBad} className="text-[11px] font-mono text-[#f0b8b8] hover:text-white transition-colors duration-150">× Mark bad</button>
-      <button onClick={onMarkUnsure} className="text-[11px] font-mono text-[#e8d5a3] hover:text-white transition-colors duration-150">? Mark unsure</button>
-      <button onClick={onQueueRedesign} className="text-[11px] font-mono text-[#8ecdb0] hover:text-white transition-colors duration-150">↑ Queue for redesign</button>
-      <button onClick={onClear} className="ml-auto text-[11px] font-mono text-[#78716c] hover:text-[#a8a29e] transition-colors duration-150">Clear</button>
+      <span className="text-[11px] font-mono text-text-subtle">{count} selected</span>
+      <div className="h-3 w-px bg-surface-inverse" />
+      <button onClick={onMarkBad} className="text-[11px] font-mono text-danger-subtle hover:text-text-inverse transition-colors duration-150">× Mark bad</button>
+      <button onClick={onMarkUnsure} className="text-[11px] font-mono text-warning-subtle hover:text-text-inverse transition-colors duration-150">? Mark unsure</button>
+      <button onClick={onQueueRedesign} className="text-[11px] font-mono text-success hover:text-text-inverse transition-colors duration-150">↑ Queue for redesign</button>
+      <button onClick={onClear} className="ml-auto text-[11px] font-mono text-text-muted hover:text-text-subtle transition-colors duration-150">Clear</button>
     </div>
   );
 }
@@ -1097,33 +1097,33 @@ export default function RadarView({ onForge }: { onForge?: () => void }) {
   const panelIdx = selectedLeadId ? filtered.findIndex(l => l.id === selectedLeadId) : -1;
 
   return (
-    <div className="min-h-full bg-[#f5f4f2] flex">
+    <div className="min-h-full bg-surface-raised flex">
       {/* Sidebar */}
-      <div className="w-[216px] shrink-0 bg-white border-r border-[#e5e3df] flex flex-col">
-        <div className="px-5 py-[18px] border-b border-[#e5e3df]">
-          <div className="text-[10px] font-mono font-medium text-[#c0bdb8] uppercase tracking-widest">WebsiteLeadAgent</div>
-          <div className="text-[13px] font-semibold text-[#1c1917] mt-0.5">Super Admin</div>
+      <div className="w-[216px] shrink-0 bg-surface border-r border-border flex flex-col">
+        <div className="px-5 py-[18px] border-b border-border">
+          <div className="text-[10px] font-mono font-medium text-text-subtle uppercase tracking-widest">WebsiteLeadAgent</div>
+          <div className="text-[13px] font-semibold text-text mt-0.5">Super Admin</div>
         </div>
         <nav className="p-2.5 space-y-px">
           {[["Sites", false], ["Leads", true], ["Pipeline", false], ["Audit queue", false], ["Generated", false]].map(([label, active]) => (
             <div key={label as string}
-              className={`px-3 py-2 rounded-[5px] text-[13px] cursor-pointer transition-colors duration-150 ${active ? "bg-[#f0f9f4] text-[#276749] font-medium" : "text-[#57534e] hover:bg-[#f5f4f2]"}`}>
+              className={`px-3 py-2 rounded-[5px] text-[13px] cursor-pointer transition-colors duration-150 ${active ? "bg-success-subtle text-accent font-medium" : "text-text hover:bg-surface-raised"}`}>
               {label}
             </div>
           ))}
         </nav>
-        <div className="mt-auto p-4 border-t border-[#e5e3df] space-y-2">
-          <div className="text-[10px] font-mono text-[#a8a29e]">admin@system.internal</div>
-          <div className="text-[10px] font-mono text-[#ddd9d4]">g · u · b · j · k</div>
+        <div className="mt-auto p-4 border-t border-border space-y-2">
+          <div className="text-[10px] font-mono text-text-subtle">admin@system.internal</div>
+          <div className="text-[10px] font-mono text-text-subtle">g · u · b · j · k</div>
         </div>
       </div>
 
       {/* Main */}
       <div className={`flex-1 flex flex-col min-w-0 transition-[margin] duration-200 ${selectedLead ? "mr-[388px]" : ""}`}>
         {/* Top bar */}
-        <div className="bg-white border-b border-[#e5e3df] px-6 h-[52px] flex items-center justify-between shrink-0">
+        <div className="bg-surface border-b border-border px-6 h-[52px] flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
-            <h1 className="text-[14px] font-semibold text-[#1c1917]">Leads</h1>
+            <h1 className="text-[14px] font-semibold text-text">Leads</h1>
             {/* Stat pills — clickable shortcut to filter */}
             <div className="flex items-center gap-2">
               {[
@@ -1133,17 +1133,17 @@ export default function RadarView({ onForge }: { onForge?: () => void }) {
               ].map(({ label, value, status, warn, positive }) => (
                 <button key={label} onClick={() => setFilterStatus(status)}
                   className={`flex items-center gap-1.5 px-2.5 py-1 rounded-[5px] text-[11px] font-mono transition-colors duration-150
-                    ${filterStatus === status ? "bg-[#f0ede8] text-[#1c1917]" : "text-[#a8a29e] hover:bg-[#f5f4f2]"}`}>
-                  <span className={`font-semibold tabular-nums ${positive ? "text-[#276749]" : warn ? "text-[#92600a]" : ""}`}>{value}</span>
+                    ${filterStatus === status ? "bg-surface-hover text-text" : "text-text-subtle hover:bg-surface-raised"}`}>
+                  <span className={`font-semibold tabular-nums ${positive ? "text-accent" : warn ? "text-warning" : ""}`}>{value}</span>
                   <span>{label}</span>
                 </button>
               ))}
             </div>
           </div>
-          <div className="flex border border-[#e5e3df] rounded-[5px] overflow-hidden">
+          <div className="flex border border-border rounded-[5px] overflow-hidden">
             {(["review", "table"] as ViewMode[]).map(m => (
               <button key={m} onClick={() => setViewMode(m)}
-                className={`px-3 h-[30px] text-[11px] font-mono transition-colors duration-150 capitalize ${viewMode === m ? "bg-[#1c1917] text-white" : "text-[#78716c] hover:bg-[#f5f4f2]"}`}>
+                className={`px-3 h-[30px] text-[11px] font-mono transition-colors duration-150 capitalize ${viewMode === m ? "bg-surface-inverse text-text-inverse" : "text-text-muted hover:bg-surface-raised"}`}>
                 {m}
               </button>
             ))}
@@ -1151,7 +1151,7 @@ export default function RadarView({ onForge }: { onForge?: () => void }) {
         </div>
 
         {/* Sticky controls */}
-        <div className="sticky top-0 z-20 bg-[#f5f4f2] px-6 pt-4 pb-3 space-y-2.5">
+        <div className="sticky top-0 z-20 bg-surface-raised px-6 pt-4 pb-3 space-y-2.5">
           <FilterBar
             search={search} onSearch={setSearch}
             filterStatus={filterStatus} onStatus={setFilterStatus}
@@ -1174,16 +1174,16 @@ export default function RadarView({ onForge }: { onForge?: () => void }) {
         {/* Lead list */}
         <div className="flex-1 px-6 pb-8">
           {loading ? (
-            <div className="bg-white rounded-md border border-[#e5e3df] px-6 py-14 text-center">
-              <div className="text-[13px] font-mono text-[#a8a29e]">Loading leads…</div>
+            <div className="bg-surface rounded-md border border-border px-6 py-14 text-center">
+              <div className="text-[13px] font-mono text-text-subtle">Loading leads…</div>
             </div>
           ) : fetchError ? (
-            <div className="bg-white rounded-md border border-[#e5e3df] px-6 py-14 text-center">
-              <div className="text-[13px] font-mono text-[#9b1c1c]">{fetchError}</div>
+            <div className="bg-surface rounded-md border border-border px-6 py-14 text-center">
+              <div className="text-[13px] font-mono text-danger">{fetchError}</div>
             </div>
           ) : filtered.length === 0 ? (
-            <div className="bg-white rounded-md border border-[#e5e3df] px-6 py-14 text-center">
-              <div className="text-[13px] font-mono text-[#a8a29e]">No leads found</div>
+            <div className="bg-surface rounded-md border border-border px-6 py-14 text-center">
+              <div className="text-[13px] font-mono text-text-subtle">No leads found</div>
             </div>
           ) : viewMode === "review" ? (
             <div className="space-y-2">
@@ -1198,18 +1198,18 @@ export default function RadarView({ onForge }: { onForge?: () => void }) {
               ))}
             </div>
           ) : (
-            <div className="bg-white rounded-md border border-[#e5e3df] overflow-hidden">
+            <div className="bg-surface rounded-md border border-border overflow-hidden">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b border-[#e5e3df] bg-[#fafaf8]">
+                  <tr className="border-b border-border bg-surface-raised">
                     <th className="py-2.5 pl-4 pr-2">
                       <input type="checkbox"
                         checked={checkedIds.size === filtered.length && filtered.length > 0}
                         onChange={e => setCheckedIds(e.target.checked ? new Set(filtered.map(l => l.id)) as StringSet : new Set() as StringSet)}
-                        className="w-3 h-3 accent-[#276749]" />
+                        className="w-3 h-3 accent-accent" />
                     </th>
                     {["", "Company", "Category", "Lead", "Redesign", "Status", "Review", "Action"].map(h => (
-                      <th key={h} className="py-2.5 px-3 text-left text-[10px] font-mono font-medium text-[#a8a29e] uppercase tracking-wider">
+                      <th key={h} className="py-2.5 px-3 text-left text-[10px] font-mono font-medium text-text-subtle uppercase tracking-wider">
                         {h}
                       </th>
                     ))}

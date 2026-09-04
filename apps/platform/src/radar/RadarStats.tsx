@@ -59,13 +59,13 @@ export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qua
   ];
 
   return (
-    <div className="bg-white border border-[#e5e3df] rounded-md p-4 mb-4">
+    <div className="bg-surface border border-border rounded-md p-4 mb-4">
       <div className="flex items-center gap-3 mb-3">
-        <label className="text-[11px] font-mono text-[#57534e]">Discovery</label>
+        <label className="text-[11px] font-mono text-text">Discovery</label>
         <select
           value={discoveryRunId}
           onChange={(e) => onRunChange(e.target.value)}
-          className="h-[30px] px-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] font-mono"
+          className="h-[30px] px-2 text-[12px] border border-border rounded bg-surface-raised font-mono"
         >
           <option value="">All discoveries</option>
           {runs.map((r) => (
@@ -78,22 +78,22 @@ export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qua
           <button
             onClick={onQualify}
             disabled={qualifying}
-            className="h-[30px] px-3 text-[12px] font-mono text-white bg-[#276749] rounded hover:bg-[#1f5238] disabled:opacity-50"
+            className="h-[30px] px-3 text-[12px] font-mono text-text-inverse bg-accent rounded hover:bg-accent-hover disabled:opacity-50"
           >
             {qualifying ? 'Qualifying…' : 'Qualify eligible'}
           </button>
         )}
       </div>
       {loading ? (
-        <div className="text-[12px] text-[#a8a29e] font-mono">Loading stats…</div>
+        <div className="text-[12px] text-text-subtle font-mono">Loading stats…</div>
       ) : stats ? (
         <div className="grid grid-cols-10 gap-2">
           {cards.map(({ label, value, positive, warn }) => (
-            <div key={label} className="bg-[#fafaf9] border border-[#e5e3df] rounded p-2 text-center">
-              <div className={`text-[16px] font-mono font-semibold tabular-nums ${positive ? 'text-[#276749]' : warn ? 'text-[#9b1c1c]' : 'text-[#1c1917]'}`}>
+            <div key={label} className="bg-surface-raised border border-border rounded p-2 text-center">
+              <div className={`text-[16px] font-mono font-semibold tabular-nums ${positive ? 'text-accent' : warn ? 'text-danger' : 'text-text'}`}>
                 {stats[value]}
               </div>
-              <div className="text-[9px] font-mono text-[#a8a29e] uppercase tracking-wider mt-0.5">{label}</div>
+              <div className="text-[9px] font-mono text-text-subtle uppercase tracking-wider mt-0.5">{label}</div>
             </div>
           ))}
         </div>

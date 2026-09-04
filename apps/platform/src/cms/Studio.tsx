@@ -63,7 +63,7 @@ export default function Studio({ siteId, user }: { siteId: string; user?: any })
   return (
     <StudioProvider siteId={siteId} user={(user ?? null) as StudioUser | null}>
       <StudioInner screen={screen} />
-      <div className="flex h-full bg-[#f4f5f7] overflow-hidden">
+      <div className="flex h-full bg-bg overflow-hidden">
         <Sidebar current={screen} onNavigate={navigate} />
 
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">

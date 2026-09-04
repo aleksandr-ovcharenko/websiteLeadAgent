@@ -20,16 +20,16 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 function statusColor(status: string) {
-  if (status === 'SUCCESS' || status === 'FOUND') return 'text-emerald-700 bg-emerald-50 border-emerald-200';
-  if (status === 'FAILED' || status === 'NOT_FOUND') return 'text-red-700 bg-red-50 border-red-200';
-  if (status === 'PENDING' || status === 'UNKNOWN') return 'text-amber-700 bg-amber-50 border-amber-200';
-  return 'text-[#57534e] bg-[#f5f4f2] border-[#e5e3df]';
+  if (status === 'SUCCESS' || status === 'FOUND') return 'text-success bg-success-subtle border-success-subtle';
+  if (status === 'FAILED' || status === 'NOT_FOUND') return 'text-danger bg-danger-subtle border-danger-subtle';
+  if (status === 'PENDING' || status === 'UNKNOWN') return 'text-warning bg-warning-subtle border-warning-subtle';
+  return 'text-text bg-surface-raised border-border';
 }
 
 function Status({ label, status }: { label: string; status: string }) {
   return (
     <div className="flex items-center justify-between gap-2">
-      <span className="text-[11px] text-[#a8a29e] font-mono">{label}</span>
+      <span className="text-[11px] text-text-subtle font-mono">{label}</span>
       <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border ${statusColor(status)}`}>
         {STATUS_LABELS[status] || status}
       </span>
@@ -199,29 +199,29 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
   return (
     <div
       data-testid="lead-detail"
-      className="fixed top-0 right-0 w-[420px] bg-white border-l border-[#e5e3df] flex flex-col z-40 shadow-[-4px_0_24px_rgba(28,25,23,0.07)]"
+      className="fixed top-0 right-0 w-[420px] bg-surface border-l border-border flex flex-col z-40 shadow-[-4px_0_24px_var(--color-shadow)]"
       style={{ bottom: 'var(--console-height, 0px)' }}>
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#f0ede8] shrink-0">
-        <span className="text-[11px] font-mono text-[#a8a29e]">Lead detail</span>
-        <button onClick={onClose} className="text-[#a8a29e] hover:text-[#1c1917]">×</button>
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+        <span className="text-[11px] font-mono text-text-subtle">Lead detail</span>
+        <button onClick={onClose} className="text-text-subtle hover:text-text">×</button>
       </div>
 
       <div className="flex-1 overflow-y-auto">
-        <div className="relative bg-[#f0ede8]">
-          <div className="absolute top-3 left-3 z-10 flex rounded overflow-hidden border border-white/30 shadow-sm">
+        <div className="relative bg-surface-hover">
+          <div className="absolute top-3 left-3 z-10 flex rounded overflow-hidden border border-text-inverse/30 shadow-sm">
             {(['desktop', 'mobile'] as const).map((t) => (
               <button key={t} onClick={() => setTab(t)}
-                className={`px-2.5 py-1 text-[10px] font-mono capitalize ${tab === t ? 'bg-[#1c1917] text-white' : 'bg-white/80 text-[#57534e] hover:bg-white'}`}>
+                className={`px-2.5 py-1 text-[10px] font-mono capitalize ${tab === t ? 'bg-surface-inverse text-text-inverse' : 'bg-surface/80 text-text hover:bg-surface'}`}>
                 {t}
               </button>
             ))}
           </div>
-          <div className="aspect-[16/10] relative overflow-hidden bg-[#fafaf9]">
+          <div className="aspect-[16/10] relative overflow-hidden bg-surface-raised">
             {auditStatus === 'SUCCESS' ? (
               imgError ? (
                 <div className="w-full h-full flex flex-col items-center justify-center text-center p-6">
-                  <span className="text-[#a8a29e] text-[12px] font-mono mb-2">Screenshot unavailable</span>
-                  <span className="text-[10px] text-[#57534e] font-mono">Audit exists but image not found</span>
+                  <span className="text-text-subtle text-[12px] font-mono mb-2">Screenshot unavailable</span>
+                  <span className="text-[10px] text-text font-mono">Audit exists but image not found</span>
                 </div>
               ) : (
                 <a href={fullUrl} target="_blank" rel="noreferrer" className="block w-full h-full">
@@ -235,47 +235,47 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
               )
             ) : (
               <div className="w-full h-full flex flex-col items-center justify-center text-center p-6">
-                <span className="text-[#a8a29e] text-[12px] font-mono mb-2">No screenshot yet</span>
-                {hasWebsite && <span className="text-[10px] text-[#57534e] font-mono">Run audit to capture</span>}
+                <span className="text-text-subtle text-[12px] font-mono mb-2">No screenshot yet</span>
+                {hasWebsite && <span className="text-[10px] text-text font-mono">Run audit to capture</span>}
               </div>
             )}
           </div>
         </div>
 
-        <div className="px-5 pt-5 pb-4 border-b border-[#f0ede8]">
+        <div className="px-5 pt-5 pb-4 border-b border-border">
           <div className="flex items-start gap-3">
             <div className="flex-1 min-w-0">
-              <h2 className="font-semibold text-[16px] text-[#1c1917] leading-tight">{lead.companyName || '—'}</h2>
+              <h2 className="font-semibold text-[16px] text-text leading-tight">{lead.companyName || '—'}</h2>
               <div className="flex items-center gap-1.5 mt-1 flex-wrap">
                 {lead.website ? (
-                  <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-[12px] font-mono text-[#276749] hover:underline break-all">{lead.website}</a>
+                  <a href={lead.website} target="_blank" rel="noopener noreferrer" className="text-[12px] font-mono text-accent hover:underline break-all">{lead.website}</a>
                 ) : (
-                  <span className="text-[12px] font-mono text-[#9b1c1c]">No website</span>
+                  <span className="text-[12px] font-mono text-danger">No website</span>
                 )}
-                {lead.categories?.[0] && <span className="text-[11px] text-[#a8a29e]">· {lead.categories[0]}</span>}
-                {lead.city && <span className="text-[11px] text-[#a8a29e]">· {lead.city}</span>}
+                {lead.categories?.[0] && <span className="text-[11px] text-text-subtle">· {lead.categories[0]}</span>}
+                {lead.city && <span className="text-[11px] text-text-subtle">· {lead.city}</span>}
               </div>
               {hasTlsWarning && (
-                <div className="w-full mt-2 p-2 rounded border bg-amber-50 border-amber-200 text-amber-800 text-[11px] font-mono">
+                <div className="w-full mt-2 p-2 rounded border bg-warning-subtle border-warning-subtle text-warning text-[11px] font-mono">
                   <span className="font-semibold">TLS warning:</span> {tlsWarning?.message} ({tlsWarning?.error})
                 </div>
               )}
             </div>
             <div className="flex flex-col items-center shrink-0">
               <LeadScoreRing score={score} size={48} />
-              <span className="text-[10px] font-mono text-[#a8a29e] mt-1">Lead score</span>
+              <span className="text-[10px] font-mono text-text-subtle mt-1">Lead score</span>
             </div>
           </div>
         </div>
 
-        <div className="px-5 py-4 border-b border-[#f0ede8]">
-          <div className="text-[10px] font-mono text-[#a8a29e] uppercase tracking-wider mb-2">Qualification summary</div>
+        <div className="px-5 py-4 border-b border-border">
+          <div className="text-[10px] font-mono text-text-subtle uppercase tracking-wider mb-2">Qualification summary</div>
           <div className="space-y-1">
             {stages.map((s) => {
               const isBlocking = firstBlocking?.id === s.id;
               const failed = ['FAILED', 'NOT_FOUND'].includes(s.status);
-              const rowClass = isBlocking && failed ? 'border-red-200 bg-red-50' : isBlocking && s.status === 'RUNNING' ? 'border-blue-200 bg-blue-50' : isBlocking ? 'border-amber-200 bg-amber-50' : 'border-transparent hover:bg-stone-50';
-              const iconClass = s.status === 'FAILED' || s.status === 'NOT_FOUND' ? 'text-red-600' : s.status === 'RUNNING' ? 'text-blue-600 animate-pulse' : ['SUCCESS', 'FOUND'].includes(s.status) ? 'text-emerald-600' : s.status === 'WAITING' ? 'text-stone-400' : 'text-amber-600';
+              const rowClass = isBlocking && failed ? 'border-danger-subtle bg-danger-subtle' : isBlocking && s.status === 'RUNNING' ? 'border-info-subtle bg-info-subtle' : isBlocking ? 'border-warning-subtle bg-warning-subtle' : 'border-transparent hover:bg-surface-raised';
+              const iconClass = s.status === 'FAILED' || s.status === 'NOT_FOUND' ? 'text-danger' : s.status === 'RUNNING' ? 'text-info animate-pulse' : ['SUCCESS', 'FOUND'].includes(s.status) ? 'text-success' : s.status === 'WAITING' ? 'text-text-subtle' : 'text-warning';
               return (
                 <div key={s.id} className={`rounded border px-2.5 py-2 ${rowClass}`}>
                   <div className="flex items-center justify-between gap-2">
@@ -283,39 +283,39 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
                       <span className={`text-[12px] font-mono w-4 ${iconClass}`}>
                         {STAGE_ICONS[s.status] || s.status[0]}
                       </span>
-                      <span className="text-[12px] font-medium text-[#44403c]">{s.label}</span>
+                      <span className="text-[12px] font-medium text-text">{s.label}</span>
                     </div>
                     <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border ${stageColor(s.status)}`}>
                       {STATUS_LABELS[s.status] || s.status}
                     </span>
                   </div>
                   {s.status === 'RUNNING' && (
-                    <div className="mt-1 text-[11px] text-blue-700 font-mono pl-6">Running…</div>
+                    <div className="mt-1 text-[11px] text-info font-mono pl-6">Running…</div>
                   )}
                   {s.waitingFor && s.status === 'WAITING' && (
-                    <div className="mt-1 text-[11px] text-stone-500 font-mono pl-6">
+                    <div className="mt-1 text-[11px] text-text-muted font-mono pl-6">
                       Waiting for {s.waitingFor.join(', ')}.
                     </div>
                   )}
                   {failed && s.reason && isBlocking && (
-                    <div className="mt-1.5 text-[11px] text-red-800 font-mono pl-6">
+                    <div className="mt-1.5 text-[11px] text-danger font-mono pl-6">
                       {s.reason}
                       {s.reason.length > 80 && (
                         <button
                           onClick={() => setExpanded(prev => ({ ...prev, [s.id]: !prev[s.id] }))}
-                          className="ml-2 text-[10px] text-red-600 underline"
+                          className="ml-2 text-[10px] text-danger underline"
                         >
                           {expanded[s.id] ? 'Hide details' : 'Details'}
                         </button>
                       )}
                       {expanded[s.id] && (
-                        <div className="mt-1 p-1.5 bg-white/60 border border-red-100 rounded text-[10px] whitespace-pre-wrap">{s.reason}</div>
+                        <div className="mt-1 p-1.5 bg-surface/60 border border-danger-subtle rounded text-[10px] whitespace-pre-wrap">{s.reason}</div>
                       )}
                     </div>
                   )}
                   {failed && isBlocking && (
-                    <div className="mt-1.5 text-[11px] text-red-800 font-mono pl-6">
-                      <button onClick={() => handleRetryStage(s.id)} className="px-2 h-6 border border-red-300 rounded text-[10px] hover:bg-red-100">
+                    <div className="mt-1.5 text-[11px] text-danger font-mono pl-6">
+                      <button onClick={() => handleRetryStage(s.id)} className="px-2 h-6 border border-danger-subtle rounded text-[10px] hover:bg-danger-subtle">
                         Retry {s.label}
                       </button>
                     </div>
@@ -323,25 +323,25 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
                 </div>
               );
             })}
-            <div className={`rounded border px-2.5 py-2 ${readyForReview ? 'border-emerald-200 bg-emerald-50' : 'border-stone-200 bg-stone-50'}`}>
+            <div className={`rounded border px-2.5 py-2 ${readyForReview ? 'border-success-subtle bg-success-subtle' : 'border-border bg-surface-raised'}`}>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className={`text-[12px] font-mono w-4 ${readyForReview ? 'text-emerald-600' : 'text-stone-500'}`}>{readyForReview ? '✓' : '🔒'}</span>
-                  <span className="text-[12px] font-medium text-[#44403c]">Review</span>
+                  <span className={`text-[12px] font-mono w-4 ${readyForReview ? 'text-success' : 'text-text-muted'}`}>{readyForReview ? '✓' : '🔒'}</span>
+                  <span className="text-[12px] font-medium text-text">Review</span>
                 </div>
-                <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border ${readyForReview ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-stone-600 bg-stone-100 border-stone-200'}`}>
+                <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border ${readyForReview ? 'text-success bg-success-subtle border-success-subtle' : 'text-text-muted bg-surface-hover border-border'}`}>
                   {readyForReview ? (lead.manualReviewStatus || 'UNREVIEWED') : 'LOCKED'}
                 </span>
               </div>
               {!readyForReview && firstBlocking && (
-                <div className="mt-1.5 text-[11px] text-stone-600 font-mono pl-6">
+                <div className="mt-1.5 text-[11px] text-text-muted font-mono pl-6">
                   Review is unavailable because {firstBlocking.label.toLowerCase()} {['FAILED', 'NOT_FOUND'].includes(firstBlocking.status) ? 'failed' : 'is not complete'}.
                 </div>
               )}
             </div>
           </div>
           {!readyForReview && firstBlocking && (
-            <div className="mt-3 p-2.5 bg-red-50 border border-red-200 rounded text-[11px] text-red-800 font-mono">
+            <div className="mt-3 p-2.5 bg-danger-subtle border border-danger-subtle rounded text-[11px] text-danger font-mono">
               <p className="font-medium">Qualification is not ready for review.</p>
               <p className="mt-1">Blocking step: {firstBlocking.label} {firstBlocking.status}.</p>
               {stages.slice(firstBlockingIndex + 1).some(s => !['SUCCESS', 'SKIPPED', 'FOUND'].includes(s.status)) && (
@@ -354,8 +354,8 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
           )}
         </div>
 
-        <div className="px-5 py-4 border-b border-[#f0ede8]">
-          <div className="text-[10px] font-mono text-[#a8a29e] uppercase tracking-wider mb-2">Scores</div>
+        <div className="px-5 py-4 border-b border-border">
+          <div className="text-[10px] font-mono text-text-subtle uppercase tracking-wider mb-2">Scores</div>
           {scoreStatus === 'SUCCESS' ? (
             <div className="space-y-2">
               {[
@@ -365,8 +365,8 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
                 { l: 'Redesign potential', v: (visual.redesignPotential ?? 0) * 10 },
               ].map(({ l, v }) => (
                 <div key={l} className="flex items-center gap-2">
-                  <span className="text-[11px] font-mono text-[#a8a29e] w-[116px] shrink-0">{l}</span>
-                  <div className="flex-1 h-[3px] rounded-full bg-[#ebe9e5] overflow-hidden">
+                  <span className="text-[11px] font-mono text-text-subtle w-[116px] shrink-0">{l}</span>
+                  <div className="flex-1 h-[3px] rounded-full bg-surface-hover overflow-hidden">
                     <div className="h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, v))}%`, background: scoreHue(v).ring }} />
                   </div>
                   <ScorePill value={v} />
@@ -374,27 +374,27 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
               ))}
             </div>
           ) : (
-            <div className="p-2.5 bg-stone-50 border border-stone-200 rounded text-[11px] font-mono text-stone-500">
+            <div className="p-2.5 bg-surface-raised border border-border rounded text-[11px] font-mono text-text-muted">
               Not calculated. Complete scoring to see scores.
             </div>
           )}
         </div>
 
         {visual?.summary && (
-          <div className="px-5 py-4 border-b border-[#f0ede8]">
-            <div className="text-[10px] font-mono text-[#a8a29e] uppercase tracking-wider mb-2">AI assessment</div>
-            <p className="text-[13px] text-[#44403c] leading-[1.6]">{visual.summary}</p>
+          <div className="px-5 py-4 border-b border-border">
+            <div className="text-[10px] font-mono text-text-subtle uppercase tracking-wider mb-2">AI assessment</div>
+            <p className="text-[13px] text-text leading-[1.6]">{visual.summary}</p>
             <div className="grid grid-cols-2 gap-3 mt-3">
               {visual.problems?.length > 0 && (
                 <div>
-                  <div className="text-[10px] font-mono text-[#a8a29e] mb-1">Problems</div>
-                  {visual.problems.map((p: string, i: number) => <div key={i} className="text-[11px] text-[#57534e] leading-snug">— {p}</div>)}
+                  <div className="text-[10px] font-mono text-text-subtle mb-1">Problems</div>
+                  {visual.problems.map((p: string, i: number) => <div key={i} className="text-[11px] text-text leading-snug">— {p}</div>)}
                 </div>
               )}
               {visual.strengths?.length > 0 && (
                 <div>
-                  <div className="text-[10px] font-mono text-[#a8a29e] mb-1">Strengths</div>
-                  {visual.strengths.map((p: string, i: number) => <div key={i} className="text-[11px] text-[#57534e] leading-snug">+ {p}</div>)}
+                  <div className="text-[10px] font-mono text-text-subtle mb-1">Strengths</div>
+                  {visual.strengths.map((p: string, i: number) => <div key={i} className="text-[11px] text-text leading-snug">+ {p}</div>)}
                 </div>
               )}
             </div>
@@ -402,8 +402,8 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
         )}
 
         {lh && (
-          <div className="px-5 py-4 border-b border-[#f0ede8]">
-            <div className="text-[10px] font-mono text-[#a8a29e] uppercase tracking-wider mb-2">Lighthouse</div>
+          <div className="px-5 py-4 border-b border-border">
+            <div className="text-[10px] font-mono text-text-subtle uppercase tracking-wider mb-2">Lighthouse</div>
             <div className="flex gap-5">
               {[
                 ['Performance', lh.performance],
@@ -413,7 +413,7 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
               ].map(([l, v]) => (
                 <div key={l as string} className="text-center">
                   <div style={{ color: scoreHue(v as number).text }} className="text-[15px] font-mono font-semibold">{v ?? '—'}</div>
-                  <div className="text-[10px] font-mono text-[#a8a29e]">{l as string}</div>
+                  <div className="text-[10px] font-mono text-text-subtle">{l as string}</div>
                 </div>
               ))}
             </div>
@@ -421,23 +421,23 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
         )}
       </div>
 
-      <div className="shrink-0 border-t border-[#e5e3df] p-4 space-y-3">
-        <div className="text-[10px] font-mono text-[#a8a29e] uppercase tracking-wider">Decision</div>
+      <div className="shrink-0 border-t border-border p-4 space-y-3">
+        <div className="text-[10px] font-mono text-text-subtle uppercase tracking-wider">Decision</div>
         {readyForReview ? (
-          <div data-testid="lead-decision-buttons" className="flex rounded overflow-hidden border border-[#ddd9d4] divide-x">
+          <div data-testid="lead-decision-buttons" className="flex rounded overflow-hidden border border-border divide-x">
             {(['BAD', 'UNSURE', 'GOOD'] as const).map((s) => {
               const active = review === s;
               return (
                 <button key={s} onClick={() => handleReview(s)}
-                  className={`flex-1 py-2 text-[12px] font-mono font-medium ${active ? 'text-white' : 'text-[#78716c] hover:bg-[#f5f4f2]'}`}
-                  style={{ background: active ? (s === 'GOOD' ? '#276749' : s === 'BAD' ? '#9b1c1c' : '#92600a') : 'transparent' }}>
+                  className={`flex-1 py-2 text-[12px] font-mono font-medium ${active ? 'text-text-inverse' : 'text-text-muted hover:bg-surface-raised'}`}
+                  style={{ background: active ? (s === 'GOOD' ? 'var(--color-success)' : s === 'BAD' ? 'var(--color-danger)' : 'var(--color-warning)') : 'transparent' }}>
                   {s === 'GOOD' ? 'Approve' : s === 'BAD' ? 'Reject' : 'Maybe'}
                 </button>
               );
             })}
           </div>
         ) : (
-          <div className="text-[11px] text-stone-600 font-mono p-2 bg-stone-50 border border-stone-200 rounded">
+          <div className="text-[11px] text-text-muted font-mono p-2 bg-surface-raised border border-border rounded">
             {firstBlocking ? (
               <>
                 <p className="font-medium">Review is unavailable because qualification is incomplete.</p>
@@ -454,7 +454,7 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
           onBlur={() => { if (readyForReview && note !== (lead.manualReviewNote || '')) Promise.resolve(onReview(review, note)).catch(() => {}); }}
           disabled={!readyForReview}
           placeholder={readyForReview ? 'Review note (optional)' : 'Notes disabled until ready'}
-          className={`w-full h-16 p-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] font-mono resize-none ${!readyForReview ? 'opacity-50' : ''}`}
+          className={`w-full h-16 p-2 text-[12px] border border-border rounded bg-surface-raised font-mono resize-none ${!readyForReview ? 'opacity-50' : ''}`}
         />
         <div className="flex gap-2 flex-wrap">
           {action && (
@@ -472,7 +472,7 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
             <Button size="sm" variant="secondary" onClick={() => handleViewCrawl(crawlRuns[0])}>View crawl</Button>
           )}
           {lead.website && (
-            <a href={lead.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-2 py-1 text-[11px] font-mono text-[#57534e] border border-[#e5e3df] rounded hover:bg-[#f5f4f2]">Open original ↗</a>
+            <a href={lead.website} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-2 py-1 text-[11px] font-mono text-text border border-border rounded hover:bg-surface-raised">Open original ↗</a>
           )}
         </div>
       </div>

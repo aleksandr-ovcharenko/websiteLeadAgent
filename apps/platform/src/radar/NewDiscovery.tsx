@@ -6,7 +6,7 @@ import { OperationConsole } from './OperationConsole';
 interface NewDiscoveryProps {
   open: boolean;
   onClose: () => void;
-  onStarted: () => void;
+  onStarted: (runId?: string) => void;
   initialData?: any;
 }
 
@@ -129,25 +129,25 @@ export default function NewDiscovery({ open, onClose, onStarted, initialData }: 
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/30">
-      <div className={`bg-white rounded-lg shadow-xl w-full mx-4 p-5 ${operationRunId ? 'max-w-2xl' : 'max-w-lg'}`}>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-overlay/30">
+      <div className={`bg-surface rounded-lg shadow-xl w-full mx-4 p-5 ${operationRunId ? 'max-w-2xl' : 'max-w-lg'}`}>
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[15px] font-semibold text-[#1c1917]">New discovery</h2>
-          <button onClick={handleClose} className="text-[#a8a29e] hover:text-[#57534e]">×</button>
+          <h2 className="text-[15px] font-semibold text-text">New discovery</h2>
+          <button onClick={handleClose} className="text-text-subtle hover:text-text">×</button>
         </div>
 
-        {error && <div className="mb-3 text-[12px] text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
+        {error && <div className="mb-3 text-[12px] text-danger bg-danger-subtle border border-danger-subtle rounded px-3 py-2">{error}</div>}
 
         {operationRunId ? (
           <OperationConsole runId={operationRunId} title="Discovery run" onClose={handleClose} />
         ) : loadingProviders ? (
-          <div className="text-[13px] text-[#a8a29e] py-6 text-center">Loading discovery options…</div>
+          <div className="text-[13px] text-text-subtle py-6 text-center">Loading discovery options…</div>
         ) : (
           <div className="space-y-3">
-            <label className="block text-[12px] font-medium text-[#57534e]">Source</label>
+            <label className="block text-[12px] font-medium text-text">Source</label>
             <select
               name="provider"
-              className="w-full h-9 px-2 text-[13px] border border-[#e5e3df] rounded"
+              className="w-full h-9 px-2 text-[13px] border border-border rounded"
               value={provider}
               onChange={(e) => { setProvider(e.target.value); setError(null); }}
             >
@@ -159,12 +159,12 @@ export default function NewDiscovery({ open, onClose, onStarted, initialData }: 
             </select>
 
             {selectedProvider && !selectedProvider.configured && (
-              <div className="text-[12px] text-[#92600a] bg-[#fdf8ee] border border-[#e8d5a3] rounded px-3 py-2 space-y-2">
+              <div className="text-[12px] text-warning bg-warning-subtle border border-warning-subtle rounded px-3 py-2 space-y-2">
                 <div>{selectedProvider.config?.helpText || `${selectedProvider.name} is not configured`}</div>
                 <a
                   href="/radar/providers"
                   onClick={(e) => { e.preventDefault(); window.location.href = '/radar/providers'; }}
-                  className="inline-flex items-center px-2.5 py-1 bg-white border border-[#e8d5a3] rounded text-[11px] font-medium text-[#92600a] hover:bg-[#fffdf5]"
+                  className="inline-flex items-center px-2.5 py-1 bg-surface border border-warning-subtle rounded text-[11px] font-medium text-warning hover:bg-warning-subtle"
                 >
                   Configure provider
                 </a>
@@ -173,10 +173,10 @@ export default function NewDiscovery({ open, onClose, onStarted, initialData }: 
 
             {provider !== 'manual' && (
               <>
-                <label className="block text-[12px] font-medium text-[#57534e]">Topic preset</label>
+                <label className="block text-[12px] font-medium text-text">Topic preset</label>
                 <select
                   name="topic"
-                  className="w-full h-9 px-2 text-[13px] border border-[#e5e3df] rounded"
+                  className="w-full h-9 px-2 text-[13px] border border-border rounded"
                   value={topic}
                   onChange={(e) => { setTopic(e.target.value); }}
                 >
@@ -186,46 +186,46 @@ export default function NewDiscovery({ open, onClose, onStarted, initialData }: 
                   ))}
                 </select>
 
-                <label className="block text-[12px] font-medium text-[#57534e]">Search query</label>
+                <label className="block text-[12px] font-medium text-text">Search query</label>
                 <input
                   type="text"
                   name="query"
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
-                  className="w-full h-9 px-3 text-[13px] border border-[#e5e3df] rounded"
+                  className="w-full h-9 px-3 text-[13px] border border-border rounded"
                   placeholder="строительные компании"
                 />
 
-                <label className="block text-[12px] font-medium text-[#57534e]">Location</label>
+                <label className="block text-[12px] font-medium text-text">Location</label>
                 <input
                   type="text"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
-                  className="w-full h-9 px-3 text-[13px] border border-[#e5e3df] rounded"
+                  className="w-full h-9 px-3 text-[13px] border border-border rounded"
                   placeholder="Минск"
                 />
 
                 <div className="flex gap-3">
                   <div className="flex-1">
-                    <label className="block text-[12px] font-medium text-[#57534e]">Limit</label>
+                    <label className="block text-[12px] font-medium text-text">Limit</label>
                     <input
                       type="number"
                       min={1}
                       max={200}
                       value={limit}
                       onChange={(e) => setLimit(Math.max(1, Math.min(200, Number(e.target.value) || 1)))}
-                      className="w-full h-9 px-3 text-[13px] border border-[#e5e3df] rounded"
+                      className="w-full h-9 px-3 text-[13px] border border-border rounded"
                     />
                   </div>
                   <div className="flex-1">
-                    <label className="block text-[12px] font-medium text-[#57534e]">Max pages</label>
+                    <label className="block text-[12px] font-medium text-text">Max pages</label>
                     <input
                       type="number"
                       min={1}
                       max={20}
                       value={maxPages}
                       onChange={(e) => setMaxPages(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
-                      className="w-full h-9 px-3 text-[13px] border border-[#e5e3df] rounded"
+                      className="w-full h-9 px-3 text-[13px] border border-border rounded"
                     />
                   </div>
                 </div>
@@ -234,22 +234,22 @@ export default function NewDiscovery({ open, onClose, onStarted, initialData }: 
 
             {provider === 'manual' && (
               <>
-                <label className="block text-[12px] font-medium text-[#57534e]">Websites / domains (one per line)</label>
+                <label className="block text-[12px] font-medium text-text">Websites / domains (one per line)</label>
                 <textarea
                   name="manualEntries"
                   rows={5}
                   value={manualEntries}
                   onChange={(e) => setManualEntries(e.target.value)}
-                  className="w-full px-3 py-2 text-[13px] border border-[#e5e3df] rounded"
+                  className="w-full px-3 py-2 text-[13px] border border-border rounded"
                   placeholder="garantk.by&#10;Company Name;https://example.by&#10;company2.by"
                 />
-                <p className="text-[11px] text-[#a8a29e]">Each line may be a domain, a full URL, or `Company Name;https://website`.</p>
+                <p className="text-[11px] text-text-subtle">Each line may be a domain, a full URL, or `Company Name;https://website`.</p>
               </>
             )}
           </div>
         )}
 
-        <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-[#e5e3df]">
+        <div className="flex justify-end gap-2 mt-5 pt-4 border-t border-border">
           {!operationRunId && <Button variant="secondary" onClick={handleClose}>Cancel</Button>}
           {!operationRunId && (
             <Button

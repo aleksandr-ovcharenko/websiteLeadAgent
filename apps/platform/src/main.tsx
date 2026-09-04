@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react'
 import ReactDOM from 'react-dom/client'
 import App from './App'
 import Login from './Login'
+import { ThemeProvider } from './theme/ThemeContext'
 import './index.css'
 
 function Root() {
@@ -16,7 +17,7 @@ function Root() {
   }, []);
 
   if (loading) {
-    return <div className="min-h-screen bg-[#F4F4F3]" />;
+    return <div className="min-h-screen bg-bg" />;
   }
 
   if (!user) {
@@ -28,6 +29,8 @@ function Root() {
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <Root />
+    <ThemeProvider>
+      <Root />
+    </ThemeProvider>
   </React.StrictMode>,
 )

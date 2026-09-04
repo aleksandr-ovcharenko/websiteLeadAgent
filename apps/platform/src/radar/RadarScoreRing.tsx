@@ -1,7 +1,7 @@
 export function scoreHue(score: number) {
-  if (score >= 80) return { text: '#276749', ring: '#52b788' };
-  if (score >= 60) return { text: '#57534e', ring: '#a8a29e' };
-  return { text: '#92600a', ring: '#d4a847' };
+  if (score >= 80) return { text: 'var(--color-success)', ring: 'var(--color-success)' };
+  if (score >= 60) return { text: 'var(--color-text)', ring: 'var(--color-border)' };
+  return { text: 'var(--color-warning)', ring: 'var(--color-warning)' };
 }
 
 export function ScorePill({ value, max = 100 }: { value: number | null | undefined; max?: number }) {
@@ -19,7 +19,7 @@ export function LeadScoreRing({ score, size = 44 }: { score: number | null | und
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} fill="none" style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx={size / 2} cy={size / 2} r={r} stroke="#ebe9e5" strokeWidth="3" fill="none" />
+        <circle cx={size / 2} cy={size / 2} r={r} stroke="var(--color-surface-hover)" strokeWidth="3" fill="none" />
         <circle cx={size / 2} cy={size / 2} r={r} stroke={ring} strokeWidth="3" fill="none"
           strokeDasharray={`${(s / 100) * circ} ${circ}`} strokeLinecap="round" />
       </svg>

@@ -77,7 +77,7 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
 
   const SettingsGroup = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div>
-      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">{title}</p>
+      <p className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider mb-3">{title}</p>
       <div className="flex flex-col gap-3.5">{children}</div>
     </div>
   )
@@ -86,14 +86,14 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
     <div className="p-5 max-w-[680px]">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-[15px] font-semibold text-gray-900">Site Settings</h1>
-          <p className="text-[12px] text-gray-400 mt-0.5 mono">{site?.domain || '—'}</p>
+          <h1 className="text-[15px] font-semibold text-text">Site Settings</h1>
+          <p className="text-[12px] text-text-subtle mt-0.5 mono">{site?.domain || '—'}</p>
         </div>
         <Button variant="primary" onClick={save}>Save settings</Button>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded overflow-hidden">
-        <div className="border-b border-gray-200"><Tabs tabs={TABS} active={tab} onChange={setTab} /></div>
+      <div className="bg-surface border border-border rounded overflow-hidden">
+        <div className="border-b border-border"><Tabs tabs={TABS} active={tab} onChange={setTab} /></div>
 
         <div className="p-5">
           {tab === 'General' && (
@@ -102,7 +102,7 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
                 <Input label="Company name" value={form.companyName || ''} onChange={v => update({ companyName: v })} />
                 <Input label="Site title" value={form.siteTitle || ''} onChange={v => update({ siteTitle: v })} hint="Shown in browser tabs and default SEO" />
               </SettingsGroup>
-              <div className="border-t border-gray-100 pt-4">
+              <div className="border-t border-border pt-4">
                 <SettingsGroup title="Locale">
                   <div className="grid grid-cols-2 gap-3">
                     <Select label="Language" value={form.language || 'ru'} onChange={v => update({ language: v })} options={[{ value: 'ru', label: 'Russian' }, { value: 'en', label: 'English' }, { value: 'be', label: 'Belarusian' }]} />
@@ -110,13 +110,13 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
                   </div>
                 </SettingsGroup>
               </div>
-              <div className="border-t border-gray-100 pt-4">
+              <div className="border-t border-border pt-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[12px] font-medium text-gray-700">Template</p>
-                    <p className="text-[12px] text-gray-400 mono mt-0.5">{site?.templateId || '—'}</p>
+                    <p className="text-[12px] font-medium text-text">Template</p>
+                    <p className="text-[12px] text-text-subtle mono mt-0.5">{site?.templateId || '—'}</p>
                   </div>
-                  <span className="text-[11px] text-gray-400 bg-gray-100 px-2 py-0.5 rounded">Read only</span>
+                  <span className="text-[11px] text-text-subtle bg-surface-hover px-2 py-0.5 rounded">Read only</span>
                 </div>
               </div>
             </div>
@@ -128,10 +128,10 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
                 <div className="grid grid-cols-2 gap-3">
                   {[{ label: 'Primary color', key: 'primaryColor' }, { label: 'Accent color', key: 'accentColor' }].map(c => (
                     <div key={c.key} className="flex flex-col gap-1">
-                      <label className="text-[12px] font-medium text-gray-600">{c.label}</label>
-                      <div className="flex items-center gap-2 h-[30px] border border-gray-300 rounded px-2.5">
+                      <label className="text-[12px] font-medium text-text-muted">{c.label}</label>
+                      <div className="flex items-center gap-2 h-[30px] border border-border rounded px-2.5">
                         <input type="color" value={form[c.key] || '#000000'} onChange={e => update({ [c.key]: e.target.value })} className="w-4 h-4 rounded cursor-pointer border-0 p-0 bg-transparent" />
-                        <span className="text-[12px] mono text-gray-700">{form[c.key] || '—'}</span>
+                        <span className="text-[12px] mono text-text">{form[c.key] || '—'}</span>
                       </div>
                     </div>
                   ))}
@@ -145,9 +145,9 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
               <SettingsGroup title="Default metadata">
                 <Input label="Default SEO title" value={form.seoTitle || ''} onChange={v => update({ seoTitle: v })} hint="Used when a page doesn't specify its own title" />
                 <div className="flex flex-col gap-1">
-                  <label className="text-[12px] font-medium text-gray-600">Meta description</label>
-                  <textarea value={form.seoDescription || ''} onChange={e => update({ seoDescription: e.target.value })} rows={3} className="w-full border border-gray-300 rounded text-[13px] text-gray-900 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#16a34a] focus:border-[#16a34a] resize-y leading-relaxed" />
-                  <p className="text-[11px] text-gray-400 text-right">{(form.seoDescription || '').length}/160</p>
+                  <label className="text-[12px] font-medium text-text-muted">Meta description</label>
+                  <textarea value={form.seoDescription || ''} onChange={e => update({ seoDescription: e.target.value })} rows={3} className="w-full border border-border rounded text-[13px] text-text px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent resize-y leading-relaxed" />
+                  <p className="text-[11px] text-text-subtle text-right">{(form.seoDescription || '').length}/160</p>
                 </div>
               </SettingsGroup>
             </div>
@@ -171,8 +171,8 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
                   <Input label="Yandex Metrica (counter ID)" value={form.ym || ''} onChange={v => update({ ym: v })} placeholder="12345678" />
                 </SettingsGroup>
               </div>
-              <div className="bg-amber-50 border border-amber-200 rounded p-3">
-                <p className="text-[12px] text-amber-700">Analytics runs only on the production domain — not on preview URLs.</p>
+              <div className="bg-warning-subtle border border-warning-subtle rounded p-3">
+                <p className="text-[12px] text-warning">Analytics runs only on the production domain — not on preview URLs.</p>
               </div>
             </div>
           )}

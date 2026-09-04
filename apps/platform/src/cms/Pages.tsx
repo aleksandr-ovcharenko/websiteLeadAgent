@@ -133,33 +133,33 @@ export function PagesList({ onNavigate }: PagesListProps) {
       />
 
       {visible.length === 0 ? (
-        <div className="bg-white border border-gray-200 rounded p-12 text-center">
-          <p className="text-[13px] text-gray-400 mb-3">No pages match your filter.</p>
+        <div className="bg-surface border border-border rounded p-12 text-center">
+          <p className="text-[13px] text-text-subtle mb-3">No pages match your filter.</p>
           <Button variant="primary" size="sm" onClick={() => onNavigate('page-editor', 'new')}><IconPlus size={12} /> Add page</Button>
         </div>
       ) : (
-        <div className="bg-white border border-gray-200 rounded overflow-hidden">
+        <div className="bg-surface border border-border rounded overflow-hidden">
           <table className="w-full">
             <thead>
-              <tr className="border-b border-gray-200">
+              <tr className="border-b border-border">
                 {['Title', 'Slug', 'Status', 'Updated', 'Author', ''].map(col => (
-                  <th key={col} className="text-left text-[11px] font-semibold text-gray-400 uppercase tracking-wider px-4 py-2 bg-gray-50 whitespace-nowrap">{col}</th>
+                  <th key={col} className="text-left text-[11px] font-semibold text-text-subtle uppercase tracking-wider px-4 py-2 bg-surface-raised whitespace-nowrap">{col}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {visible.map(page => (
-                <tr key={page.id} className="border-b border-gray-100 last:border-0 hover:bg-gray-50/60 transition-colors group">
+                <tr key={page.id} className="border-b border-border last:border-0 hover:bg-surface-raised/60 transition-colors group">
                   <td className="px-4 py-2">
-                    <button onClick={() => onNavigate('page-editor', page.id)} className="text-[13px] font-medium text-gray-900 hover:text-[#16a34a] transition-colors text-left">{page.title}</button>
+                    <button onClick={() => onNavigate('page-editor', page.id)} className="text-[13px] font-medium text-text hover:text-accent transition-colors text-left">{page.title}</button>
                   </td>
-                  <td className="px-4 py-2 text-[12px] text-gray-400 mono">{page.slug || '/'}</td>
+                  <td className="px-4 py-2 text-[12px] text-text-subtle mono">{page.slug || '/'}</td>
                   <td className="px-4 py-2"><Badge variant={uiStatus(page.status)} /></td>
-                  <td className="px-4 py-2 text-[12px] text-gray-400 whitespace-nowrap">{formatDate(page.updatedAt)}</td>
-                  <td className="px-4 py-2 text-[12px] text-gray-400">Editor</td>
+                  <td className="px-4 py-2 text-[12px] text-text-subtle whitespace-nowrap">{formatDate(page.updatedAt)}</td>
+                  <td className="px-4 py-2 text-[12px] text-text-subtle">Editor</td>
                   <td className="px-4 py-2 text-right w-10">
                     <DropdownMenu
-                      trigger={<button className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors opacity-0 group-hover:opacity-100"><IconMore size={13} /></button>}
+                      trigger={<button className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:bg-surface-hover hover:text-text-muted transition-colors opacity-0 group-hover:opacity-100"><IconMore size={13} /></button>}
                       items={[
                         { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('page-editor', page.id) },
                         { label: page.isHomepage ? 'Home' : 'Preview', icon: <IconEye size={12} />, onClick: () => { const url = page.isHomepage ? `/showcase/${page.site?.previewToken || ''}` : `/showcase/${page.site?.previewToken || ''}/${page.slug}`; window.open(url, '_blank') } },
@@ -188,13 +188,13 @@ export function PagesList({ onNavigate }: PagesListProps) {
 type SaveState = 'saved' | 'saving' | 'unsaved'
 
 function SaveIndicator({ state }: { state: SaveState }) {
-  if (state === 'saving') return <span className="flex items-center gap-1.5 text-[12px] text-gray-400"><span className="inline-block w-3 h-3 rounded-full border border-gray-300 border-t-gray-500 animate-spin" />Saving…</span>
-  if (state === 'unsaved') return <span className="flex items-center gap-1.5 text-[12px] text-amber-500"><span className="w-1.5 h-1.5 rounded-full bg-amber-400 flex-shrink-0" />Unsaved changes</span>
-  return <span className="flex items-center gap-1.5 text-[12px] text-gray-400"><IconCheck size={12} className="text-emerald-500 flex-shrink-0" />Saved</span>
+  if (state === 'saving') return <span className="flex items-center gap-1.5 text-[12px] text-text-subtle"><span className="inline-block w-3 h-3 rounded-full border border-border border-t-gray-500 animate-spin" />Saving…</span>
+  if (state === 'unsaved') return <span className="flex items-center gap-1.5 text-[12px] text-warning"><span className="w-1.5 h-1.5 rounded-full bg-warning flex-shrink-0" />Unsaved changes</span>
+  return <span className="flex items-center gap-1.5 text-[12px] text-text-subtle"><IconCheck size={12} className="text-success flex-shrink-0" />Saved</span>
 }
 
 function SideSection({ title, children, noBorder }: { title: string; children: React.ReactNode; noBorder?: boolean }) {
-  return <div className={`px-5 py-4 ${noBorder ? '' : 'border-b border-gray-100'}`}><p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 mb-3">{title}</p>{children}</div>
+  return <div className={`px-5 py-4 ${noBorder ? '' : 'border-b border-border'}`}><p className="text-[11px] font-semibold uppercase tracking-wider text-text-subtle mb-3">{title}</p>{children}</div>
 }
 
 interface PageEditorProps {
@@ -307,11 +307,11 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 h-[46px] flex items-center gap-3">
+      <div className="flex-shrink-0 bg-surface border-b border-border px-4 h-[46px] flex items-center gap-3">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <button onClick={() => onNavigate('pages')} className="flex items-center gap-1 text-[12px] text-gray-400 hover:text-gray-700 transition-colors whitespace-nowrap flex-shrink-0"><IconChevronLeft size={13} />Pages</button>
-          <span className="text-gray-200 flex-shrink-0">/</span>
-          <span className="text-[13px] font-medium text-gray-800 truncate">{title || 'New page'}</span>
+          <button onClick={() => onNavigate('pages')} className="flex items-center gap-1 text-[12px] text-text-subtle hover:text-text transition-colors whitespace-nowrap flex-shrink-0"><IconChevronLeft size={13} />Pages</button>
+          <span className="text-text-subtle flex-shrink-0">/</span>
+          <span className="text-[13px] font-medium text-text truncate">{title || 'New page'}</span>
           <span className="flex-shrink-0"><Badge variant={status} /></span>
         </div>
         <div className="flex items-center justify-center flex-shrink-0"><SaveIndicator state={saveState} /></div>
@@ -323,18 +323,18 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
       </div>
 
       <div className="flex-1 flex overflow-hidden">
-        <div className="flex-1 overflow-y-auto bg-[#f4f5f7] p-6">
+        <div className="flex-1 overflow-y-auto bg-bg p-6">
           <div className="max-w-[680px] mx-auto flex flex-col gap-5">
-            <div className="bg-white border border-gray-200 rounded px-5 py-4">
-              <input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Page title" className="w-full text-[20px] font-semibold text-gray-900 placeholder-gray-300 bg-transparent border-0 focus:outline-none leading-tight" />
-              <p className="text-[11px] text-gray-400 mono mt-2">{settings?.companyName || site?.domain || 'site'}{(slug ? (slug.startsWith('/') ? slug : '/' + slug) : '/<slug>').replace(/\/$/, '')}</p>
+            <div className="bg-surface border border-border rounded px-5 py-4">
+              <input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Page title" className="w-full text-[20px] font-semibold text-text placeholder-text-subtle bg-transparent border-0 focus:outline-none leading-tight" />
+              <p className="text-[11px] text-text-subtle mono mt-2">{settings?.companyName || site?.domain || 'site'}{(slug ? (slug.startsWith('/') ? slug : '/' + slug) : '/<slug>').replace(/\/$/, '')}</p>
             </div>
 
             <div>
-              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Page content</p>
+              <p className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider mb-2">Page content</p>
               {blocks.length === 0 && !addOpen && (
-                <div className="bg-white border border-dashed border-gray-300 rounded px-5 py-8 text-center mb-1">
-                  <p className="text-[13px] text-gray-400 mb-3">This page has no content blocks yet.</p>
+                <div className="bg-surface border border-dashed border-border rounded px-5 py-8 text-center mb-1">
+                  <p className="text-[13px] text-text-subtle mb-3">This page has no content blocks yet.</p>
                   <Button variant="secondary" size="sm" onClick={() => setAddOpen(true)}><IconPlus size={12} />Add first block</Button>
                 </div>
               )}
@@ -343,19 +343,19 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
                 {blocks.map(block => {
                   const isActive = activeBlock === block.id
                   return (
-                    <div key={block.id} className={`bg-white border rounded overflow-hidden transition-all ${isActive ? 'border-[#16a34a] shadow-[0_0_0_1px_rgba(22,163,74,0.12)]' : 'border-gray-200 hover:border-gray-300'}`}>
+                    <div key={block.id} className={`bg-surface border rounded overflow-hidden transition-all ${isActive ? 'border-accent shadow-[0_0_0_1px_var(--color-accent)]' : 'border-border hover:border-border'}`}>
                       <div className="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer group/row" onClick={() => setActiveBlock(isActive ? null : block.id)}>
-                        <span className="text-gray-300 hover:text-gray-500 cursor-grab flex-shrink-0" onClick={e => e.stopPropagation()}><IconGrip size={13} /></span>
-                        <span className={`text-[10px] font-bold uppercase tracking-widest w-[60px] flex-shrink-0 ${isActive ? 'text-[#16a34a]' : 'text-gray-400'}`}>{block.type}</span>
-                        <span className="flex-1 text-[13px] text-gray-600 truncate min-w-0">{block.summary}</span>
+                        <span className="text-text-subtle hover:text-text-muted cursor-grab flex-shrink-0" onClick={e => e.stopPropagation()}><IconGrip size={13} /></span>
+                        <span className={`text-[10px] font-bold uppercase tracking-widest w-[60px] flex-shrink-0 ${isActive ? 'text-accent' : 'text-text-subtle'}`}>{block.type}</span>
+                        <span className="flex-1 text-[13px] text-text-muted truncate min-w-0">{block.summary}</span>
                         <div className="flex items-center gap-px opacity-0 group-hover/row:opacity-100 transition-opacity flex-shrink-0" onClick={e => e.stopPropagation()}>
-                          <button onClick={() => duplicateBlock(block.id)} className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"><IconCopy size={11} /></button>
-                          <button onClick={() => removeBlock(block.id)} className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"><IconX size={11} /></button>
+                          <button onClick={() => duplicateBlock(block.id)} className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:text-text hover:bg-surface-hover transition-colors"><IconCopy size={11} /></button>
+                          <button onClick={() => removeBlock(block.id)} className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:text-danger hover:bg-danger-subtle transition-colors"><IconX size={11} /></button>
                         </div>
                       </div>
 
                       {isActive && (
-                        <div className="px-4 pb-4 pt-1 border-t border-gray-100 bg-[#fafafa]">
+                        <div className="px-4 pb-4 pt-1 border-t border-border bg-surface-raised">
                           <div className="pt-3 flex flex-col gap-2.5">
                             {block.type === 'Hero' && (
                               <>
@@ -401,7 +401,7 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
                               <Input label="Heading" value={block.data.heading || 'Контакты'} onChange={v => updateBlockData(block.id, { heading: v })} />
                             )}
                             {['Team', 'Stats', 'Map'].includes(block.type) && (
-                              <p className="text-[12px] text-gray-400 py-0.5">This block displays automatically — no settings required.</p>
+                              <p className="text-[12px] text-text-subtle py-0.5">This block displays automatically — no settings required.</p>
                             )}
                           </div>
                         </div>
@@ -413,43 +413,43 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
 
               <div className="mt-1">
                 {addOpen ? (
-                  <div className="bg-white border border-gray-200 rounded p-4">
+                  <div className="bg-surface border border-border rounded p-4">
                     <div className="flex items-center justify-between mb-3">
-                      <p className="text-[12px] font-semibold text-gray-800">Choose a block type</p>
-                      <button onClick={() => setAddOpen(false)} className="w-5 h-5 flex items-center justify-center rounded text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"><IconX size={12} /></button>
+                      <p className="text-[12px] font-semibold text-text">Choose a block type</p>
+                      <button onClick={() => setAddOpen(false)} className="w-5 h-5 flex items-center justify-center rounded text-text-subtle hover:text-text-muted hover:bg-surface-hover transition-colors"><IconX size={12} /></button>
                     </div>
                     <div className="grid grid-cols-4 gap-1.5">
                       {BLOCK_TYPES.map(bt => (
-                        <button key={bt} onClick={() => addBlock(bt)} className="flex items-center justify-center h-8 px-2 rounded border border-gray-200 text-[12px] text-gray-600 hover:border-[#16a34a] hover:text-[#16a34a] hover:bg-emerald-50/30 transition-colors">{bt}</button>
+                        <button key={bt} onClick={() => addBlock(bt)} className="flex items-center justify-center h-8 px-2 rounded border border-border text-[12px] text-text-muted hover:border-accent hover:text-accent hover:bg-success-subtle/30 transition-colors">{bt}</button>
                       ))}
                     </div>
                   </div>
                 ) : (
-                  <button onClick={() => setAddOpen(true)} className="w-full flex items-center justify-center gap-2 h-9 rounded border border-dashed border-gray-300 text-[13px] text-gray-400 hover:border-[#16a34a] hover:text-[#16a34a] hover:bg-emerald-50/20 transition-colors"><IconPlus size={12} />Add block</button>
+                  <button onClick={() => setAddOpen(true)} className="w-full flex items-center justify-center gap-2 h-9 rounded border border-dashed border-border text-[13px] text-text-subtle hover:border-accent hover:text-accent hover:bg-success-subtle/20 transition-colors"><IconPlus size={12} />Add block</button>
                 )}
               </div>
             </div>
           </div>
         </div>
 
-        <aside className="w-[272px] flex-shrink-0 border-l border-gray-200 bg-white overflow-y-auto">
+        <aside className="w-[272px] flex-shrink-0 border-l border-border bg-surface overflow-y-auto">
           <SideSection title="Publication">
             <Select label="Status" value={status} onChange={v => { setStatus(v as any); markDirty() }} options={[{ value: 'published', label: 'Published' }, { value: 'draft', label: 'Draft' }, { value: 'archived', label: 'Archived' }]} />
           </SideSection>
 
           <SideSection title="URL">
             <Input label="Slug" value={slug} onChange={v => { setSlug(v); markDirty() }} prefix="/" />
-            <p className="text-[11px] text-gray-400 mono mt-2 truncate">{settings?.companyName || site?.domain || 'site'}/{slug || '<slug>'}</p>
+            <p className="text-[11px] text-text-subtle mono mt-2 truncate">{settings?.companyName || site?.domain || 'site'}/{slug || '<slug>'}</p>
           </SideSection>
 
           <SideSection title="Visibility">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={isHomepage} onChange={e => { setIsHomepage(e.target.checked); markDirty() }} className="w-3.5 h-3.5 accent-[#16a34a]" />
-              <span className="text-[12px] text-gray-700">Homepage</span>
+              <input type="checkbox" checked={isHomepage} onChange={e => { setIsHomepage(e.target.checked); markDirty() }} className="w-3.5 h-3.5 accent-accent" />
+              <span className="text-[12px] text-text">Homepage</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer mt-2">
-              <input type="checkbox" checked={showInNav} onChange={e => { setShowInNav(e.target.checked); markDirty() }} className="w-3.5 h-3.5 accent-[#16a34a]" />
-              <span className="text-[12px] text-gray-700">Show in navigation</span>
+              <input type="checkbox" checked={showInNav} onChange={e => { setShowInNav(e.target.checked); markDirty() }} className="w-3.5 h-3.5 accent-accent" />
+              <span className="text-[12px] text-text">Show in navigation</span>
             </label>
           </SideSection>
 
@@ -457,9 +457,9 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
             <div className="flex flex-col gap-3">
               <Input label="Title" value={seoTitle} onChange={v => { setSeoTitle(v); markDirty() }} placeholder="Defaults to page title" />
               <div className="flex flex-col gap-1">
-                <label className="text-[12px] font-medium text-gray-600">Description</label>
-                <textarea value={seoDesc} onChange={e => { setSeoDesc(e.target.value); markDirty() }} placeholder="Brief description for search results" rows={3} className="w-full border border-gray-300 rounded text-[12px] text-gray-900 placeholder-gray-400 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#16a34a] focus:border-[#16a34a] resize-none leading-relaxed" />
-                <p className="text-[10px] text-gray-400 text-right">{seoDesc.length}/160</p>
+                <label className="text-[12px] font-medium text-text-muted">Description</label>
+                <textarea value={seoDesc} onChange={e => { setSeoDesc(e.target.value); markDirty() }} placeholder="Brief description for search results" rows={3} className="w-full border border-border rounded text-[12px] text-text placeholder-text-subtle px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent resize-none leading-relaxed" />
+                <p className="text-[10px] text-text-subtle text-right">{seoDesc.length}/160</p>
               </div>
             </div>
           </SideSection>
@@ -467,8 +467,8 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
           <SideSection title="Danger zone" noBorder>
             {!isNew && (
               <div className="flex flex-col gap-0.5">
-                <button onClick={() => setStatus('archived')} className="text-left text-[12px] text-gray-500 hover:text-amber-600 transition-colors py-1.5">Archive this page</button>
-                <button onClick={async () => { try { await api.deletePage(siteId, page!.id); await refresh(); onNavigate('pages') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-gray-500 hover:text-red-600 transition-colors py-1.5">Delete page permanently</button>
+                <button onClick={() => setStatus('archived')} className="text-left text-[12px] text-text-muted hover:text-warning transition-colors py-1.5">Archive this page</button>
+                <button onClick={async () => { try { await api.deletePage(siteId, page!.id); await refresh(); onNavigate('pages') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-text-muted hover:text-danger transition-colors py-1.5">Delete page permanently</button>
               </div>
             )}
           </SideSection>

@@ -58,10 +58,10 @@ export default function Sidebar({ current, onNavigate }: SidebarProps) {
   const activeScreen = EDITOR_SCREENS.includes(current) ? (PARENT[current] ?? current) : current
 
   return (
-    <aside className="w-[220px] flex-shrink-0 flex flex-col bg-[#171f2e] h-full overflow-y-auto border-r border-black/20">
+    <aside className="w-[220px] flex-shrink-0 flex flex-col bg-surface-inverse h-full overflow-y-auto border-r border-border/20">
       {/* Logo / brand */}
-      <div className="px-4 py-3.5 border-b border-white/[0.06] flex items-center gap-2">
-        <div className="w-6 h-6 rounded bg-[#16a34a] flex items-center justify-center flex-shrink-0">
+      <div className="px-4 py-3.5 border-b border-text-inverse/[0.06] flex items-center gap-2">
+        <div className="w-6 h-6 rounded bg-accent flex items-center justify-center flex-shrink-0">
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <rect x="1" y="1" width="4" height="4" rx="0.8" fill="white" />
             <rect x="7" y="1" width="4" height="4" rx="0.8" fill="white" opacity="0.55" />
@@ -70,8 +70,8 @@ export default function Sidebar({ current, onNavigate }: SidebarProps) {
           </svg>
         </div>
         <div className="leading-tight">
-          <p className="text-white text-[12px] font-semibold">WebsiteLeadAgent</p>
-          <p className="text-white/35 text-[10px]">CMS Platform</p>
+          <p className="text-text-inverse text-[12px] font-semibold">WebsiteLeadAgent</p>
+          <p className="text-text-inverse/35 text-[10px]">CMS Platform</p>
         </div>
       </div>
 
@@ -88,7 +88,7 @@ export default function Sidebar({ current, onNavigate }: SidebarProps) {
       {/* Nav groups */}
       {NAV.map(group => (
         <div key={group.section} className="px-2.5 pb-3">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-white/25 px-2 pt-3 pb-1.5">{group.section}</p>
+          <p className="text-[10px] font-semibold uppercase tracking-widest text-text-inverse/25 px-2 pt-3 pb-1.5">{group.section}</p>
           <div className="flex flex-col gap-px">
             {group.items.map(item => (
               <NavBtn
@@ -114,13 +114,13 @@ function NavBtn({ label, isActive, icon, onClick }: { label: string; isActive: b
       onClick={onClick}
       className={`w-full flex items-center gap-2 px-2 py-1.5 rounded text-[13px] transition-colors text-left ${
         isActive
-          ? 'bg-white/[0.09] text-white'
-          : 'text-white/55 hover:bg-white/[0.05] hover:text-white/85'
+          ? 'bg-surface/[0.09] text-text-inverse'
+          : 'text-text-inverse/55 hover:bg-surface/[0.05] hover:text-text-inverse/85'
       }`}
     >
-      <span className={`flex-shrink-0 ${isActive ? 'text-[#4ade80]' : 'text-white/35'}`}>{icon}</span>
+      <span className={`flex-shrink-0 ${isActive ? 'text-success' : 'text-text-inverse/35'}`}>{icon}</span>
       {label}
-      {isActive && <span className="ml-auto w-1 h-3 rounded-full bg-[#16a34a] flex-shrink-0" />}
+      {isActive && <span className="ml-auto w-1 h-3 rounded-full bg-accent flex-shrink-0" />}
     </button>
   )
 }
