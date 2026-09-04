@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process';
 import type { SourceDocument, SourceDocumentCollection, SourceDocumentSection, SourceDocumentImage } from '../types.js';
 import { RuleBasedSemanticProvider, pageCategoryAndSubType } from './ruleBasedProvider.js';
+import { HybridGeminiProvider } from './geminiSemanticProvider.js';
 import type {
   PageClassification,
   CollectionClassification,
@@ -77,7 +78,7 @@ export interface GenerationSemanticProvider {
 }
 
 export interface ProviderOptions {
-  type?: 'rule-based' | 'openai' | 'llm-fallback' | 'auto';
+  type?: 'rule-based' | 'openai' | 'llm-fallback' | 'gemini' | 'auto';
   openaiApiKey?: string;
   openaiModel?: string;
   temperature?: number;
@@ -85,6 +86,12 @@ export interface ProviderOptions {
   llmApiKey?: string;
   llmModel?: string;
   llmFallbackThreshold?: number;
+  geminiApiKey?: string;
+  geminiModel?: string;
+  geminiApiUrl?: string;
+  geminiCachePath?: string;
+  geminiLogPath?: string;
+  geminiPromptVersion?: string;
 }
 
 // Confidence levels used to flag HIGH / MEDIUM / LOW / UNKNOWN quality.
@@ -288,6 +295,9 @@ Return a JSON object only, with no markdown, no commentary. Fields:
 }
 
 export function createSemanticProvider(options?: ProviderOptions): GenerationSemanticProvider {
+  if (options?.type === 'gemini' || options?.geminiApiKey) {
+    return new HybridGeminiProvider(options);
+  }
   if (options?.type === 'openai' || options?.type === 'llm-fallback' || options?.llmApiKey || options?.openaiApiKey) {
     return new LlmFallbackProvider(options);
   }

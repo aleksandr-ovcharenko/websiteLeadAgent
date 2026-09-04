@@ -74,6 +74,8 @@ export const pageClassificationSchema = z.object({
   subType: z.string().optional(),
   confidence: confidenceSchema,
   evidence: z.array(evidenceSchema),
+  reason: z.string().optional(),
+  aiConfidence: confidenceSchema.optional(),
   breadcrumb: z.array(z.object({ label: z.string(), url: z.string().optional() })).optional(),
   navAncestry: z.array(z.string()).optional(),
 });
@@ -106,6 +108,10 @@ export const collectionClassificationSchema = z.object({
   contentSubtype: contentSubtypeSchema.optional(),
   confidence: confidenceSchema,
   reason: z.string(),
+  evidence: z.array(evidenceSchema).optional(),
+  ruleClassification: z.string().optional(),
+  aiClassification: z.string().optional(),
+  aiConfidence: confidenceSchema.optional(),
 });
 
 export const sectionTypeSchema = z.enum([
@@ -288,3 +294,61 @@ export type VacancyEntity = z.infer<typeof vacancyEntitySchema>;
 export type ProductEntity = z.infer<typeof productEntitySchema>;
 export type FactEntity = z.infer<typeof factEntitySchema>;
 export type Relationship = z.infer<typeof relationshipSchema>;
+
+// ---------------------------------------------------------------------------
+// Gemini / hybrid semantic decision schemas
+// ---------------------------------------------------------------------------
+
+export const aiDecisionClassificationSchema = z.enum([
+  'PROJECTS',
+  'PRODUCTS',
+  'SERVICES',
+  'NEWS',
+  'VACANCIES',
+  'CORPORATE',
+  'NAVIGATION',
+  'PARTNER_LINKS',
+  'SOCIAL_LINKS',
+  'UTILITY',
+  'UNKNOWN',
+]);
+
+export const geminiCollectionDecisionSchema = z.object({
+  collectionId: z.string(),
+  classification: aiDecisionClassificationSchema,
+  confidence: confidenceSchema,
+  evidenceIds: z.array(z.string()),
+  reason: z.string(),
+});
+
+export const geminiPageDecisionSchema = z.object({
+  sourceDocumentId: z.string(),
+  type: pageTypeSchema,
+  confidence: confidenceSchema,
+  evidenceIds: z.array(z.string()),
+  reason: z.string(),
+});
+
+export const aiCallMetadataSchema = z.object({
+  provider: z.literal('gemini'),
+  model: z.string(),
+  promptVersion: z.string(),
+  inputHash: z.string(),
+  callType: z.enum(['collection', 'page']),
+  ruleDecision: z.string().optional(),
+  ruleConfidence: z.number().optional(),
+  aiDecision: z.string().optional(),
+  aiConfidence: z.number().optional(),
+  finalDecision: z.string().optional(),
+  finalConfidence: z.number().optional(),
+  evidenceIds: z.array(z.string()).optional(),
+  cached: z.boolean(),
+  durationMs: z.number().optional(),
+  error: z.string().optional(),
+  timestamp: z.string(),
+});
+
+export type AiDecisionClassification = z.infer<typeof aiDecisionClassificationSchema>;
+export type GeminiCollectionDecision = z.infer<typeof geminiCollectionDecisionSchema>;
+export type GeminiPageDecision = z.infer<typeof geminiPageDecisionSchema>;
+export type AiCallMetadata = z.infer<typeof aiCallMetadataSchema>;

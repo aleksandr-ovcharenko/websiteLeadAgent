@@ -1,5 +1,6 @@
 import { spawnSync } from 'node:child_process';
 import { RuleBasedSemanticProvider, pageCategoryAndSubType } from './ruleBasedProvider.js';
+import { HybridGeminiProvider } from './geminiSemanticProvider.js';
 // Confidence levels used to flag HIGH / MEDIUM / LOW / UNKNOWN quality.
 export const CONFIDENCE_THRESHOLDS = {
     high: 0.85,
@@ -185,6 +186,9 @@ Return a JSON object only, with no markdown, no commentary. Fields:
     }
 }
 export function createSemanticProvider(options) {
+    if (options?.type === 'gemini' || options?.geminiApiKey) {
+        return new HybridGeminiProvider(options);
+    }
     if (options?.type === 'openai' || options?.type === 'llm-fallback' || options?.llmApiKey || options?.openaiApiKey) {
         return new LlmFallbackProvider(options);
     }
