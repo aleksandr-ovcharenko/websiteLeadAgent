@@ -55,11 +55,15 @@ function makeCollection(overrides = {}) {
 
 function geminiCollectionResponse(classification, confidence, evidenceIds) {
   return JSON.stringify({
-    collectionId: 'col-1',
-    classification,
-    confidence,
-    evidenceIds,
-    reason: 'test decision',
+    decisions: [
+      {
+        collectionId: 'col-1',
+        classification,
+        confidence,
+        evidenceIds,
+        reason: 'test decision',
+      },
+    ],
   });
 }
 
@@ -73,13 +77,30 @@ function geminiPageResponse(type, confidence, evidenceIds) {
   });
 }
 
+function makeCollection2(overrides = {}) {
+  return {
+    id: 'col-2',
+    selector: 'section.grid',
+    heading: 'Latest work',
+    items: [
+      { title: 'Office complex built', description: 'A new office complex for a logistics company.', url: '/work/office' },
+      { title: 'Bridge renovation', description: 'Renovation of a pedestrian bridge.', url: '/work/bridge' },
+    ],
+    ...overrides,
+  };
+}
+
+function geminiBatchResponse(decisions) {
+  return JSON.stringify({ decisions });
+}
+
 describe('HybridGeminiProvider', () => {
-  it('is created when type is gemini', () => {
+  it('is created when type is gemini', async () => {
     const p = createSemanticProvider({ type: 'gemini', geminiApiKey: 'fake' });
     assert.equal(p.name, 'gemini-hybrid');
   });
 
-  it('skips Gemini when rule confidence is HIGH', () => {
+  it('skips Gemini when rule confidence is HIGH', async () => {
     const provider = new HybridGeminiProvider({ geminiApiKey: 'fake', geminiCachePath: makeCacheDir() });
     let called = false;
     provider.setGeminiResponseOverride(() => {
@@ -93,7 +114,7 @@ describe('HybridGeminiProvider', () => {
     ]});
 
     const doc = makeSourceDocument({ title: 'Services' });
-    const result = provider.classifyCollection({
+    const result = await provider.classifyCollection({
       collection,
       sourceDocument: doc,
       pageClassification: { sourceDocumentId: doc.id, type: 'SERVICES_INDEX', confidence: 0.9, evidence: [] },
@@ -105,7 +126,7 @@ describe('HybridGeminiProvider', () => {
     assert.equal(called, false, 'Gemini should not be called for high-confidence rule result');
   });
 
-  it('calls Gemini for medium-confidence collections and accepts a higher-confidence AI decision', () => {
+  it('calls Gemini for medium-confidence collections and accepts a higher-confidence AI decision', async () => {
     const provider = new HybridGeminiProvider({ geminiApiKey: 'fake', geminiCachePath: makeCacheDir() });
     let called = false;
     provider.setGeminiResponseOverride(() => {
@@ -115,7 +136,7 @@ describe('HybridGeminiProvider', () => {
 
     const collection = makeCollection();
     const doc = makeSourceDocument({ title: 'Updates' });
-    const result = provider.classifyCollection({
+    const result = await provider.classifyCollection({
       collection,
       sourceDocument: doc,
       pageClassification: { sourceDocumentId: doc.id, type: 'ABOUT', confidence: 0.5, evidence: [] },
@@ -130,13 +151,13 @@ describe('HybridGeminiProvider', () => {
     assert.ok(result.reason.includes('Gemini'));
   });
 
-  it('rejects AI decisions with unknown evidence IDs and falls back to rule result', () => {
+  it('rejects AI decisions with unknown evidence IDs and falls back to rule result', async () => {
     const provider = new HybridGeminiProvider({ geminiApiKey: 'fake', geminiCachePath: makeCacheDir() });
     provider.setGeminiResponseOverride(() => geminiCollectionResponse('NEWS', 0.99, ['made-up-id']));
 
     const collection = makeCollection();
     const doc = makeSourceDocument({ title: 'Updates' });
-    const result = provider.classifyCollection({
+    const result = await provider.classifyCollection({
       collection,
       sourceDocument: doc,
       pageClassification: { sourceDocumentId: doc.id, type: 'ABOUT', confidence: 0.5, evidence: [] },
@@ -145,16 +166,20 @@ describe('HybridGeminiProvider', () => {
 
     assert.equal(result.type, 'CONTENT_COLLECTION');
     assert.equal(result.contentSubtype, 'OTHER');
-    assert.ok(result.reason.includes('invalid') || result.reason.includes('failed'));
+    assert.ok(
+      result.reason.includes('invalid') ||
+      result.reason.includes('failed') ||
+      result.reason.includes('did not return a decision')
+    );
   });
 
-  it('keeps the rule result when AI confidence is lower', () => {
+  it('keeps the rule result when AI confidence is lower', async () => {
     const provider = new HybridGeminiProvider({ geminiApiKey: 'fake', geminiCachePath: makeCacheDir() });
     provider.setGeminiResponseOverride(() => geminiCollectionResponse('PROJECTS', 0.4, ['col-1']));
 
     const collection = makeCollection();
     const doc = makeSourceDocument({ title: 'Updates' });
-    const result = provider.classifyCollection({
+    const result = await provider.classifyCollection({
       collection,
       sourceDocument: doc,
       pageClassification: { sourceDocumentId: doc.id, type: 'ABOUT', confidence: 0.5, evidence: [] },
@@ -166,14 +191,14 @@ describe('HybridGeminiProvider', () => {
     assert.ok(result.reason.includes('lower') || result.reason.includes('Gemini'));
   });
 
-  it('does not call Gemini when no API key is configured', () => {
+  it('does not call Gemini when no API key is configured', async () => {
     const provider = new HybridGeminiProvider({ geminiCachePath: makeCacheDir() });
     let called = false;
     provider.setGeminiResponseOverride(() => { called = true; return geminiCollectionResponse('NEWS', 0.99, ['col-1']); });
 
     const collection = makeCollection();
     const doc = makeSourceDocument({ title: 'Updates' });
-    const result = provider.classifyCollection({
+    const result = await provider.classifyCollection({
       collection,
       sourceDocument: doc,
       pageClassification: { sourceDocumentId: doc.id, type: 'ABOUT', confidence: 0.5, evidence: [] },
@@ -184,7 +209,7 @@ describe('HybridGeminiProvider', () => {
     assert.ok(result.reason.includes('not configured'));
   });
 
-  it('adjudicates ambiguous page classifications with Gemini', () => {
+  it('adjudicates ambiguous page classifications with Gemini', async () => {
     const provider = new HybridGeminiProvider({ geminiApiKey: 'fake', geminiCachePath: makeCacheDir() });
     let called = false;
     provider.setGeminiResponseOverride(() => {
@@ -200,7 +225,7 @@ describe('HybridGeminiProvider', () => {
       metaDescription: 'Services we offer',
       isHomepage: false,
     });
-    const result = provider.classifyPage({
+    const result = await provider.classifyPage({
       sourceDocument: doc,
       allDocuments: [doc],
       baseUrl: 'https://example.com/',
@@ -210,5 +235,28 @@ describe('HybridGeminiProvider', () => {
     assert.equal(result.type, 'PROJECTS_INDEX');
     assert.equal(result.category, 'CONTENT');
     assert.ok(result.reason.includes('Gemini'));
+  });
+
+  it('batches multiple ambiguous collections on one page into a single Gemini call', async () => {
+    const provider = new HybridGeminiProvider({ geminiApiKey: 'fake', geminiCachePath: makeCacheDir() });
+    let calls = 0;
+    provider.setGeminiResponseOverride(() => {
+      calls++;
+      return geminiBatchResponse([
+        { collectionId: 'col-1', classification: 'NEWS', confidence: 0.9, evidenceIds: ['col-1', 'col-1-item-0'], reason: 'news items' },
+        { collectionId: 'col-2', classification: 'PROJECTS', confidence: 0.9, evidenceIds: ['col-2', 'col-2-item-0'], reason: 'completed works' },
+      ]);
+    });
+
+    const doc = makeSourceDocument({ title: 'Updates' });
+    const ctxs = [
+      { collection: makeCollection(), sourceDocument: doc, pageClassification: { sourceDocumentId: doc.id, type: 'ABOUT', confidence: 0.5, evidence: [] }, baseUrl: 'https://example.com/' },
+      { collection: makeCollection2(), sourceDocument: doc, pageClassification: { sourceDocumentId: doc.id, type: 'ABOUT', confidence: 0.5, evidence: [] }, baseUrl: 'https://example.com/' },
+    ];
+    const results = await provider.classifyCollections(ctxs);
+
+    assert.equal(calls, 1, 'all ambiguous collections batched into one call');
+    assert.equal(results[0].contentSubtype, 'NEWS');
+    assert.equal(results[1].contentSubtype, 'PROJECTS');
   });
 });

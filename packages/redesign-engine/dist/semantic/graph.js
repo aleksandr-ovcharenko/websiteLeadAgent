@@ -2,7 +2,7 @@ import { readFile, writeFile, mkdir } from 'node:fs/promises';
 import { dirname } from 'node:path';
 import { sourceContentGraphSchema } from './schema.js';
 import { createSemanticProvider } from './provider.js';
-export function buildSourceContentGraph({ sourceDocuments, baseUrl, provider, }) {
+export async function buildSourceContentGraph({ sourceDocuments, baseUrl, provider, }) {
     const p = provider || createSemanticProvider();
     const pageClassifications = new Map();
     const sectionClassifications = new Map();
@@ -11,7 +11,7 @@ export function buildSourceContentGraph({ sourceDocuments, baseUrl, provider, })
     const warnings = [];
     // Classify pages
     for (const doc of sourceDocuments) {
-        const classification = p.classifyPage({ sourceDocument: doc, allDocuments: sourceDocuments, baseUrl });
+        const classification = await p.classifyPage({ sourceDocument: doc, allDocuments: sourceDocuments, baseUrl });
         pageClassifications.set(doc.id, classification);
     }
     // Classify collections and sections per page
@@ -19,12 +19,19 @@ export function buildSourceContentGraph({ sourceDocuments, baseUrl, provider, })
         const pageClass = pageClassifications.get(doc.id);
         const pageCollectionClassifications = [];
         const pageSectionClassifications = [];
-        for (const col of doc.collections || []) {
-            const cc = p.classifyCollection({ collection: col, sourceDocument: doc, pageClassification: pageClass, baseUrl });
-            pageCollectionClassifications.push(cc);
+        const collectionContexts = (doc.collections || []).map((col) => ({ collection: col, sourceDocument: doc, pageClassification: pageClass, baseUrl }));
+        if (typeof p.classifyCollections === 'function') {
+            const ccs = await p.classifyCollections(collectionContexts);
+            pageCollectionClassifications.push(...ccs);
+        }
+        else {
+            for (const ctx of collectionContexts) {
+                const cc = await p.classifyCollection(ctx);
+                pageCollectionClassifications.push(cc);
+            }
         }
         for (const sec of doc.sections) {
-            const sc = p.classifySection({ section: sec, sourceDocument: doc, pageClassification: pageClass, collectionClassifications: pageCollectionClassifications });
+            const sc = await p.classifySection({ section: sec, sourceDocument: doc, pageClassification: pageClass, collectionClassifications: pageCollectionClassifications });
             pageSectionClassifications.push(sc);
         }
         collectionClassifications.set(doc.id, pageCollectionClassifications);
@@ -44,7 +51,7 @@ export function buildSourceContentGraph({ sourceDocuments, baseUrl, provider, })
         for (const img of doc.images)
             imageContexts.push({ image: img });
         for (const { image, section, collection } of imageContexts) {
-            const candidate = p.classifyMedia({ image, sourceDocument: doc, section, collection, baseUrl });
+            const candidate = await p.classifyMedia({ image, sourceDocument: doc, section, collection, baseUrl });
             mediaCandidates.push(candidate);
         }
     }
@@ -83,15 +90,15 @@ export function buildSourceContentGraph({ sourceDocuments, baseUrl, provider, })
             },
         };
     });
-    const company = p.extractCompany(ctx);
-    const contacts = p.extractContacts(ctx);
-    const services = p.extractServices(ctx);
-    const projects = p.extractProjects(ctx);
-    const news = p.extractNews(ctx);
-    const vacancies = p.extractVacancies(ctx);
-    const products = p.extractProducts(ctx);
-    const facts = p.extractFacts(ctx);
-    const relationships = p.extractRelationships(ctx);
+    const company = await p.extractCompany(ctx);
+    const contacts = await p.extractContacts(ctx);
+    const services = await p.extractServices(ctx);
+    const projects = await p.extractProjects(ctx);
+    const news = await p.extractNews(ctx);
+    const vacancies = await p.extractVacancies(ctx);
+    const products = await p.extractProducts(ctx);
+    const facts = await p.extractFacts(ctx);
+    const relationships = await p.extractRelationships(ctx);
     // Warnings for low confidence classifications
     for (const doc of sourceDocuments) {
         const pc = pageClassifications.get(doc.id);

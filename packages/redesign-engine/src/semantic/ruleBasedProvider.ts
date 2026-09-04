@@ -398,7 +398,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     low: 0.4,
   };
 
-  classifyPage(ctx: PageClassificationContext): PageClassification {
+  async classifyPage(ctx: PageClassificationContext): Promise<PageClassification> {
     const { sourceDocument: doc, allDocuments, baseUrl } = ctx;
     const signals: { type: PageClassification['type']; score: number; evidence: Evidence[] }[] = [];
     const title = norm(doc.title);
@@ -544,7 +544,11 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     return { sourceDocumentId: doc.id, type: finalType, category, subType, confidence, evidence: best.evidence };
   }
 
-  classifyCollection(ctx: CollectionClassificationContext): CollectionClassification {
+  async classifyCollections(ctxs: CollectionClassificationContext[]): Promise<CollectionClassification[]> {
+    return Promise.all(ctxs.map((ctx) => this.classifyCollection(ctx)));
+  }
+
+  async classifyCollection(ctx: CollectionClassificationContext): Promise<CollectionClassification> {
     const { collection, sourceDocument: doc, pageClassification: page, baseUrl } = ctx;
     const items = collection.items || [];
     const titles = items.map((i) => norm(i.title)).filter(Boolean);
@@ -770,7 +774,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     return { collectionId: collection.id, type: 'UNKNOWN', confidence: 0.4, reason: 'insufficient evidence' };
   }
 
-  classifySection(ctx: SectionClassificationContext): SectionClassification {
+  async classifySection(ctx: SectionClassificationContext): Promise<SectionClassification> {
     const { section, sourceDocument: doc, pageClassification: page, collectionClassifications } = ctx;
     const heading = norm(section.heading);
     const text = `${section.paragraphs.join(' ')} ${section.lists.flat().join(' ')}`.toLowerCase();
@@ -849,7 +853,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     return { sectionId: section.id, type: 'UNKNOWN', confidence: 0.35, evidence: evidenceList };
   }
 
-  classifyMedia(ctx: MediaClassificationContext): ImageCandidate {
+  async classifyMedia(ctx: MediaClassificationContext): Promise<ImageCandidate> {
     const { image, sourceDocument: doc, section, collection } = ctx;
     const { width = 0, height = 0 } = image;
     const alt = norm(image.alt);
@@ -899,7 +903,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     return { id: id(), src, alt: image.alt, width, height, role: 'UNKNOWN', confidence: 0.35, provenance };
   }
 
-  extractCompany(ctx: EntityExtractionContext): CompanyEntity | undefined {
+  async extractCompany(ctx: EntityExtractionContext): Promise<CompanyEntity | undefined> {
     const home = ctx.sourceDocuments.find((d) => d.isHomepage) || ctx.sourceDocuments[0];
     if (!home) return undefined;
 
@@ -1030,7 +1034,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
       }))[0];
   }
 
-  extractContacts(ctx: EntityExtractionContext): ContactsEntity | undefined {
+  async extractContacts(ctx: EntityExtractionContext): Promise<ContactsEntity | undefined> {
     const contactDoc = ctx.sourceDocuments.find((d) => ctx.pageClassifications.get(d.id)?.type === 'CONTACTS');
     const home = ctx.sourceDocuments.find((d) => d.isHomepage) || ctx.sourceDocuments[0];
     const docs = contactDoc ? [contactDoc, home] : [home];
@@ -1109,7 +1113,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     };
   }
 
-  extractServices(ctx: EntityExtractionContext): ServiceEntity[] {
+  async extractServices(ctx: EntityExtractionContext): Promise<ServiceEntity[]> {
     const services: ServiceEntity[] = [];
     const byUrl = new Map<string, ServiceEntity>();
 
@@ -1187,7 +1191,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     return this.deduplicateEntities(services);
   }
 
-  extractProjects(ctx: EntityExtractionContext): ProjectEntity[] {
+  async extractProjects(ctx: EntityExtractionContext): Promise<ProjectEntity[]> {
     const projects: ProjectEntity[] = [];
     const byUrl = new Map<string, ProjectEntity>();
 
@@ -1294,7 +1298,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     return this.deduplicateEntities(projects) as ProjectEntity[];
   }
 
-  extractNews(ctx: EntityExtractionContext): NewsEntity[] {
+  async extractNews(ctx: EntityExtractionContext): Promise<NewsEntity[]> {
     const news: NewsEntity[] = [];
     const byUrl = new Map<string, NewsEntity>();
 
@@ -1381,7 +1385,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     return this.deduplicateEntities(news) as NewsEntity[];
   }
 
-  extractVacancies(ctx: EntityExtractionContext): VacancyEntity[] {
+  async extractVacancies(ctx: EntityExtractionContext): Promise<VacancyEntity[]> {
     const vacancies: VacancyEntity[] = [];
     const byUrl = new Map<string, VacancyEntity>();
 
@@ -1440,7 +1444,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     return this.deduplicateEntities(vacancies) as VacancyEntity[];
   }
 
-  extractProducts(ctx: EntityExtractionContext): ProductEntity[] {
+  async extractProducts(ctx: EntityExtractionContext): Promise<ProductEntity[]> {
     const products: ProductEntity[] = [];
     const byUrl = new Map<string, ProductEntity>();
 
@@ -1499,7 +1503,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     return this.deduplicateEntities(products) as ProductEntity[];
   }
 
-  extractFacts(ctx: EntityExtractionContext): FactEntity[] {
+  async extractFacts(ctx: EntityExtractionContext): Promise<FactEntity[]> {
     const facts: FactEntity[] = [];
     const seen = new Set<string>();
 
@@ -1545,7 +1549,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     return facts;
   }
 
-  extractRelationships(ctx: EntityExtractionContext): Relationship[] {
+  async extractRelationships(ctx: EntityExtractionContext): Promise<Relationship[]> {
     const rels: Relationship[] = [];
     const pageMap = ctx.pageClassifications;
     for (const [docId, pc] of pageMap) {

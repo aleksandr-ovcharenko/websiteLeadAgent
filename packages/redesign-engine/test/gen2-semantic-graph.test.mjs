@@ -133,16 +133,16 @@ const sampleCrawl = makeCrawlResult([
 ]);
 
 describe('Source content graph (Phase 2A)', () => {
-  it('builds a valid source-content-graph.json via Zod schema', () => {
+  it('builds a valid source-content-graph.json via Zod schema', async () => {
     const sourceDocuments = buildSourceDocuments(sampleCrawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     const parsed = sourceContentGraphSchema.safeParse(graph);
     assert.equal(parsed.success, true, `graph invalid: ${parsed.error?.message || ''}`);
   });
 
-  it('classifies the home page and extracts company name', () => {
+  it('classifies the home page and extracts company name', async () => {
     const sourceDocuments = buildSourceDocuments(sampleCrawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     const homePage = graph.pages.find((p) => p.classification.type === 'HOME');
     assert.ok(homePage, 'home page classified');
     assert.ok(graph.company, 'company entity extracted');
@@ -152,9 +152,9 @@ describe('Source content graph (Phase 2A)', () => {
     assert.equal(graph.company.employees, '200 сотрудников', 'employee count');
   });
 
-  it('classifies service index and detail pages', () => {
+  it('classifies service index and detail pages', async () => {
     const sourceDocuments = buildSourceDocuments(sampleCrawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     const svcIndex = graph.pages.find((p) => p.classification.type === 'SERVICES_INDEX');
     const svcDetail = graph.pages.find((p) => p.classification.type === 'SERVICE_DETAIL');
     assert.ok(svcIndex, 'services index classified');
@@ -162,17 +162,17 @@ describe('Source content graph (Phase 2A)', () => {
     assert.ok(graph.services.some((s) => s.title === 'Мебель на заказ'), 'service extracted');
   });
 
-  it('classifies news index and extracts article', () => {
+  it('classifies news index and extracts article', async () => {
     const sourceDocuments = buildSourceDocuments(sampleCrawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     const newsIndex = graph.pages.find((p) => p.classification.type === 'NEWS_INDEX');
     assert.ok(newsIndex, 'news index classified');
     assert.ok(graph.news.some((n) => n.title.includes('Открытие')), 'news article extracted');
   });
 
-  it('classifies contacts page and extracts contact values', () => {
+  it('classifies contacts page and extracts contact values', async () => {
     const sourceDocuments = buildSourceDocuments(sampleCrawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     const contactsPage = graph.pages.find((p) => p.classification.type === 'CONTACTS');
     assert.ok(contactsPage, 'contacts page classified');
     assert.ok(graph.contacts, 'contacts entity extracted');
@@ -181,7 +181,7 @@ describe('Source content graph (Phase 2A)', () => {
     assert.ok(graph.contacts.addresses.some((a) => a.value.includes('Примерная')), 'address extracted');
   });
 
-  it('rejects language switchers, theme widgets and ads', () => {
+  it('rejects language switchers, theme widgets and ads', async () => {
     const html = `<!DOCTYPE html>
 <html><body>
   <ul class="language-list"><li><a href="/ru">Рус</a></li><li><a href="/en">Eng</a></li></ul>
@@ -190,14 +190,14 @@ describe('Source content graph (Phase 2A)', () => {
 </body></html>`;
     const crawl = makeCrawlResult([page('https://example.com/', html, 0)]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     const collClassifications = graph.pages.flatMap((p) => p.collections);
     assert.ok(collClassifications.some((c) => c.type === 'LANGUAGE_SWITCHER'), 'language switcher classified');
     assert.ok(collClassifications.some((c) => c.type === 'THEME_WIDGET'), 'theme widget classified');
     assert.ok(collClassifications.some((c) => c.type === 'ADVERTISEMENT'), 'advertisement classified');
   });
 
-  it('classifies navigation and utility collections and avoids mixing them as content', () => {
+  it('classifies navigation and utility collections and avoids mixing them as content', async () => {
     const html = `<!DOCTYPE html>
 <html><body>
   <main>
@@ -209,7 +209,7 @@ describe('Source content graph (Phase 2A)', () => {
 </body></html>`;
     const crawl = makeCrawlResult([page('https://example.com/', html, 0)]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     const home = graph.pages.find((p) => p.classification.type === 'HOME');
     assert.ok(home, 'home page classified');
     const navCollection = home.collections.find((s) => s.type === 'NAVIGATION');
@@ -219,15 +219,15 @@ describe('Source content graph (Phase 2A)', () => {
     assert.ok(!home.collections.some((s) => s.type === 'CONTENT_COLLECTION'), 'navigation not treated as service');
   });
 
-  it('uses provider abstraction with rule-based default', () => {
+  it('uses provider abstraction with rule-based default', async () => {
     const provider = createSemanticProvider();
     assert.equal(provider.name, 'rule-based', 'rule-based provider returned by default');
     const sourceDocuments = buildSourceDocuments(sampleCrawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/', provider });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/', provider });
     assert.ok(graph.company, 'graph built with explicit provider');
   });
 
-  it('extracts projects from a homepage project collection without requiring a dedicated project index page', () => {
+  it('extracts projects from a homepage project collection without requiring a dedicated project index page', async () => {
     const html = `<!DOCTYPE html>
 <html lang="ru"><body>
   <main>
@@ -247,7 +247,7 @@ describe('Source content graph (Phase 2A)', () => {
 </body></html>`;
     const crawl = makeCrawlResult([page('https://example.com/', html, 0)]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     const home = graph.pages.find((p) => p.classification.type === 'HOME');
     assert.ok(home, 'home page classified');
     const projCol = home.collections.find((c) => c.type === 'CONTENT_COLLECTION' && c.contentSubtype === 'PROJECTS');
@@ -256,7 +256,7 @@ describe('Source content graph (Phase 2A)', () => {
     assert.ok(graph.projects.some((e) => e.title.includes('Магистр')), 'second project extracted');
   });
 
-  it('distinguishes a product catalog from a project portfolio', () => {
+  it('distinguishes a product catalog from a project portfolio', async () => {
     const catalogHtml = `<!DOCTYPE html>
 <html lang="ru"><body>
   <main>
@@ -282,13 +282,13 @@ describe('Source content graph (Phase 2A)', () => {
       page('https://example.com/proekty/', portfolioHtml, 1),
     ]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     assert.ok(graph.products.some((e) => e.title.includes('м2')), 'product catalog yields product entities');
     assert.ok(graph.projects.some((e) => e.title.includes('Зеленый Бор')), 'portfolio yields project entities');
     assert.ok(!graph.projects.some((e) => e.title.includes('м2')), 'product items not extracted as projects');
   });
 
-  it('accepts external project links as valid project evidence', () => {
+  it('accepts external project links as valid project evidence', async () => {
     const html = `<!DOCTYPE html>
 <html lang="ru"><body>
   <main>
@@ -301,12 +301,12 @@ describe('Source content graph (Phase 2A)', () => {
 </body></html>`;
     const crawl = makeCrawlResult([page('https://example.com/projects/', html, 1, { title: 'Наши проекты', h1: 'Наши проекты' })]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     assert.ok(graph.projects.some((e) => e.title.includes('Светлый')), 'external-link project extracted');
     assert.ok(graph.projects.some((e) => e.title.includes('Ясный')), 'second external-link project extracted');
   });
 
-  it('extracts projects from a project index without long descriptions when URLs or images are present', () => {
+  it('extracts projects from a project index without long descriptions when URLs or images are present', async () => {
     const html = `<!DOCTYPE html>
 <html lang="ru"><body>
   <main>
@@ -319,11 +319,11 @@ describe('Source content graph (Phase 2A)', () => {
 </body></html>`;
     const crawl = makeCrawlResult([page('https://example.com/objects/', html, 1, { title: 'Наши объекты', h1: 'Объекты' })]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     assert.equal(graph.projects.length, 2, 'two image-only project cards extracted');
   });
 
-  it('merges detail page and index card pointing to the same canonical project URL', () => {
+  it('merges detail page and index card pointing to the same canonical project URL', async () => {
     const detailHtml = `<!DOCTYPE html>
 <html lang="ru"><body>
   <main>
@@ -345,7 +345,7 @@ describe('Source content graph (Phase 2A)', () => {
       page('https://example.com/projects/', indexHtml, 1, { title: 'Наши проекты', h1: 'Наши проекты' }),
     ]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     assert.equal(graph.projects.length, 1, 'detail and index card merged into one project');
     const project = graph.projects[0];
     assert.ok(project.sourceDocumentIds.length >= 1, 'project has source documents');
@@ -353,7 +353,7 @@ describe('Source content graph (Phase 2A)', () => {
     assert.ok(project.description?.includes('Минск'), 'project description retained from detail page');
   });
 
-  it('does not classify a generic page wrapper as a project or service collection', () => {
+  it('does not classify a generic page wrapper as a project or service collection', async () => {
     const html = `<!DOCTYPE html>
 <html lang="ru"><body>
   <header><nav><a href="/">Главная</a><a href="/about">О нас</a><a href="/services">Услуги</a></nav></header>
@@ -365,7 +365,7 @@ describe('Source content graph (Phase 2A)', () => {
 </body></html>`;
     const crawl = makeCrawlResult([page('https://example.com/', html, 0)]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     const home = graph.pages.find((p) => p.classification.type === 'HOME');
     assert.ok(home, 'home page classified');
     const badProject = home.collections.find((c) => c.type === 'CONTENT_COLLECTION' && c.contentSubtype === 'PROJECTS');
@@ -374,7 +374,7 @@ describe('Source content graph (Phase 2A)', () => {
     assert.ok(!badService, 'generic wrapper not classified as SERVICES');
   });
 
-  it('extracts a neutral English homepage portfolio section as concrete projects', () => {
+  it('extracts a neutral English homepage portfolio section as concrete projects', async () => {
     const html = `<!DOCTYPE html>
 <html lang="en"><body>
   <main>
@@ -401,7 +401,7 @@ describe('Source content graph (Phase 2A)', () => {
 </body></html>`;
     const crawl = makeCrawlResult([page('https://example.com/', html, 0, { title: 'Example Construction', h1: 'Home' })]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     const home = graph.pages.find((p) => p.classification.type === 'HOME');
     assert.ok(home, 'home page classified');
     const projCol = home.collections.find((c) => c.type === 'CONTENT_COLLECTION' && c.contentSubtype === 'PROJECTS');
@@ -410,7 +410,7 @@ describe('Source content graph (Phase 2A)', () => {
     assert.ok(!graph.projects.some((e) => /Completed works/i.test(e.title)), 'collection heading is not a project');
   });
 
-  it('extracts a neutral German homepage portfolio section as concrete projects', () => {
+  it('extracts a neutral German homepage portfolio section as concrete projects', async () => {
     const html = `<!DOCTYPE html>
 <html lang="de"><body>
   <main>
@@ -437,7 +437,7 @@ describe('Source content graph (Phase 2A)', () => {
 </body></html>`;
     const crawl = makeCrawlResult([page('https://example.com/', html, 0, { title: 'Beispiel Bau GmbH', h1: 'Startseite' })]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     const home = graph.pages.find((p) => p.classification.type === 'HOME');
     assert.ok(home, 'home page classified');
     const projCol = home.collections.find((c) => c.type === 'CONTENT_COLLECTION' && c.contentSubtype === 'PROJECTS');
@@ -446,7 +446,7 @@ describe('Source content graph (Phase 2A)', () => {
     assert.ok(!graph.projects.some((e) => /Abgeschlossene Projekte/i.test(e.title)), 'German collection heading is not a project');
   });
 
-  it('extracts nested project groups without counting categories as projects', () => {
+  it('extracts nested project groups without counting categories as projects', async () => {
     const html = `<!DOCTYPE html>
 <html lang="en"><body>
   <main>
@@ -462,7 +462,7 @@ describe('Source content graph (Phase 2A)', () => {
 </body></html>`;
     const crawl = makeCrawlResult([page('https://example.com/projects/', html, 1, { title: 'Our Projects', h1: 'Our Projects' })]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     assert.equal(graph.projects.length, 3, 'three concrete projects extracted');
     assert.ok(!graph.projects.some((e) => e.title.toLowerCase() === 'residential' || e.title.toLowerCase() === 'commercial'), 'category labels are not projects');
     const objA = graph.projects.find((e) => e.title.includes('Object A'));
@@ -470,7 +470,7 @@ describe('Source content graph (Phase 2A)', () => {
     assert.equal(objA.category, 'Residential', 'Residential category assigned to Object A');
   });
 
-  it('does not extract project category or status labels as concrete projects', () => {
+  it('does not extract project category or status labels as concrete projects', async () => {
     const html = `<!DOCTYPE html>
 <html lang="ru"><body>
   <main>
@@ -484,7 +484,7 @@ describe('Source content graph (Phase 2A)', () => {
 </body></html>`;
     const crawl = makeCrawlResult([page('https://example.com/projects/', html, 1, { title: 'Проекты', h1: 'Проекты' })]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     assert.equal(graph.projects.length, 2, 'two concrete projects extracted');
     assert.ok(!graph.projects.some((e) => e.title.includes('В процессе строительства')), 'status group label is not a project');
     const green = graph.projects.find((e) => e.title.includes('Зеленый'));
@@ -492,7 +492,7 @@ describe('Source content graph (Phase 2A)', () => {
     assert.ok(green.projectStatus?.includes('В процессе'), 'project has status group assigned');
   });
 
-  it('extracts projects from a WPBakery-style portfolio grid on the homepage', () => {
+  it('extracts projects from a WPBakery-style portfolio grid on the homepage', async () => {
     const html = `<!DOCTYPE html>
 <html lang="ru"><body>
   <div id="fw_c" class="clearfix tf_single_page">
@@ -524,7 +524,7 @@ describe('Source content graph (Phase 2A)', () => {
 </body></html>`;
     const crawl = makeCrawlResult([page('https://example.com/', html, 0, { title: 'Example Construction', h1: '' })]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     const home = graph.pages.find((p) => p.classification.type === 'HOME');
     assert.ok(home, 'home page classified');
     const projCol = home.collections.find((c) => c.type === 'CONTENT_COLLECTION' && c.contentSubtype === 'PROJECTS');
@@ -534,7 +534,7 @@ describe('Source content graph (Phase 2A)', () => {
     assert.ok(graph.projects.some((e) => e.title.includes('Сырокомли')), 'project by address extracted');
   });
 
-  it('merges NEWS_INDEX cards with NEWS_DETAIL pages by canonical URL', () => {
+  it('merges NEWS_INDEX cards with NEWS_DETAIL pages by canonical URL', async () => {
     const detailHtml = `<!DOCTYPE html><html lang="ru"><head><title>Открытие филиала</title></head><body><main>
       <h1>Открытие филиала</h1>
       <article><p>Мы открыли новый филиал в Гродно.</p></article>
@@ -548,13 +548,13 @@ describe('Source content graph (Phase 2A)', () => {
       page('https://example.com/novosti/otkrytie', detailHtml, 1, { title: 'Открытие филиала', h1: 'Открытие филиала' }),
     ]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     const news = graph.news.filter((n) => n.title.includes('Открытие'));
     assert.equal(news.length, 1, 'index card and detail page are merged into one news entity');
     assert.ok(news[0].description, 'merged entity has a description from detail page');
   });
 
-  it('does not extract investor/shareholder content as news', () => {
+  it('does not extract investor/shareholder content as news', async () => {
     const investorHtml = `<!DOCTYPE html><html lang="ru"><head><title>Годовое общее собрание акционеров</title></head><body><main>
       <h1>Годовое общее собрание акционеров ОАО «Пример»</h1>
       <p>Повестка и результаты голосования.</p>
@@ -568,11 +568,11 @@ describe('Source content graph (Phase 2A)', () => {
       page('https://example.com/novosti/sobranie', investorHtml, 1, { title: 'Годовое общее собрание акционеров', h1: 'Годовое общее собрание акционеров' }),
     ]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     assert.equal(graph.news.length, 0, 'investor/shareholder page is not extracted as news');
   });
 
-  it('keeps news dates unknown when no date evidence exists', () => {
+  it('keeps news dates unknown when no date evidence exists', async () => {
     const detailHtml = `<!DOCTYPE html><html lang="ru"><head><title>Новое событие</title></head><body><main>
       <h1>Новое событие</h1>
       <article><p>Событие произошло.</p></article>
@@ -581,27 +581,27 @@ describe('Source content graph (Phase 2A)', () => {
       page('https://example.com/novosti/sobytie', detailHtml, 0, { title: 'Новое событие', h1: 'Новое событие' }),
     ]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     assert.equal(graph.news.length, 1);
     assert.equal(graph.news[0].date, null, 'date stays null when no evidence exists');
     assert.ok(graph.news[0].evidence.some((e) => e.type === 'no-date'), 'provenance explains missing date');
   });
 
-  it('uses LLM fallback provider with evidence when no API key is configured', () => {
+  it('uses LLM fallback provider with evidence when no API key is configured', async () => {
     const provider = createSemanticProvider({ type: 'llm-fallback', llmFallbackThreshold: 1.0 });
     assert.equal(provider.name, 'llm-fallback');
     const homeHtml = `<!DOCTYPE html><html lang="ru"><head><title>О компании</title></head><body><main><h1>О компании</h1><p>Мы строим дома.</p></main></body></html>`;
     const crawl = makeCrawlResult([page('https://example.com/o-kompanii', homeHtml, 0, { title: 'О компании', h1: 'О компании' })]);
     const sourceDocuments = buildSourceDocuments(crawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/', provider });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/', provider });
     const about = graph.pages.find((p) => p.classification.type === 'ABOUT');
     assert.ok(about, 'page classified using rule-based fallback');
     assert.ok(about.classification.evidence.some((e) => e.type === 'llm-fallback' || e.type === 'llm-evidence'), 'LLM evidence recorded');
   });
 
-  it('extracts facts sanity fields from structured data', () => {
+  it('extracts facts sanity fields from structured data', async () => {
     const sourceDocuments = buildSourceDocuments(sampleCrawl);
-    const graph = buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
+    const graph = await buildSourceContentGraph({ sourceDocuments, baseUrl: 'https://example.com/' });
     assert.ok(graph.company, 'company extracted');
     assert.ok(graph.company.title, 'company title extracted');
     assert.ok(graph.company.legalName || graph.company.title, 'legal name or title present');

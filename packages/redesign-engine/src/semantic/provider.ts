@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import type { SourceDocument, SourceDocumentCollection, SourceDocumentSection, SourceDocumentImage } from '../types.js';
 import { RuleBasedSemanticProvider, pageCategoryAndSubType } from './ruleBasedProvider.js';
 import { HybridGeminiProvider } from './geminiSemanticProvider.js';
@@ -61,20 +60,22 @@ export interface GenerationSemanticProvider {
   readonly promptVersion?: string;
   readonly temperature?: number;
 
-  classifyPage(ctx: PageClassificationContext): PageClassification;
-  classifyCollection(ctx: CollectionClassificationContext): CollectionClassification;
-  classifySection(ctx: SectionClassificationContext): SectionClassification;
-  classifyMedia(ctx: MediaClassificationContext): ImageCandidate;
+  classifyPage(ctx: PageClassificationContext): Promise<PageClassification>;
+  classifyCollection(ctx: CollectionClassificationContext): Promise<CollectionClassification>;
+  /** Batch classification of all collections on a single page. Optional; falls back to per-collection calls when absent. */
+  classifyCollections?(ctxs: CollectionClassificationContext[]): Promise<CollectionClassification[]>;
+  classifySection(ctx: SectionClassificationContext): Promise<SectionClassification>;
+  classifyMedia(ctx: MediaClassificationContext): Promise<ImageCandidate>;
 
-  extractCompany(ctx: EntityExtractionContext): CompanyEntity | undefined;
-  extractContacts(ctx: EntityExtractionContext): ContactsEntity | undefined;
-  extractServices(ctx: EntityExtractionContext): ServiceEntity[];
-  extractProjects(ctx: EntityExtractionContext): ProjectEntity[];
-  extractNews(ctx: EntityExtractionContext): NewsEntity[];
-  extractVacancies(ctx: EntityExtractionContext): VacancyEntity[];
-  extractProducts(ctx: EntityExtractionContext): ProductEntity[];
-  extractFacts(ctx: EntityExtractionContext): FactEntity[];
-  extractRelationships(ctx: EntityExtractionContext): Relationship[];
+  extractCompany(ctx: EntityExtractionContext): Promise<CompanyEntity | undefined>;
+  extractContacts(ctx: EntityExtractionContext): Promise<ContactsEntity | undefined>;
+  extractServices(ctx: EntityExtractionContext): Promise<ServiceEntity[]>;
+  extractProjects(ctx: EntityExtractionContext): Promise<ProjectEntity[]>;
+  extractNews(ctx: EntityExtractionContext): Promise<NewsEntity[]>;
+  extractVacancies(ctx: EntityExtractionContext): Promise<VacancyEntity[]>;
+  extractProducts(ctx: EntityExtractionContext): Promise<ProductEntity[]>;
+  extractFacts(ctx: EntityExtractionContext): Promise<FactEntity[]>;
+  extractRelationships(ctx: EntityExtractionContext): Promise<Relationship[]>;
 }
 
 export interface ProviderOptions {
@@ -92,6 +93,7 @@ export interface ProviderOptions {
   geminiCachePath?: string;
   geminiLogPath?: string;
   geminiPromptVersion?: string;
+  geminiConcurrency?: number;
 }
 
 // Confidence levels used to flag HIGH / MEDIUM / LOW / UNKNOWN quality.
@@ -165,8 +167,8 @@ export class LlmFallbackProvider implements GenerationSemanticProvider {
     this.enabled = Boolean(this.apiKey);
   }
 
-  classifyPage(ctx: PageClassificationContext): PageClassification {
-    const ruleResult = this.rule.classifyPage(ctx);
+  async classifyPage(ctx: PageClassificationContext): Promise<PageClassification> {
+    const ruleResult = await this.rule.classifyPage(ctx);
     if (ruleResult.confidence >= this.fallbackThreshold) return ruleResult;
     if (!this.enabled) {
       return {
@@ -199,7 +201,7 @@ Return a JSON object only, with no markdown, no commentary. Fields:
 - evidence: array of exact short substrings (1-4 words) from the visible text above that support your choice
 - reason: one sentence explaining why`;
 
-    const result = this.callLlm(prompt);
+    const result = await this.callLlm(prompt);
     if (!result) return this.fallback(ruleResult, ctx, 'LLM call failed');
 
     const type = typeof result.type === 'string' ? result.type : undefined;
@@ -231,27 +233,27 @@ Return a JSON object only, with no markdown, no commentary. Fields:
     };
   }
 
-  classifyCollection(ctx: CollectionClassificationContext): CollectionClassification {
+  async classifyCollection(ctx: CollectionClassificationContext): Promise<CollectionClassification> {
     return this.rule.classifyCollection(ctx);
   }
 
-  classifySection(ctx: SectionClassificationContext): SectionClassification {
+  async classifySection(ctx: SectionClassificationContext): Promise<SectionClassification> {
     return this.rule.classifySection(ctx);
   }
 
-  classifyMedia(ctx: MediaClassificationContext): ImageCandidate {
+  async classifyMedia(ctx: MediaClassificationContext): Promise<ImageCandidate> {
     return this.rule.classifyMedia(ctx);
   }
 
-  extractCompany(ctx: EntityExtractionContext): CompanyEntity | undefined { return this.rule.extractCompany(ctx); }
-  extractContacts(ctx: EntityExtractionContext): ContactsEntity | undefined { return this.rule.extractContacts(ctx); }
-  extractServices(ctx: EntityExtractionContext): ServiceEntity[] { return this.rule.extractServices(ctx); }
-  extractProjects(ctx: EntityExtractionContext): ProjectEntity[] { return this.rule.extractProjects(ctx); }
-  extractNews(ctx: EntityExtractionContext): NewsEntity[] { return this.rule.extractNews(ctx); }
-  extractVacancies(ctx: EntityExtractionContext): VacancyEntity[] { return this.rule.extractVacancies(ctx); }
-  extractProducts(ctx: EntityExtractionContext): ProductEntity[] { return this.rule.extractProducts(ctx); }
-  extractFacts(ctx: EntityExtractionContext): FactEntity[] { return this.rule.extractFacts(ctx); }
-  extractRelationships(ctx: EntityExtractionContext): Relationship[] { return this.rule.extractRelationships(ctx); }
+  async extractCompany(ctx: EntityExtractionContext): Promise<CompanyEntity | undefined> { return this.rule.extractCompany(ctx); }
+  async extractContacts(ctx: EntityExtractionContext): Promise<ContactsEntity | undefined> { return this.rule.extractContacts(ctx); }
+  async extractServices(ctx: EntityExtractionContext): Promise<ServiceEntity[]> { return this.rule.extractServices(ctx); }
+  async extractProjects(ctx: EntityExtractionContext): Promise<ProjectEntity[]> { return this.rule.extractProjects(ctx); }
+  async extractNews(ctx: EntityExtractionContext): Promise<NewsEntity[]> { return this.rule.extractNews(ctx); }
+  async extractVacancies(ctx: EntityExtractionContext): Promise<VacancyEntity[]> { return this.rule.extractVacancies(ctx); }
+  async extractProducts(ctx: EntityExtractionContext): Promise<ProductEntity[]> { return this.rule.extractProducts(ctx); }
+  async extractFacts(ctx: EntityExtractionContext): Promise<FactEntity[]> { return this.rule.extractFacts(ctx); }
+  async extractRelationships(ctx: EntityExtractionContext): Promise<Relationship[]> { return this.rule.extractRelationships(ctx); }
 
   private fallback(ruleResult: PageClassification, ctx: PageClassificationContext, reason: string): PageClassification {
     return {
@@ -263,26 +265,27 @@ Return a JSON object only, with no markdown, no commentary. Fields:
     };
   }
 
-  private callLlm(prompt: string): { type?: unknown; confidence?: unknown; evidence?: unknown; reason?: unknown } | null {
-    const body = JSON.stringify({
+  private async callLlm(prompt: string): Promise<{ type?: unknown; confidence?: unknown; evidence?: unknown; reason?: unknown } | null> {
+    const body = {
       model: this.model,
       temperature: 0,
       messages: [
         { role: 'system', content: 'You output only valid JSON.' },
         { role: 'user', content: prompt },
       ],
-    });
+    };
     try {
-      const result = spawnSync('curl', [
-        '-sS', '-m', '12',
-        '-H', 'Content-Type: application/json',
-        '-H', `Authorization: Bearer ${this.apiKey}`,
-        '-d', body,
-        this.apiUrl,
-      ], { encoding: 'utf8', timeout: 15000 });
-
-      if (result.error || result.status !== 0) return null;
-      const raw = JSON.parse(result.stdout || '{}');
+      const resp = await fetch(this.apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${this.apiKey}`,
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(12000),
+      });
+      if (!resp.ok) return null;
+      const raw = await resp.json() as any;
       const content = raw.choices?.[0]?.message?.content;
       if (typeof content !== 'string') return null;
       // Strip markdown fences
@@ -295,11 +298,16 @@ Return a JSON object only, with no markdown, no commentary. Fields:
 }
 
 export function createSemanticProvider(options?: ProviderOptions): GenerationSemanticProvider {
-  if (options?.type === 'gemini' || options?.geminiApiKey) {
-    return new HybridGeminiProvider(options);
+  const opts = options || {};
+  const providerType = opts.type || (process.env.SEMANTIC_PROVIDER as ProviderOptions['type']);
+  const geminiApiKey = opts.geminiApiKey || process.env.GEMINI_API_KEY;
+  const llmApiKey = opts.llmApiKey || opts.openaiApiKey || process.env.OPENAI_API_KEY;
+
+  if (providerType === 'gemini' || providerType === 'hybrid-gemini' || geminiApiKey) {
+    return new HybridGeminiProvider({ ...opts, type: 'gemini', geminiApiKey });
   }
-  if (options?.type === 'openai' || options?.type === 'llm-fallback' || options?.llmApiKey || options?.openaiApiKey) {
-    return new LlmFallbackProvider(options);
+  if (providerType === 'openai' || providerType === 'llm-fallback' || llmApiKey) {
+    return new LlmFallbackProvider({ ...opts, type: 'llm-fallback', llmApiKey, openaiApiKey: llmApiKey });
   }
   return new RuleBasedSemanticProvider();
 }

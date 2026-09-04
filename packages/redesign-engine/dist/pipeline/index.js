@@ -211,7 +211,7 @@ export async function generateSite(options) {
         const sourceDocumentsJsonPath = join(artifactDir, 'source-documents.json');
         await writeFile(sourceDocumentsJsonPath, JSON.stringify(sourceDocuments, null, 2));
         // V2 Phase 2A: build the typed semantic content graph in shadow mode.
-        const sourceContentGraph = buildSourceContentGraph({ sourceDocuments, baseUrl });
+        const sourceContentGraph = await buildSourceContentGraph({ sourceDocuments, baseUrl });
         const sourceContentGraphPath = join(artifactDir, 'source-content-graph.json');
         await writeFile(sourceContentGraphPath, JSON.stringify(sourceContentGraph, null, 2));
         await emit('INFO', 'FACTORY_SEMANTIC_GRAPH_BUILT', `Semantic graph built (${sourceContentGraph.pages.length} pages, ${sourceContentGraph.services.length} services, ${sourceContentGraph.projects.length} projects, ${sourceContentGraph.news.length} news)`, { sourceContentGraphPath, pages: sourceContentGraph.pages.length, services: sourceContentGraph.services.length, projects: sourceContentGraph.projects.length, news: sourceContentGraph.news.length, warnings: sourceContentGraph.warnings.length });

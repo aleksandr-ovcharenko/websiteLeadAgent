@@ -364,7 +364,7 @@ export class RuleBasedSemanticProvider {
         medium: 0.65,
         low: 0.4,
     };
-    classifyPage(ctx) {
+    async classifyPage(ctx) {
         const { sourceDocument: doc, allDocuments, baseUrl } = ctx;
         const signals = [];
         const title = norm(doc.title);
@@ -516,7 +516,10 @@ export class RuleBasedSemanticProvider {
         const { category, subType } = pageCategoryAndSubType(finalType, doc);
         return { sourceDocumentId: doc.id, type: finalType, category, subType, confidence, evidence: best.evidence };
     }
-    classifyCollection(ctx) {
+    async classifyCollections(ctxs) {
+        return Promise.all(ctxs.map((ctx) => this.classifyCollection(ctx)));
+    }
+    async classifyCollection(ctx) {
         const { collection, sourceDocument: doc, pageClassification: page, baseUrl } = ctx;
         const items = collection.items || [];
         const titles = items.map((i) => norm(i.title)).filter(Boolean);
@@ -751,7 +754,7 @@ export class RuleBasedSemanticProvider {
         }
         return { collectionId: collection.id, type: 'UNKNOWN', confidence: 0.4, reason: 'insufficient evidence' };
     }
-    classifySection(ctx) {
+    async classifySection(ctx) {
         const { section, sourceDocument: doc, pageClassification: page, collectionClassifications } = ctx;
         const heading = norm(section.heading);
         const text = `${section.paragraphs.join(' ')} ${section.lists.flat().join(' ')}`.toLowerCase();
@@ -825,7 +828,7 @@ export class RuleBasedSemanticProvider {
         }
         return { sectionId: section.id, type: 'UNKNOWN', confidence: 0.35, evidence: evidenceList };
     }
-    classifyMedia(ctx) {
+    async classifyMedia(ctx) {
         const { image, sourceDocument: doc, section, collection } = ctx;
         const { width = 0, height = 0 } = image;
         const alt = norm(image.alt);
@@ -870,7 +873,7 @@ export class RuleBasedSemanticProvider {
         }
         return { id: id(), src, alt: image.alt, width, height, role: 'UNKNOWN', confidence: 0.35, provenance };
     }
-    extractCompany(ctx) {
+    async extractCompany(ctx) {
         const home = ctx.sourceDocuments.find((d) => d.isHomepage) || ctx.sourceDocuments[0];
         if (!home)
             return undefined;
@@ -996,7 +999,7 @@ export class RuleBasedSemanticProvider {
             evidence: [evidence(dt.type, dt.text, dt.type === 'jsonld' ? 0.9 : 0.6, { sourceDocumentId: doc.id, context: dt.context })],
         }))[0];
     }
-    extractContacts(ctx) {
+    async extractContacts(ctx) {
         const contactDoc = ctx.sourceDocuments.find((d) => ctx.pageClassifications.get(d.id)?.type === 'CONTACTS');
         const home = ctx.sourceDocuments.find((d) => d.isHomepage) || ctx.sourceDocuments[0];
         const docs = contactDoc ? [contactDoc, home] : [home];
@@ -1071,7 +1074,7 @@ export class RuleBasedSemanticProvider {
             evidence: [...(phones[0]?.evidence ? [phones[0].evidence] : []), ...(emails[0]?.evidence ? [emails[0].evidence] : [])],
         };
     }
-    extractServices(ctx) {
+    async extractServices(ctx) {
         const services = [];
         const byUrl = new Map();
         // Detail pages first
@@ -1156,7 +1159,7 @@ export class RuleBasedSemanticProvider {
         }
         return this.deduplicateEntities(services);
     }
-    extractProjects(ctx) {
+    async extractProjects(ctx) {
         const projects = [];
         const byUrl = new Map();
         for (const doc of ctx.sourceDocuments) {
@@ -1267,7 +1270,7 @@ export class RuleBasedSemanticProvider {
         }
         return this.deduplicateEntities(projects);
     }
-    extractNews(ctx) {
+    async extractNews(ctx) {
         const news = [];
         const byUrl = new Map();
         for (const doc of ctx.sourceDocuments) {
@@ -1366,7 +1369,7 @@ export class RuleBasedSemanticProvider {
         }
         return this.deduplicateEntities(news);
     }
-    extractVacancies(ctx) {
+    async extractVacancies(ctx) {
         const vacancies = [];
         const byUrl = new Map();
         for (const doc of ctx.sourceDocuments) {
@@ -1432,7 +1435,7 @@ export class RuleBasedSemanticProvider {
         }
         return this.deduplicateEntities(vacancies);
     }
-    extractProducts(ctx) {
+    async extractProducts(ctx) {
         const products = [];
         const byUrl = new Map();
         for (const doc of ctx.sourceDocuments) {
@@ -1498,7 +1501,7 @@ export class RuleBasedSemanticProvider {
         }
         return this.deduplicateEntities(products);
     }
-    extractFacts(ctx) {
+    async extractFacts(ctx) {
         const facts = [];
         const seen = new Set();
         for (const doc of ctx.sourceDocuments) {
@@ -1539,7 +1542,7 @@ export class RuleBasedSemanticProvider {
         }
         return facts;
     }
-    extractRelationships(ctx) {
+    async extractRelationships(ctx) {
         const rels = [];
         const pageMap = ctx.pageClassifications;
         for (const [docId, pc] of pageMap) {

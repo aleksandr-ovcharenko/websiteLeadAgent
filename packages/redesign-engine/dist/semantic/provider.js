@@ -1,4 +1,3 @@
-import { spawnSync } from 'node:child_process';
 import { RuleBasedSemanticProvider, pageCategoryAndSubType } from './ruleBasedProvider.js';
 import { HybridGeminiProvider } from './geminiSemanticProvider.js';
 // Confidence levels used to flag HIGH / MEDIUM / LOW / UNKNOWN quality.
@@ -65,8 +64,8 @@ export class LlmFallbackProvider {
         this.fallbackThreshold = options?.llmFallbackThreshold ?? 0.6;
         this.enabled = Boolean(this.apiKey);
     }
-    classifyPage(ctx) {
-        const ruleResult = this.rule.classifyPage(ctx);
+    async classifyPage(ctx) {
+        const ruleResult = await this.rule.classifyPage(ctx);
         if (ruleResult.confidence >= this.fallbackThreshold)
             return ruleResult;
         if (!this.enabled) {
@@ -97,7 +96,7 @@ Return a JSON object only, with no markdown, no commentary. Fields:
 - confidence: number between 0 and 1
 - evidence: array of exact short substrings (1-4 words) from the visible text above that support your choice
 - reason: one sentence explaining why`;
-        const result = this.callLlm(prompt);
+        const result = await this.callLlm(prompt);
         if (!result)
             return this.fallback(ruleResult, ctx, 'LLM call failed');
         const type = typeof result.type === 'string' ? result.type : undefined;
@@ -126,24 +125,24 @@ Return a JSON object only, with no markdown, no commentary. Fields:
             ],
         };
     }
-    classifyCollection(ctx) {
+    async classifyCollection(ctx) {
         return this.rule.classifyCollection(ctx);
     }
-    classifySection(ctx) {
+    async classifySection(ctx) {
         return this.rule.classifySection(ctx);
     }
-    classifyMedia(ctx) {
+    async classifyMedia(ctx) {
         return this.rule.classifyMedia(ctx);
     }
-    extractCompany(ctx) { return this.rule.extractCompany(ctx); }
-    extractContacts(ctx) { return this.rule.extractContacts(ctx); }
-    extractServices(ctx) { return this.rule.extractServices(ctx); }
-    extractProjects(ctx) { return this.rule.extractProjects(ctx); }
-    extractNews(ctx) { return this.rule.extractNews(ctx); }
-    extractVacancies(ctx) { return this.rule.extractVacancies(ctx); }
-    extractProducts(ctx) { return this.rule.extractProducts(ctx); }
-    extractFacts(ctx) { return this.rule.extractFacts(ctx); }
-    extractRelationships(ctx) { return this.rule.extractRelationships(ctx); }
+    async extractCompany(ctx) { return this.rule.extractCompany(ctx); }
+    async extractContacts(ctx) { return this.rule.extractContacts(ctx); }
+    async extractServices(ctx) { return this.rule.extractServices(ctx); }
+    async extractProjects(ctx) { return this.rule.extractProjects(ctx); }
+    async extractNews(ctx) { return this.rule.extractNews(ctx); }
+    async extractVacancies(ctx) { return this.rule.extractVacancies(ctx); }
+    async extractProducts(ctx) { return this.rule.extractProducts(ctx); }
+    async extractFacts(ctx) { return this.rule.extractFacts(ctx); }
+    async extractRelationships(ctx) { return this.rule.extractRelationships(ctx); }
     fallback(ruleResult, ctx, reason) {
         return {
             ...ruleResult,
@@ -153,26 +152,28 @@ Return a JSON object only, with no markdown, no commentary. Fields:
             ],
         };
     }
-    callLlm(prompt) {
-        const body = JSON.stringify({
+    async callLlm(prompt) {
+        const body = {
             model: this.model,
             temperature: 0,
             messages: [
                 { role: 'system', content: 'You output only valid JSON.' },
                 { role: 'user', content: prompt },
             ],
-        });
+        };
         try {
-            const result = spawnSync('curl', [
-                '-sS', '-m', '12',
-                '-H', 'Content-Type: application/json',
-                '-H', `Authorization: Bearer ${this.apiKey}`,
-                '-d', body,
-                this.apiUrl,
-            ], { encoding: 'utf8', timeout: 15000 });
-            if (result.error || result.status !== 0)
+            const resp = await fetch(this.apiUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${this.apiKey}`,
+                },
+                body: JSON.stringify(body),
+                signal: AbortSignal.timeout(12000),
+            });
+            if (!resp.ok)
                 return null;
-            const raw = JSON.parse(result.stdout || '{}');
+            const raw = await resp.json();
             const content = raw.choices?.[0]?.message?.content;
             if (typeof content !== 'string')
                 return null;
@@ -186,11 +187,15 @@ Return a JSON object only, with no markdown, no commentary. Fields:
     }
 }
 export function createSemanticProvider(options) {
-    if (options?.type === 'gemini' || options?.geminiApiKey) {
-        return new HybridGeminiProvider(options);
+    const opts = options || {};
+    const providerType = opts.type || process.env.SEMANTIC_PROVIDER;
+    const geminiApiKey = opts.geminiApiKey || process.env.GEMINI_API_KEY;
+    const llmApiKey = opts.llmApiKey || opts.openaiApiKey || process.env.OPENAI_API_KEY;
+    if (providerType === 'gemini' || providerType === 'hybrid-gemini' || geminiApiKey) {
+        return new HybridGeminiProvider({ ...opts, type: 'gemini', geminiApiKey });
     }
-    if (options?.type === 'openai' || options?.type === 'llm-fallback' || options?.llmApiKey || options?.openaiApiKey) {
-        return new LlmFallbackProvider(options);
+    if (providerType === 'openai' || providerType === 'llm-fallback' || llmApiKey) {
+        return new LlmFallbackProvider({ ...opts, type: 'llm-fallback', llmApiKey, openaiApiKey: llmApiKey });
     }
     return new RuleBasedSemanticProvider();
 }

@@ -7,3 +7,4 @@ export { generateSite, runCrawl } from './pipeline/index.js';
 export { getPipelineStageLabel } from './pipeline/labels.js';
 export { buildSourceContentGraph, writeSourceContentGraph, loadSourceDocuments } from './semantic/graph.js';
 export { createSemanticProvider } from './semantic/provider.js';
+export { HybridGeminiProvider, GeminiClient, LocalSemanticCache, InMemorySemanticCache, LocalAiDecisionObserver, InMemoryAiDecisionObserver } from './semantic/geminiSemanticProvider.js';
