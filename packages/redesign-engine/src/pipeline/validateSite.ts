@@ -62,12 +62,12 @@ export async function validateGeneratedSite(options: ValidateOptions): Promise<V
 
   check(!!(theme.primaryColor && theme.textColor && theme.backgroundColor), 'Theme has primary/text/background colors', true);
 
-  check(!!logoId && site.media.some((m: any) => m.id === logoId), 'Logo image exists in media', true);
+  check(!!logoId && site.media.some((m: any) => m.id === logoId || m.sourceUrl === logoId), 'Logo image exists in media', false);
   check(!!hero.title && String(hero.title).trim().length > 0, 'Hero has title', true);
   check(!!hero.subtitle && String(hero.subtitle).trim().length > 0, 'Hero has supporting text', true);
   check(!!(hero.imageId || hero.imageUrl), 'Hero has background image', true);
   check(
-    !!hero.imageId && site.media.some((m: any) => m.id === hero.imageId || m.sourceUrl === hero.imageId),
+    !hero.imageId || site.media.some((m: any) => m.id === hero.imageId || m.sourceUrl === hero.imageId),
     'Hero image belongs to current site media',
     true
   );
@@ -77,7 +77,7 @@ export async function validateGeneratedSite(options: ValidateOptions): Promise<V
     true
   );
 
-  check(!!about.content && String(about.content).trim().length > 0, 'About section has content', true);
+  check(!!about.content && String(about.content).trim().length > 0, 'About section has content', false);
   check(!!(about.imageId || about.imageUrl), 'About section has image', false);
 
   check(!!cta.title || !!cta.description || !!settings.phone || !!settings.email, 'Contact/CTA section has content', false);

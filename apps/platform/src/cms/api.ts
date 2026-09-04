@@ -37,7 +37,7 @@ export const api = {
   getHubStats: () => request('/api/hub/stats') as Promise<any>,
 
   // Leads
-  getLeads: (params: { limit?: number; offset?: number; q?: string; sort?: string; manual?: string; websiteStatus?: string; enrichmentStatus?: string; auditStatus?: string; qualificationStatus?: string; discoveryRunId?: string } = {}) => {
+  getLeads: (params: { limit?: number; offset?: number; q?: string; sort?: string; manual?: string; websiteStatus?: string; enrichmentStatus?: string; auditStatus?: string; qualificationStatus?: string; generationStatus?: string; discoveryRunId?: string } = {}) => {
     const qs = new URLSearchParams();
     qs.set('limit', String(params.limit ?? 200));
     qs.set('offset', String(params.offset ?? 0));
@@ -48,6 +48,7 @@ export const api = {
     if (params.enrichmentStatus) qs.set('enrichmentStatus', params.enrichmentStatus);
     if (params.auditStatus) qs.set('auditStatus', params.auditStatus);
     if (params.qualificationStatus) qs.set('qualificationStatus', params.qualificationStatus);
+    if (params.generationStatus) qs.set('generationStatus', params.generationStatus);
     if (params.discoveryRunId) qs.set('discoveryRunId', params.discoveryRunId);
     return request(`/api/leads?${qs.toString()}`) as Promise<{ items: any[]; meta: any }>;
   },
@@ -62,6 +63,8 @@ export const api = {
   // Factory
   getFactoryRuns: (leadId?: string) => request(`/api/factory/runs${leadId ? `?leadId=${encodeURIComponent(leadId)}` : ''}`) as Promise<{ runs: any[] }>,
   getCrawlArtifact: (runId: string) => request(`/api/factory/runs/${runId}/crawl`) as Promise<any>,
+  getSourceDocumentsArtifact: (runId: string) => request(`/api/factory/runs/${runId}/source-documents`) as Promise<any>,
+  getSourceContentGraphArtifact: (runId: string) => request(`/api/factory/runs/${runId}/source-content-graph`) as Promise<any>,
   retryFactoryRun: (runId: string) => request(`/api/factory/runs/${runId}/retry`, { method: 'POST' }) as Promise<any>,
 
   // Discovery

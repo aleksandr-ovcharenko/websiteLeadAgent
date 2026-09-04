@@ -2,16 +2,18 @@ import { writeFile, mkdir, readFile } from 'node:fs/promises';
 import { join, dirname } from 'node:path';
 import { PrismaClient } from '@prisma/client';
 import { crawlSite } from '../crawl/crawlSite.js';
+import { buildSourceDocuments, sourceDocumentToCrawledPage } from '../extract/buildSourceDocuments.js';
 import { extractFromCrawl } from '../extract/extractFromCrawl.js';
 import { importToCms } from '../import/importToCms.js';
 import { validateGeneratedSite } from './validateSite.js';
+import { buildSourceContentGraph } from '../semantic/graph.js';
 import type { CrawlResult } from '../types.js';
 
 function slugify(input: string): string {
   return input
     .toLowerCase()
     .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9а-яё\-]/g, '')
+    .replace(/[^\p{L}\p{N}\-]/gu, '')
     .replace(/--+/g, '-')
     .replace(/^-|-$/g, '')
     .slice(0, 40);
@@ -28,7 +30,14 @@ export interface GenerateOptions {
   leadId: string;
   templateId?: string;
   force?: boolean;
+  /** retry: re-run technical stages without replacing unrelated CMS content; regenerate: replace generated content owned by previous runs */
+  mode?: 'retry' | 'regenerate' | 'reset';
   crawlRunId?: string;
+  /** When true, build source-documents.json and source-content-graph.json and stop before legacy extraction/CMS import (Phase 2A shadow mode). */
+  semanticOnly?: boolean;
+  maxPages?: number;
+  maxDepth?: number;
+  timeoutMs?: number;
   prisma?: PrismaClient;
   onActivity?: ActivityHandler;
 }
@@ -154,6 +163,8 @@ export async function runCrawl(options: RunCrawlOptions) {
 export async function generateSite(options: GenerateOptions) {
   const prisma = options.prisma ?? new PrismaClient();
   const templateId = options.templateId ?? 'construction-modern-v1';
+  const mode = options.mode ?? 'retry';
+  const regenerateContent = mode !== 'retry';
   const onActivity = options.onActivity;
   const emit = async (level: 'INFO' | 'WARN' | 'ERROR', eventType: string, message: string, details?: Record<string, any>) => {
     if (onActivity) {
@@ -202,7 +213,15 @@ export async function generateSite(options: GenerateOptions) {
     }
   } else {
     // Backward compatibility: crawl now and continue.
-    const cr = await runCrawl({ ...options });
+    const cr = await runCrawl({
+      leadId: options.leadId,
+      maxPages: options.maxPages,
+      maxDepth: options.maxDepth,
+      timeoutMs: options.timeoutMs,
+      force: options.force,
+      prisma: options.prisma,
+      onActivity: options.onActivity
+    });
     run = cr.run;
     crawlResult = cr.crawlResult;
     crawlJsonPath = cr.crawlJsonPath;
@@ -230,7 +249,29 @@ export async function generateSite(options: GenerateOptions) {
       data: { redesignStage: 'CONTENT_EXTRACTED' }
     });
 
-    const content = extractFromCrawl(crawled, baseUrl, navigation);
+    // V2: deterministic, DOM/language-agnostic source documents.
+    const sourceDocuments = buildSourceDocuments(crawlResult);
+    const sourceDocumentsJsonPath = join(artifactDir, 'source-documents.json');
+    await writeFile(sourceDocumentsJsonPath, JSON.stringify(sourceDocuments, null, 2));
+
+    // V2 Phase 2A: build the typed semantic content graph in shadow mode.
+    const sourceContentGraph = buildSourceContentGraph({ sourceDocuments, baseUrl });
+    const sourceContentGraphPath = join(artifactDir, 'source-content-graph.json');
+    await writeFile(sourceContentGraphPath, JSON.stringify(sourceContentGraph, null, 2));
+    await emit('INFO', 'FACTORY_SEMANTIC_GRAPH_BUILT', `Semantic graph built (${sourceContentGraph.pages.length} pages, ${sourceContentGraph.services.length} services, ${sourceContentGraph.projects.length} projects, ${sourceContentGraph.news.length} news)`, { sourceContentGraphPath, pages: sourceContentGraph.pages.length, services: sourceContentGraph.services.length, projects: sourceContentGraph.projects.length, news: sourceContentGraph.news.length, warnings: sourceContentGraph.warnings.length });
+
+    if (options.semanticOnly) {
+      await (prisma as any).redesignRun.update({
+        where: { id: run.id },
+        data: { currentCrawl: { homepage: crawlResult.homepage, pageCount: crawled.length, warnings: crawlResult.warnings, sourceContentGraphPath, sourceDocumentsJsonPath } as any, stage: 'CONTENT_EXTRACTED' }
+      });
+      return { leadId: l.id, runId: run.id, sourceDocumentsJsonPath, sourceContentGraphPath, sourceContentGraph };
+    }
+
+    // LEGACY/V1: extract structured content for the current live generator.
+    // This path is intentionally kept multilingual and will be replaced by Phase 2 semantic generation.
+    const crawledPages = sourceDocuments.map(sourceDocumentToCrawledPage);
+    const content = extractFromCrawl(crawledPages, baseUrl, sourceDocuments[0]?.chrome.nav?.primary || crawlResult.navigation || []);
     const contentJsonPath = join(artifactDir, 'content.json');
     await writeFile(contentJsonPath, JSON.stringify(content, null, 2));
     await emit('INFO', 'FACTORY_CONTENT_TRANSFORMED', 'Content extracted and transformed', { pages: content?.pages?.length ?? 0 });
@@ -249,7 +290,7 @@ export async function generateSite(options: GenerateOptions) {
 
     const domain = l.websiteDomain || l.website.replace(/^https?:\/\//, '').replace(/\/$/, '');
 
-    await emit('INFO', 'FACTORY_CMS_IMPORT_STARTED', 'Importing to CMS');
+    await emit('INFO', 'FACTORY_CMS_IMPORT_STARTED', 'Importing to CMS', { mode, regenerateContent, runId: run.id });
     const { siteId, demoVariantId } = await importToCms({
       leadId: l.id,
       lead: { id: l.id, companyName: l.companyName, phone: l.phone, address: l.address },
@@ -259,7 +300,9 @@ export async function generateSite(options: GenerateOptions) {
       templateId,
       content,
       artifactDir,
-      storageBaseUrl: '/redesign-media'
+      storageBaseUrl: '/redesign-media',
+      runId: run.id,
+      regenerateContent
     }, prisma);
     await emit('INFO', 'FACTORY_CMS_IMPORT_COMPLETED', 'CMS import completed', { siteId, demoVariantId, previewSlug });
 

@@ -15,6 +15,7 @@ async function main() {
   const result = await generateSite({
     leadId,
     crawlRunId: crawlRun.id,
+    mode: 'regenerate',
     prisma,
     onActivity: (event) => console.log('activity', event.type, event.message || ''),
   });

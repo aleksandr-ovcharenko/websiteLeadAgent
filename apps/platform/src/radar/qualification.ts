@@ -87,7 +87,8 @@ export function computeQualification(lead: any, optimistic: Record<string, 'RUNN
   const auditReason = lead.auditErrorMessage;
   const screenshotsStatus = optimistic.audit || (lead.auditStatus === 'SUCCESS' ? 'SUCCESS' : (lead.auditStatus === 'FAILED' ? 'FAILED' : 'PENDING'));
   const screenshotsReason = lead.auditStatus === 'FAILED' ? lead.auditErrorMessage : undefined;
-  const rawLighthouse = lead.lighthouseReport ? 'SUCCESS' : (lead.auditStatus === 'SUCCESS' ? 'PENDING' : 'PENDING');
+  const rawLighthouse = lead.lighthouseReport?.status || (lead.auditStatus === 'SUCCESS' ? 'PENDING' : 'PENDING');
+  const lighthouseReason = lead.lighthouseReport?.error?.message || lead.lighthouseReport?.error;
   const visual = lead.visualAnalysis || {};
   const rawAi = visual.status || 'PENDING';
   const rawScore = lead.scoreStatus || 'PENDING';
@@ -119,7 +120,13 @@ export function computeQualification(lead: any, optimistic: Record<string, 'RUNN
       status = 'WAITING';
     }
     const waitingFor = status === 'WAITING' ? incompleteBefore.map(s => OVERRIDES[s]) : undefined;
-    const reason = id === 'audit' ? auditReason : id === 'screenshots' ? screenshotsReason : id === 'ai' ? visual.errorMessage : id === 'scoring' ? (lead.scoreDetailsV2 as any)?.error : websiteReason;
+    const reason =
+      id === 'audit' ? auditReason :
+      id === 'screenshots' ? screenshotsReason :
+      id === 'lighthouse' ? lighthouseReason :
+      id === 'ai' ? visual.errorMessage :
+      id === 'scoring' ? (lead.scoreDetailsV2 as any)?.error :
+      websiteReason;
     return { id, label, status, reason, waitingFor };
   });
 

@@ -3,11 +3,31 @@ import { api } from '../cms/api';
 import { Button } from '../cms/ui';
 import { OperationConsole } from './OperationConsole';
 import RadarStats from './RadarStats';
-import RadarFilters, { Filters } from './RadarFilters';
+import RadarFilters, { Filters, PrimaryView, defaultFilters } from './RadarFilters';
 import LeadDetail from './LeadDetail';
 import { LeadScoreRing } from './RadarScoreRing';
 
 type Mode = 'all' | 'audit' | 'selected';
+
+function getInitialState(mode: Mode): { view: PrimaryView; filters: Filters } {
+  const params = new URLSearchParams(window.location.search);
+  const viewParam = params.get('view');
+  const validViews: PrimaryView[] = ['all', 'review', 'generation'];
+  const view = validViews.includes(viewParam as PrimaryView)
+    ? (viewParam as PrimaryView)
+    : mode === 'selected'
+      ? 'generation'
+      : 'all';
+  const filters: Filters = { ...defaultFilters[view] };
+  if (mode === 'audit' && !validViews.includes(viewParam as PrimaryView)) {
+    filters.qualificationStatus = 'PENDING';
+  }
+  if (mode === 'selected' && !validViews.includes(viewParam as PrimaryView)) {
+    filters.manual = 'GOOD';
+    filters.generationStatus = 'SELECTED';
+  }
+  return { view, filters };
+}
 
 function statusBadge(status?: string | null, type: 'audit' | 'lighthouse' | 'ai' = 'audit') {
   const s = status || 'PENDING';
@@ -17,38 +37,32 @@ function statusBadge(status?: string | null, type: 'audit' | 'lighthouse' | 'ai'
 }
 
 export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
+  const initial = getInitialState(mode);
   const [leads, setLeads] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [discoveryRunId, setDiscoveryRunId] = useState('');
-  const [quick, setQuick] = useState(mode === 'audit' ? 'needs_audit' : mode === 'selected' ? 'selected' : 'ready_for_review');
-  const [filters, setFilters] = useState<Filters>({ q: '', sort: 'v2_desc', websiteStatus: '', auditStatus: '', manual: '' });
+  const [view, setView] = useState<PrimaryView>(initial.view);
+  const [filters, setFilters] = useState<Filters>(initial.filters);
+  const [stats, setStats] = useState<any>(null);
   const [selectedLead, setSelectedLead] = useState<any | null>(null);
   const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [activeTitle, setActiveTitle] = useState('');
   const [qualifying, setQualifying] = useState(false);
 
+  const counts = stats
+    ? { all: stats.total ?? 0, review: stats.readyForReview ?? 0, generation: stats.readyForGeneration ?? 0 }
+    : { all: 0, review: 0, generation: 0 };
+
   const getParams = () => {
-    const p: any = { limit: 200, sort: filters.sort };
+    const p: any = { limit: 200, sort: filters.sort, qualificationStatus: filters.qualificationStatus || 'ALL' };
     if (filters.q) p.q = filters.q;
     if (filters.websiteStatus) p.websiteStatus = filters.websiteStatus;
-    if (filters.auditStatus) p.auditStatus = filters.auditStatus;
     if (filters.manual) p.manual = filters.manual;
+    if (filters.generationStatus) p.generationStatus = filters.generationStatus;
     if (discoveryRunId) p.discoveryRunId = discoveryRunId;
-    if (quick === 'all') { p.qualificationStatus = 'ALL'; p.websiteStatus = 'FOUND'; }
-    if (quick === 'qualification_pending') p.qualificationStatus = 'PENDING';
-    if (quick === 'ready_for_review') p.qualificationStatus = 'READY';
-    if (quick === 'failed') p.qualificationStatus = 'FAILED';
-    if (quick === 'no_website') { p.qualificationStatus = 'ALL'; p.websiteStatus = 'NOT_FOUND'; }
-    if (quick === 'needs_audit') p.qualificationStatus = 'PENDING';
-    if (quick === 'needs_ai') p.qualificationStatus = 'PENDING';
-    if (quick === 'good') { p.qualificationStatus = 'READY'; p.manual = 'GOOD'; }
-    if (quick === 'unsure') { p.qualificationStatus = 'READY'; p.manual = 'UNSURE'; }
-    if (quick === 'bad') { p.qualificationStatus = 'READY'; p.manual = 'BAD'; }
-    if (quick === 'selected') { p.qualificationStatus = 'ALL'; p.manual = 'GOOD'; }
-    if (quick === 'generated') { p.qualificationStatus = 'ALL'; p.websiteStatus = 'FOUND'; }
     return p;
   };
 
@@ -78,11 +92,29 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
     load();
     const interval = setInterval(() => { if (mounted) refresh(true); }, 3000);
     return () => { mounted = false; clearInterval(interval); };
-  }, [mode, discoveryRunId, filters.q, filters.websiteStatus, filters.auditStatus, filters.manual, quick, filters.sort]);
+  }, [view, discoveryRunId, filters.q, filters.websiteStatus, filters.qualificationStatus, filters.manual, filters.generationStatus, filters.sort]);
 
-  const handleQuick = (key: string) => {
-    setQuick(key);
-    setFilters({ ...filters, websiteStatus: '', auditStatus: '', manual: '', q: '' });
+  useEffect(() => {
+    let mounted = true;
+    const loadStats = async () => {
+      try {
+        const s = await api.getLeadStats(discoveryRunId || undefined);
+        if (mounted) setStats(s);
+      } catch (e: any) {
+        // stats are non-fatal; the list fetch will surface real errors
+      }
+    };
+    loadStats();
+    const interval = setInterval(loadStats, 5000);
+    return () => { mounted = false; clearInterval(interval); };
+  }, [discoveryRunId]);
+
+  const handleView = (v: PrimaryView) => {
+    setView(v);
+    setFilters(defaultFilters[v]);
+    const url = new URL(window.location.href);
+    url.searchParams.set('view', v);
+    window.history.replaceState(null, '', url.toString());
   };
 
   function startOperation(operationId: string, input: Record<string, any> = {}, lead?: any) {
@@ -120,12 +152,10 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
       .catch((e) => { setError(e.message || 'Select failed'); throw e; });
   }
 
-  const headers = { all: 'Leads', audit: 'Audit queue', selected: 'Selected for redesign' };
-
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
       <div className="bg-white border-b border-[#e5e3df] px-6 h-[52px] flex items-center justify-between shrink-0">
-        <h1 className="text-[14px] font-semibold text-[#1c1917]">{headers[mode]}</h1>
+        <h1 className="text-[14px] font-semibold text-[#1c1917]">Leads</h1>
         <div className="flex items-center gap-2">
           {refreshing && <span className="text-[11px] text-[#a8a29e] font-mono">Updating…</span>}
           <Button size="sm" variant="secondary" onClick={() => refresh(false)}>Refresh</Button>
@@ -135,7 +165,13 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
       <div className={`p-6 ${selectedLead ? 'pr-[420px]' : ''}`}>
         {error && <div className="mb-4 text-[12px] text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
         <RadarStats discoveryRunId={discoveryRunId} onRunChange={setDiscoveryRunId} onQualify={qualifyRun} qualifying={qualifying} />
-        <RadarFilters filters={filters} onChange={(f) => setFilters({ ...filters, ...f })} quick={quick} onQuick={handleQuick} />
+        <RadarFilters
+          filters={filters}
+          onChange={(f) => setFilters({ ...filters, ...f })}
+          view={view}
+          onView={handleView}
+          counts={counts}
+        />
 
         {loading && <div className="text-[13px] text-[#a8a29e]">Loading leads…</div>}
         {!loading && leads.length === 0 && <div className="text-[13px] text-[#a8a29e]">No leads match the filter.</div>}

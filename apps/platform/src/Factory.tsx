@@ -96,6 +96,60 @@ function StageRow({ stage }: { stage: { name: string; status: 'done' | 'running'
   )
 }
 
+function ArtifactPanel({ runId }: { runId: string }) {
+  const [tab, setTab] = useState<'crawl' | 'source' | 'semantic'>('source')
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  useEffect(() => {
+    setLoading(true)
+    setError(null)
+    const fetcher =
+      tab === 'crawl'
+        ? api.getCrawlArtifact
+        : tab === 'semantic'
+        ? api.getSourceContentGraphArtifact
+        : api.getSourceDocumentsArtifact
+    fetcher(runId)
+      .then((json) => { setData(json); setLoading(false) })
+      .catch((e: any) => { setError(e?.message || 'Failed to load artifact'); setLoading(false) })
+  }, [runId, tab])
+
+  return (
+    <div className="px-5 py-4 border-b border-gray-100">
+      <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Artifacts</p>
+      <div className="flex gap-2 mb-2">
+        <button
+          onClick={() => setTab('crawl')}
+          className={`text-[11px] px-2 py-1 rounded border ${tab === 'crawl' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+        >
+          crawl.json
+        </button>
+        <button
+          onClick={() => setTab('source')}
+          className={`text-[11px] px-2 py-1 rounded border ${tab === 'source' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+        >
+          source-documents.json
+        </button>
+        <button
+          onClick={() => setTab('semantic')}
+          className={`text-[11px] px-2 py-1 rounded border ${tab === 'semantic' ? 'bg-emerald-50 border-emerald-200 text-emerald-700' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+        >
+          source-content-graph.json
+        </button>
+      </div>
+      {loading && <p className="text-[11px] text-gray-400">Loading…</p>}
+      {error && <p className="text-[11px] text-red-600">{error}</p>}
+      {!loading && !error && data && (
+        <pre className="text-[10px] text-gray-600 bg-gray-50 border border-gray-100 rounded p-2 overflow-auto max-h-[260px]">
+          {JSON.stringify(data, null, 2)}
+        </pre>
+      )}
+    </div>
+  )
+}
+
 interface FactoryProps {
   onNavigate: (area: ProductArea) => void
 }
@@ -284,6 +338,8 @@ export default function Factory({ onNavigate }: FactoryProps) {
                 <OperationConsole runId={activeRunId} title={activeTitle} onClose={() => setActiveRunId(null)} />
               </div>
             )}
+
+            <ArtifactPanel runId={selectedRun.id} />
 
             <div className="px-5 py-4">
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Pipeline stages</p>

@@ -52,6 +52,7 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
   const enrichmentStatus = typeof req.query.enrichmentStatus === 'string' ? req.query.enrichmentStatus : '';
   const auditStatus = typeof req.query.auditStatus === 'string' ? req.query.auditStatus : '';
   const qualificationStatus = typeof req.query.qualificationStatus === 'string' ? req.query.qualificationStatus : 'READY';
+  const generationStatus = typeof req.query.generationStatus === 'string' ? req.query.generationStatus : '';
   const includeExcluded = req.query.includeExcluded === '1';
   const q = typeof req.query.q === 'string' ? req.query.q.trim() : '';
   const sort = typeof req.query.sort === 'string' ? req.query.sort : 'lead_desc';
@@ -132,7 +133,7 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
   const readyForReviewWhere: any = {
     websiteStatus: 'FOUND',
     auditStatus: 'SUCCESS',
-    lighthouseReport: { isNot: null },
+    lighthouseReport: { status: 'SUCCESS' },
     visualAnalysis: { status: 'SUCCESS' },
     scoreStatus: 'SUCCESS',
   };
@@ -148,6 +149,22 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
       { scoreStatus: 'FAILED' },
       { visualAnalysis: { status: 'FAILED' } },
     ];
+  }
+
+  const generationStageMap: Record<string, string[]> = {
+    NOT_SELECTED: ['NOT_SELECTED'],
+    SELECTED: ['SELECTED_FOR_REDESIGN'],
+    GENERATING: ['CRAWL_READY', 'CONTENT_EXTRACTED', 'CONTENT_TRANSFORMED', 'CMS_IMPORTED', 'SITE_RENDERED', 'AUDIT_DONE'],
+    GENERATED: ['DEMO_GENERATED', 'DEMO_APPROVED', 'READY_TO_CONTACT'],
+    FAILED: ['CRAWL_FAILED'],
+  };
+  if (generationStatus && generationStatus !== 'ALL') {
+    if (generationStatus === 'READY_FOR_GENERATION') {
+      where.manualReviewStatus = 'GOOD';
+      where.redesignStage = { notIn: ['NOT_SELECTED'] };
+    } else if (generationStageMap[generationStatus]) {
+      where.redesignStage = { in: generationStageMap[generationStatus] };
+    }
   }
 
   if (discoveryRunId) {
@@ -231,6 +248,10 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
       },
       lighthouseReport: {
         select: {
+          status: true,
+          error: true,
+          attempts: true,
+          durationMs: true,
           performance: true,
           seo: true,
           accessibility: true,
@@ -281,7 +302,7 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
     readyForReview: !!(
       l.websiteStatus === 'FOUND' &&
       l.auditStatus === 'SUCCESS' &&
-      l.lighthouseReport &&
+      l.lighthouseReport?.status === 'SUCCESS' &&
       l.visualAnalysis?.status === 'SUCCESS' &&
       l.scoreStatus === 'SUCCESS'
     ),
@@ -300,7 +321,7 @@ app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => 
   const readyForReviewWhere: any = {
     websiteStatus: 'FOUND',
     auditStatus: 'SUCCESS',
-    lighthouseReport: { isNot: null },
+    lighthouseReport: { status: 'SUCCESS' },
     visualAnalysis: { status: 'SUCCESS' },
     scoreStatus: 'SUCCESS',
   };
@@ -319,6 +340,7 @@ app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => 
     good,
     selected,
     generated,
+    readyForGeneration,
     failed
   ] = await Promise.all([
     prisma.lead.count({ where }),
@@ -326,7 +348,7 @@ app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => 
     prisma.lead.count({ where: { ...where, websiteStatus: { in: ['UNKNOWN', 'NOT_FOUND'] } } }),
     prisma.lead.count({ where: { ...where, enrichmentStatus: 'SUCCESS' } }),
     prisma.lead.count({ where: { ...where, auditStatus: 'SUCCESS' } }),
-    prisma.lead.count({ where: { ...where, lighthouseReport: { isNot: null } } }),
+    prisma.lead.count({ where: { ...where, lighthouseReport: { status: 'SUCCESS' } } }),
     prisma.lead.count({ where: { ...where, visualAnalysis: { status: 'SUCCESS' } } }),
     prisma.lead.count({ where: { ...where, scoreStatus: 'SUCCESS' } }),
     prisma.lead.count({ where: { ...where, ...readyForReviewWhere } }),
@@ -335,6 +357,7 @@ app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => 
     prisma.lead.count({ where: { ...where, ...readyForReviewWhere, manualReviewStatus: 'GOOD' } }),
     prisma.lead.count({ where: { ...where, redesignStage: 'SELECTED_FOR_REDESIGN' } }),
     prisma.lead.count({ where: { ...where, site: { isNot: null } } }),
+    prisma.lead.count({ where: { ...where, manualReviewStatus: 'GOOD', redesignStage: { notIn: ['NOT_SELECTED'] } } }),
     prisma.lead.count({ where: { ...where, auditStatus: 'FAILED' } })
   ]);
   res.json({
@@ -352,6 +375,7 @@ app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => 
     good,
     selected,
     generated,
+    readyForGeneration,
     failed
   });
 });
@@ -389,7 +413,7 @@ app.post('/api/leads/:leadId/generate', requireSuperAdmin, async (req: Request, 
   const force = req.body?.force === true;
   const crawlRunId = typeof req.body?.crawlRunId === 'string' ? req.body.crawlRunId : undefined;
   try {
-    const result = await generateSite({ leadId, templateId: template, force, crawlRunId, prisma });
+    const result = await generateSite({ leadId, templateId: template, force, crawlRunId, mode: 'regenerate', prisma });
     res.json({ ok: true, ...result });
   } catch (err: any) {
     res.status(400).json({ error: err?.message || 'generation_failed' });
@@ -413,14 +437,14 @@ app.post('/api/leads/:leadId/review', requireAuth, async (req: Request, res: Res
       websiteStatus: true,
       auditStatus: true,
       scoreStatus: true,
-      lighthouseReport: { select: { id: true } },
+      lighthouseReport: { select: { id: true, status: true, error: true, attempts: true, durationMs: true } },
       visualAnalysis: { select: { status: true } },
     }
   });
   const isReadyForReview = !!(
     lead?.websiteStatus === 'FOUND' &&
     lead?.auditStatus === 'SUCCESS' &&
-    lead?.lighthouseReport &&
+    lead?.lighthouseReport?.status === 'SUCCESS' &&
     lead?.visualAnalysis?.status === 'SUCCESS' &&
     lead?.scoreStatus === 'SUCCESS'
   );

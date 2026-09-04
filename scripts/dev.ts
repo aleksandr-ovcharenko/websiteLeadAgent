@@ -151,15 +151,39 @@ async function waitForHealth(port: number, path: string, label: string, timeout 
   throw new Error(`${label} did not become ready on port ${port}`);
 }
 
+function installChromium(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    console.log('[PLAYWRIGHT] Installing Chromium...');
+    const cp = spawn('npx', ['playwright', 'install', 'chromium'], {
+      cwd: process.cwd(),
+      env: process.env,
+      stdio: 'inherit'
+    });
+    cp.on('error', reject);
+    cp.on('exit', (code) => resolve(code ?? 1));
+  });
+}
+
 async function checkChromium() {
   try {
     const executable = chromium.executablePath();
     if (!existsSync(executable)) throw new Error('missing');
     console.log(`[PLAYWRIGHT] Chromium found at ${executable}`);
-  } catch (err) {
-    console.error('\nPlaywright Chromium is missing.');
-    console.error('Run: npm run setup:browsers\n');
-    process.exit(1);
+  } catch {
+    console.log('[PLAYWRIGHT] Chromium is missing, installing...');
+    const code = await installChromium();
+    if (code !== 0) {
+      console.error('\n[PLAYWRIGHT] Chromium installation failed.');
+      console.error('Run manually: npm run setup:browsers\n');
+      process.exit(1);
+    }
+    // Re-check after installation
+    const executable = chromium.executablePath();
+    if (!existsSync(executable)) {
+      console.error('\n[PLAYWRIGHT] Chromium still not found after install.');
+      process.exit(1);
+    }
+    console.log(`[PLAYWRIGHT] Chromium installed at ${executable}`);
   }
 }
 

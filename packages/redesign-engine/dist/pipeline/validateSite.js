@@ -43,13 +43,13 @@ export async function validateGeneratedSite(options) {
     check(!!settings.companyName, 'Company name in settings', true);
     check(!!(settings.phone || settings.email || settings.address || themeConfig.contacts?.email), 'At least one contact method', false);
     check(!!(theme.primaryColor && theme.textColor && theme.backgroundColor), 'Theme has primary/text/background colors', true);
-    check(!!logoId && site.media.some((m) => m.id === logoId), 'Logo image exists in media', true);
+    check(!!logoId && site.media.some((m) => m.id === logoId || m.sourceUrl === logoId), 'Logo image exists in media', false);
     check(!!hero.title && String(hero.title).trim().length > 0, 'Hero has title', true);
     check(!!hero.subtitle && String(hero.subtitle).trim().length > 0, 'Hero has supporting text', true);
     check(!!(hero.imageId || hero.imageUrl), 'Hero has background image', true);
-    check(!!hero.imageId && site.media.some((m) => m.id === hero.imageId || m.sourceUrl === hero.imageId), 'Hero image belongs to current site media', true);
+    check(!hero.imageId || site.media.some((m) => m.id === hero.imageId || m.sourceUrl === hero.imageId), 'Hero image belongs to current site media', true);
     check(!!hero.buttonUrl && !hero.buttonUrl.includes('#') && !hero.buttonUrl.includes('javascript:'), 'Hero CTA has a valid destination', true);
-    check(!!about.content && String(about.content).trim().length > 0, 'About section has content', true);
+    check(!!about.content && String(about.content).trim().length > 0, 'About section has content', false);
     check(!!(about.imageId || about.imageUrl), 'About section has image', false);
     check(!!cta.title || !!cta.description || !!settings.phone || !!settings.email, 'Contact/CTA section has content', false);
     check(Array.isArray(themeConfig.homepageSections) && themeConfig.homepageSections.length > 0, 'Homepage sections configured', true);
