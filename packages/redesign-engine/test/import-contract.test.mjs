@@ -15,9 +15,9 @@ describe('CMS import contract regressions', () => {
   });
 
   it('generic page headings are rejected as company name', () => {
-    assert.equal(isGenericCompanyName('Контакты'), true);
-    assert.equal(isGenericCompanyName('О компании'), true);
-    assert.equal(isGenericCompanyName('Мапид, центральный офис'), false);
+    assert.equal(isGenericCompanyName('Contacts'), true);
+    assert.equal(isGenericCompanyName('About us'), true);
+    assert.equal(isGenericCompanyName('Acme, central office'), false);
   });
 
   it('SiteSettingsCreateInput supports identity fields', () => {

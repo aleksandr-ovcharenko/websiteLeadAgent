@@ -15,8 +15,12 @@ function normalizeUrl(base, href) {
         }
         if (!u.search)
             u.search = '';
-        // Canonicalize /index.html and /index.htm to the directory root, then strip trailing slash.
+        const hrefHadTrailingSlash = href.endsWith('/') || (href === '' ? false : false);
+        const pathnameHadTrailingSlash = u.pathname.endsWith('/');
+        // Canonicalize /index.html and /index.htm to the directory root, preserving trailing slash when present.
         u.pathname = u.pathname.replace(/\/index\.html?$/i, '').replace(/\/+$/, '') || '/';
+        if (hrefHadTrailingSlash && pathnameHadTrailingSlash && u.pathname !== '/')
+            u.pathname += '/';
         return u.toString().replace(/\?$/, '');
     }
     catch {
@@ -33,32 +37,51 @@ function slugFromUrl(url) {
         return 'index';
     }
 }
-const DEFAULT_SKIP = [
+const BLOCKED_PATH_SEGMENTS = new Set([
     'login', 'admin', 'wp-admin', 'cart', 'checkout', 'privacy',
-    'cookie', 'terms', 'search', 'wp-login', '/wp-content/',
-    'authe', 'logout', 'account', '/pdf', '.pdf', '.jpg', '.png', '.zip',
-    'print', '?replytocom', '/comment-', 'feed=', 'action=', 'share=',
-    'utm_', 'fbclid', 'gclid', 'mailto:', 'tel:', 'javascript:'
-];
-const ALLOWED_EXTENSIONS = new Set(['.html', '.htm', '']);
-function shouldCrawlUrl(nu) {
-    const lower = nu.toLowerCase();
-    const path = new URL(nu).pathname.toLowerCase();
-    if (DEFAULT_SKIP.some((s) => lower.includes(s.toLowerCase())))
+    'cookie', 'cookies', 'terms', 'search', 'wp-login', 'logout',
+    'account', 'register', 'auth', 'authentication', 'authorization',
+    'wp-content', 'wp-includes', 'wp-json', 'xmlrpc', 'feed', 'comments', 'trackback'
+]);
+const BLOCKED_FILE_EXTENSIONS = new Set([
+    '.pdf', '.jpg', '.jpeg', '.png', '.gif', '.svg', '.webp', '.ico',
+    '.zip', '.rar', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+    '.mp3', '.mp4', '.avi', '.mov', '.css', '.js', '.xml', '.rss', '.json'
+]);
+const BLOCKED_QUERY_KEYS = ['fbclid', 'gclid', 'action', 'feed', 'share', 'replytocom'];
+export function shouldCrawlUrl(nu) {
+    try {
+        const u = new URL(nu);
+        if (u.protocol !== 'http:' && u.protocol !== 'https:')
+            return false;
+        for (const key of u.searchParams.keys()) {
+            const kl = key.toLowerCase();
+            if (kl.startsWith('utm_') || BLOCKED_QUERY_KEYS.includes(kl))
+                return false;
+        }
+        const pathLower = u.pathname.toLowerCase();
+        const segments = pathLower.split('/').filter(Boolean);
+        if (segments.some((seg) => BLOCKED_PATH_SEGMENTS.has(seg)))
+            return false;
+        const extMatch = pathLower.match(/\.([a-z0-9]+)(?:\?.*)?$/);
+        if (extMatch) {
+            const ext = `.${extMatch[1]}`;
+            if (BLOCKED_FILE_EXTENSIONS.has(ext))
+                return false;
+        }
+        if (/\/(print|feed|comments|trackback)(?:\/|$)/i.test(pathLower))
+            return false;
+        return true;
+    }
+    catch {
         return false;
-    const dot = path.lastIndexOf('.');
-    const slash = path.lastIndexOf('/');
-    const ext = dot > slash && dot > 0 ? path.slice(dot) : '';
-    if (ext && !ALLOWED_EXTENSIONS.has(ext))
-        return false;
-    return true;
+    }
 }
-const skipSet = DEFAULT_SKIP;
 function cleanLabel(text) {
     return text.replace(/\s+/g, ' ').trim().slice(0, 60);
 }
 async function handleCookieConsent(page) {
-    const labels = ['accept', 'agree', 'ok', 'allow', 'принять', 'согласен', 'continue'];
+    const labels = ['accept', 'agree', 'ok', 'allow', 'continue', 'yes'];
     for (const label of labels) {
         try {
             const el = page.getByRole('button', { name: new RegExp(label, 'i') }).first();
@@ -156,27 +179,17 @@ export async function crawlSite(options) {
     const baseUrl = normalizeUrl(options.baseUrl, options.baseUrl) ?? options.baseUrl;
     const browser = await chromium.launch({
         headless: true,
+        executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
         args: ['--ignore-certificate-errors', '--ignore-certificate-errors-spki-list', '--no-sandbox', '--disable-gpu']
     });
     const seen = new Set();
-    const queue = [{ url: baseUrl, depth: 0, priority: 0 }];
+    const buckets = Array.from({ length: maxDepth + 1 }, () => []);
     const pages = [];
     const allHeaderLinks = [];
     const allFooterLinks = [];
     const warnings = [];
     const skipped = [];
-    // Always probe the origin root with the highest priority so homepage discovery has a real homepage candidate.
-    try {
-        const origin = new URL(baseUrl).origin + '/';
-        const originRoot = normalizeUrl(baseUrl, origin);
-        if (originRoot && originRoot !== baseUrl) {
-            queue.push({ url: originRoot, depth: 0, priority: -100 });
-        }
-    }
-    catch {
-        warnings.push('Could not derive origin root from baseUrl');
-    }
-    function enqueue(nu, depth, priority, source) {
+    function enqueue(nu, depth, priority, _source) {
         if (seen.has(nu))
             return;
         if (depth > maxDepth) {
@@ -187,9 +200,20 @@ export async function crawlSite(options) {
             skipped.push({ url: nu, reason: 'blocked_by_rules' });
             return;
         }
-        queue.push({ url: nu, depth, priority });
-        // Sort so navigation/sitemap links are crawled first, then by depth.
-        queue.sort((a, b) => a.priority - b.priority || a.depth - b.depth);
+        seen.add(nu);
+        buckets[depth].push({ url: nu, depth, priority });
+    }
+    // Seed base URL at depth 0 and origin root with the highest priority for homepage discovery.
+    enqueue(baseUrl, 0, 0, 'body');
+    try {
+        const origin = new URL(baseUrl).origin + '/';
+        const originRoot = normalizeUrl(baseUrl, origin);
+        if (originRoot && originRoot !== baseUrl) {
+            enqueue(originRoot, 0, -100, 'body');
+        }
+    }
+    catch {
+        warnings.push('Could not derive origin root from baseUrl');
     }
     // Seed from sitemap up front.
     let sitemap = [];
@@ -202,11 +226,19 @@ export async function crawlSite(options) {
     }
     catch { }
     try {
-        while (queue.length > 0 && pages.length < maxPages) {
-            const { url, depth } = queue.shift();
-            if (seen.has(url))
-                continue;
-            seen.add(url);
+        while (pages.length < maxPages) {
+            let next;
+            for (let d = 0; d <= maxDepth; d++) {
+                const bucket = buckets[d];
+                if (!bucket.length)
+                    continue;
+                bucket.sort((a, b) => a.priority - b.priority);
+                next = bucket.shift();
+                break;
+            }
+            if (!next)
+                break;
+            const { url, depth } = next;
             const context = await browser.newContext({ userAgent: 'Mozilla/5.0' });
             const page = await context.newPage();
             try {
@@ -218,7 +250,8 @@ export async function crawlSite(options) {
                 }
                 await handleCookieConsent(page);
                 await page.waitForTimeout(200);
-                const data = await page.evaluate((baseHref) => {
+                const baseOrigin = new URL(baseUrl).origin;
+                const data = await page.evaluate(({ baseHref, baseOrigin: baseOriginStr }) => {
                     function cleanLabel(text) {
                         return text.replace(/\s+/g, ' ').trim().slice(0, 60);
                     }
@@ -236,7 +269,7 @@ export async function crawlSite(options) {
                             }
                             if (!u.search)
                                 u.search = '';
-                            u.pathname = u.pathname.replace(/\/$/, '') || '/';
+                            u.pathname = u.pathname.replace(/\/index\.html?$/i, '').replace(/\/+$/, '') || '/';
                             return u.toString().replace(/\?$/, '');
                         }
                         catch {
@@ -334,26 +367,95 @@ export async function crawlSite(options) {
                             return true;
                         });
                     }
+                    function isHomeLink(href) {
+                        if (!href || href === '#' || href.startsWith('javascript:') || href.startsWith('mailto:') || href.startsWith('tel:'))
+                            return false;
+                        const nu = normalizeUrl(baseHref, href);
+                        if (!nu)
+                            return false;
+                        try {
+                            const u = new URL(nu);
+                            const base = new URL(baseHref);
+                            return u.pathname === '/' || nu === baseOriginStr + '/' || u.href === base.href || u.href === baseOriginStr + '/';
+                        }
+                        catch {
+                            return false;
+                        }
+                    }
+                    function isUtilityImage(src, alt, cls, id, href) {
+                        const hay = `${src} ${alt} ${cls} ${id} ${href}`.toLowerCase();
+                        return /\b(flag|flags|translate|gtranslate|weglot|wpml|lang|language|currency|search|cart|basket|user|account|profile|social|icon|icons|share|menu|hamburger|close|expand|dropdown)\b/.test(hay) ||
+                            /cdn\.gtranslate\.net|translate\.google|weglot|wpml\.org/.test(src);
+                    }
+                    function logoScore(img, baseHref) {
+                        const src = resolveSrc(img.getAttribute('src') || '');
+                        const alt = (img.getAttribute('alt') || '').toLowerCase();
+                        const cls = (img.getAttribute('class') || '').toLowerCase();
+                        const id = (img.getAttribute('id') || '').toLowerCase();
+                        const link = img.closest('a[href]');
+                        const href = link ? normalizeUrl(baseHref, link.getAttribute('href') || '') || '' : '';
+                        if (isUtilityImage(src, alt, cls, id, href))
+                            return -1000;
+                        let score = 0;
+                        if (cls.includes('logo') || alt.includes('logo') || src.includes('logo') || id.includes('logo'))
+                            score += 50;
+                        if (link && isHomeLink(link.getAttribute('href') || ''))
+                            score += 20;
+                        if (src.endsWith('.svg'))
+                            score += 10;
+                        const w = img.naturalWidth || img.width || 0;
+                        const h = img.naturalHeight || img.height || 0;
+                        if (w > 0 && w < 260 && h > 0 && h < 140)
+                            score += 5;
+                        if (w > 0 && h > 0 && w / h > 1.2 && w / h < 5)
+                            score += 3;
+                        try {
+                            if (new URL(src, baseHref).hostname !== new URL(baseHref).hostname)
+                                score -= 15;
+                        }
+                        catch { }
+                        return score;
+                    }
                     function extractLogo() {
-                        const header = document.querySelector('header');
+                        const header = document.querySelector('header, [role="banner"]');
                         const nav = document.querySelector('nav, [role="navigation"]');
                         const area = header || nav;
+                        const images = area ? Array.from(area.querySelectorAll('img')) : Array.from(document.querySelectorAll('header img, nav img'));
+                        let best = null;
+                        for (const img of images) {
+                            const score = logoScore(img, baseHref);
+                            if (score < 0)
+                                continue;
+                            if (!best || score > best.score)
+                                best = { img, score };
+                        }
                         let src = null;
                         let href = null;
-                        if (area) {
-                            const logoImg = area.querySelector('img[alt*="logo" i], img[class*="logo" i], a[href="/"] img, a[href="./"] img');
-                            if (logoImg?.src)
-                                src = new URL(logoImg.getAttribute('src') || logoImg.src, baseHref).toString();
-                            const logoLink = logoImg?.closest('a[href]');
-                            if (logoLink?.href)
-                                href = normalizeUrl(baseHref, logoLink.getAttribute('href') || logoLink.href);
+                        if (best) {
+                            src = resolveSrc(best.img.getAttribute('src') || best.img.src);
+                            const link = best.img.closest('a[href]');
+                            if (link)
+                                href = normalizeUrl(baseHref, link.getAttribute('href') || '') || normalizeUrl(baseHref, link.href);
+                        }
+                        else if (area) {
+                            // Last resort: first image in header/nav that links internally and is not a utility icon.
+                            const firstLinked = Array.from(area.querySelectorAll('a[href] img')).find((img) => {
+                                const a = img.closest('a[href]');
+                                return a && normalizeUrl(baseHref, a.getAttribute('href') || '') && logoScore(img, baseHref) >= -5;
+                            });
+                            if (firstLinked) {
+                                src = resolveSrc(firstLinked.getAttribute('src') || firstLinked.src);
+                                const link = firstLinked.closest('a[href]');
+                                if (link)
+                                    href = normalizeUrl(baseHref, link.getAttribute('href') || '') || normalizeUrl(baseHref, link.href);
+                            }
                         }
                         if (!href) {
-                            // Fallback: look for an explicit "home" link in header/nav.
-                            for (const a of Array.from(document.querySelectorAll('header a[href], nav a[href]'))) {
-                                const text = (a.textContent || '').toLowerCase();
-                                if (/главная|home|на главную|main|index/.test(text)) {
-                                    href = normalizeUrl(baseHref, a.getAttribute('href') || '');
+                            // Find any anchor pointing to the homepage.
+                            for (const a of Array.from(document.querySelectorAll('header a[href], nav a[href], [role="banner"] a[href]'))) {
+                                const raw = a.getAttribute('href') || '';
+                                if (isHomeLink(raw)) {
+                                    href = normalizeUrl(baseHref, raw);
                                     break;
                                 }
                             }
@@ -444,11 +546,17 @@ export async function crawlSite(options) {
                         const firstLink = document.querySelector('a');
                         const firstButton = document.querySelector('button, .btn, [class*="button" i]');
                         const toHex = (c) => {
-                            const ctx = document.createElement('canvas').getContext('2d');
-                            if (!ctx)
+                            try {
+                                const canvas = document.createElement('canvas');
+                                const ctx = canvas.getContext('2d');
+                                if (!ctx)
+                                    return c;
+                                ctx.fillStyle = c;
+                                return ctx.fillStyle || c;
+                            }
+                            catch {
                                 return c;
-                            ctx.fillStyle = c;
-                            return ctx.fillStyle;
+                            }
                         };
                         const get = (el, prop) => {
                             if (!el)
@@ -469,8 +577,8 @@ export async function crawlSite(options) {
                             accent
                         };
                     }
-                    function extractImages() {
-                        const header = document.querySelector('header');
+                    function extractImages(logoSrc) {
+                        const header = document.querySelector('header, [role="banner"]');
                         const footer = document.querySelector('footer');
                         const seen = new Set();
                         const out = [];
@@ -491,7 +599,10 @@ export async function crawlSite(options) {
                             const context = imageContext(el);
                             const inHeader = !!header?.contains(el);
                             const inFooter = !!footer?.contains(el);
-                            const likelyLogo = inHeader && (alt.toLowerCase().includes('logo') || (el.closest('a[href="/"], a[href="./"], a[href*="home"]') !== null) || (w > 0 && w < 220 && h > 0 && h < 120));
+                            const link = el.closest('a[href]');
+                            const isHomeLinkValue = link ? isHomeLink(link.getAttribute('href') || '') : false;
+                            const logoScoreValue = inHeader ? logoScore(el, baseHref) : -Infinity;
+                            const likelyLogo = src === logoSrc || logoScoreValue >= 15 || inHeader && (alt.toLowerCase().includes('logo') || (el.getAttribute('class') || '').toLowerCase().includes('logo') || isHomeLinkValue);
                             const likelyHero = !inHeader && !inFooter && area > 200000 && rect.top < (window.innerHeight || 800);
                             out.push({ src, alt, width: w, height: h, area, context, likelyLogo, likelyHero });
                         }
@@ -516,7 +627,7 @@ export async function crawlSite(options) {
                     const logo = extractLogo();
                     const favicon = extractFavicon();
                     const heroImage = extractHeroImage();
-                    const images = extractImages();
+                    const images = extractImages(logo.src);
                     const themeColors = extractThemeColors();
                     return {
                         title,
@@ -534,7 +645,7 @@ export async function crawlSite(options) {
                         headerNav,
                         footerNav
                     };
-                }, baseUrl);
+                }, { baseHref: baseUrl, baseOrigin });
                 pages.push({
                     url,
                     title: data.title,

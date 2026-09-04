@@ -1,8 +1,10 @@
+import { writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import type { PrismaClient } from '@prisma/client';
 import type pino from 'pino';
 import type { DiscoveryService } from '../discovery/service.js';
 import { auditLeadWebsite } from '../../../auditor/src/pipeline/auditLeadWebsite.js';
-import { runLighthouseForLead } from '../../../auditor/src/lighthouse/runLighthouse.js';
+import { runLighthouseForLead, LighthouseError } from '../../../auditor/src/lighthouse/runLighthouse.js';
 import { runVisualAnalysisForLead } from '../../../auditor/src/visualAnalysis/runVisualAnalysisForLead.js';
 import { GeminiVisualAnalysisProvider } from '../../../auditor/src/visualAnalysis/geminiVisualAnalysisProvider.js';
 import { OpenAiVisualAnalysisProvider } from '../../../auditor/src/visualAnalysis/openAiVisualAnalysisProvider.js';
@@ -160,17 +162,69 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
         const url = input.url || lead.website;
         if (!url) throw new Error('Lead has no URL for Lighthouse');
         await ctx.stage('lighthouse', `Running Lighthouse on ${url}`);
-        const { reportPath, summary } = await runLighthouseForLead({ leadId: lead.id, url });
-        await deps.prisma.lighthouseReport.upsert({
-          where: { leadId: lead.id },
-          create: { leadId: lead.id, reportPath, ...summary },
-          update: { reportPath, ...summary },
-        });
-        await ctx.success(
-          `Lighthouse: performance ${summary.performance}, accessibility ${summary.accessibility}, seo ${summary.seo}, best-practices ${summary.bestPractices}`,
-          { stage: 'lighthouse', metadata: { summary } }
-        );
-        return { leadId: lead.id, summary };
+        try {
+          const { reportPath, summary, attempts, durationMs } = await runLighthouseForLead({
+            leadId: lead.id,
+            url,
+            retries: input.retries,
+            maxTimeMs: input.maxTimeMs,
+            maxWaitForLoad: input.maxWaitForLoad,
+            maxWaitForFcp: input.maxWaitForFcp,
+          });
+          await deps.prisma.lighthouseReport.upsert({
+            where: { leadId: lead.id },
+            create: { leadId: lead.id, reportPath, status: 'SUCCESS', attempts, durationMs, ...summary },
+            update: { reportPath, status: 'SUCCESS', attempts, durationMs, ...summary },
+          });
+          await ctx.success(
+            `Lighthouse: performance ${summary.performance}, accessibility ${summary.accessibility}, seo ${summary.seo}, best-practices ${summary.bestPractices}`,
+            { stage: 'lighthouse', metadata: { summary, attempts, durationMs } }
+          );
+          return { leadId: lead.id, summary };
+        } catch (err: any) {
+          const errorDetails = err instanceof LighthouseError ? err.toJSON() : { message: err.message, stack: err.stack };
+          const reportPath = join('data', 'lighthouse', `${lead.id}.error.json`);
+          await writeFile(reportPath, JSON.stringify({ url, leadId: lead.id, error: errorDetails, ts: new Date().toISOString() }, null, 2), 'utf-8');
+          await deps.prisma.lighthouseReport.upsert({
+            where: { leadId: lead.id },
+            create: {
+              leadId: lead.id,
+              reportPath,
+              status: 'FAILED',
+              error: errorDetails,
+              attempts: err.attempt ?? 1,
+              durationMs: err.durationMs ?? 0,
+              performance: 0,
+              accessibility: 0,
+              seo: 0,
+              bestPractices: 0,
+            },
+            update: {
+              reportPath,
+              status: 'FAILED',
+              error: errorDetails,
+              attempts: err.attempt ?? 1,
+              durationMs: err.durationMs ?? 0,
+              performance: 0,
+              accessibility: 0,
+              seo: 0,
+              bestPractices: 0,
+            },
+          });
+          await ctx.error(
+            `Lighthouse failed: ${err.message}`,
+            {
+              stage: 'lighthouse',
+              metadata: {
+                error: errorDetails,
+                attempt: err.attempt,
+                durationMs: err.durationMs,
+                url,
+              },
+            }
+          );
+          throw err;
+        }
       },
     },
 
@@ -350,16 +404,18 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
     GENERATE_SITE: {
       label: 'Generate site',
       category: 'factory',
-      description: 'Generate the demo site from a previously produced crawl artifact (crawlRunId).',
+      description: 'Generate the demo site from a previously produced crawl artifact (crawlRunId). Mode: retry (preserve existing CMS), regenerate (replace generated content).',
       requiredRole: 'SUPER_ADMIN',
-      inputSchema: { leadId: 'string', crawlRunId: 'string', force: 'boolean' },
+      inputSchema: { leadId: 'string', crawlRunId: 'string', force: 'boolean', mode: 'string' },
       supportsCancel: false,
       handler: async (ctx, input) => {
-        await ctx.stage('generate', `Starting site generation for ${input.leadId} using crawl ${input.crawlRunId}`);
+        const mode = input.mode ?? 'retry';
+        await ctx.stage('generate', `Starting site generation for ${input.leadId} using crawl ${input.crawlRunId} (${mode})`);
         const result = await generateSite({
           leadId: input.leadId,
           crawlRunId: input.crawlRunId,
           force: input.force ?? false,
+          mode,
           prisma: deps.prisma,
           onActivity: async (event: { level?: 'INFO' | 'WARN' | 'ERROR'; module: string; eventType: string; message: string; details?: Record<string, any> }) => {
             await deps.activity.log({

@@ -10,8 +10,8 @@ const prisma = new PrismaClient();
 function help() {
   console.log(`
 Usage:
-  npm run redesign -- --lead=<leadId> [--force] [--template=<id>]
-  npm run redesign -- --website=https://example.com/ [--force] [--template=<id>]
+  npm run redesign -- --lead=<leadId> [--force] [--mode=retry|regenerate|reset] [--template=<id>]
+  npm run redesign -- --website=https://example.com/ [--force] [--mode=retry|regenerate|reset] [--template=<id>]
 
 Templates:
   construction-modern-v1  (default)
@@ -28,7 +28,8 @@ function parseArgs() {
   const website = args.find((a) => a.startsWith('--website='))?.split('=')[1];
   const template = args.find((a) => a.startsWith('--template='))?.split('=')[1] ?? 'construction-modern-v1';
   const force = args.includes('--force');
-  return { lead, website, template, force };
+  const mode = args.find((a) => a.startsWith('--mode='))?.split('=')[1] ?? 'regenerate';
+  return { lead, website, template, force, mode: mode as 'retry' | 'regenerate' | 'reset' };
 }
 
 async function findLead({ lead, website }: { lead?: string; website?: string }) {
@@ -50,7 +51,7 @@ async function findLead({ lead, website }: { lead?: string; website?: string }) 
 }
 
 async function main() {
-  const { lead, website, template, force } = parseArgs();
+  const { lead, website, template, force, mode } = parseArgs();
   if (!lead && !website) {
     help();
     process.exit(1);
@@ -62,6 +63,7 @@ async function main() {
       leadId: l.id,
       templateId: template,
       force,
+      mode,
       prisma
     });
 

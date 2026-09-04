@@ -1,13 +1,16 @@
 import type { CrawledPage, NavigationNode, HomepageCandidate } from '../types.js';
 
-const HOME_LABELS = new Set(['главная', 'home', 'на главную', 'на главную страницу', 'main', 'index', 'основная', 'start']);
+const HOME_LABELS = new Set([
+  'home', 'main', 'index', 'start', 'главная', 'на главную', 'на главную страницу', 'основная',
+  'startseite', 'willkommen', 'accueil', 'bienvenue'
+]);
 
 const GENERIC_DENY = new Set([
-  'контакты', 'contacts', 'contact', 'kontakty', 'kontakt',
-  'новости', 'news', 'novost', 'novosti', 'press',
-  'услуги', 'services', 'uslugi', 'service', 'услуга',
-  'о компании', 'о нас', 'about', 'about us', 'o-kompanii', 'o-nas',
-  'вакансии', 'vacancies', 'vakansii', 'career', 'rabota',
+  'contact', 'contacts', 'контакты', 'контакт', 'kontakty', 'kontakt', 'kontakt',
+  'news', 'blog', 'press', 'новости', 'новость', 'novost', 'novosti', 'aktuelles', 'neuigkeiten',
+  'service', 'services', 'catalog', 'услуги', 'услуга', 'каталог', 'uslugi', 'usluga', 'leistungen', 'angebote',
+  'about', 'about us', 'о компании', 'о нас', 'о предприятии', 'o-kompanii', 'o-nas', 'ueber-uns', 'ueber-uns', 'ueber',
+  'vacancies', 'vacancy', 'career', 'careers', 'job', 'jobs', 'вакансии', 'вакансия', 'vakansii', 'rabota', 'arbeit', 'stellenangebote'
 ]);
 
 function canonicalize(url: string): string {
@@ -36,7 +39,7 @@ function isHomeLabel(text?: string): boolean {
   if (!text) return false;
   const t = text.toLowerCase().trim();
   if (HOME_LABELS.has(t)) return true;
-  return /^(главная|home|index|main|start|основная)$/.test(t);
+  return /^(home|index|main|start|главная|основная|startseite|accueil|willkommen)$/.test(t);
 }
 
 function isGeneric(text?: string): boolean {
@@ -49,8 +52,12 @@ function isGeneric(text?: string): boolean {
   return false;
 }
 
+function decodedUrl(url: string): string {
+  try { return decodeURIComponent(url); } catch { return url; }
+}
+
 function urlContainsGeneric(url: string): boolean {
-  const u = url.toLowerCase();
+  const u = decodedUrl(url).toLowerCase();
   for (const d of GENERIC_DENY) {
     if (u.includes(d)) return true;
   }

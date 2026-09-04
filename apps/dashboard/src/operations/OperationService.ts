@@ -69,6 +69,31 @@ function redactMetadata(value: any): any {
   return value;
 }
 
+class AsyncSemaphore {
+  private max: number;
+  private current = 0;
+  private queue: (() => void)[] = [];
+
+  constructor(max: number) {
+    this.max = max;
+  }
+
+  async acquire() {
+    if (this.current < this.max) {
+      this.current++;
+      return;
+    }
+    await new Promise<void>((resolve) => this.queue.push(resolve));
+    this.current++;
+  }
+
+  release() {
+    this.current--;
+    const next = this.queue.shift();
+    if (next) next();
+  }
+}
+
 export class OperationService {
   private prisma: PrismaClient;
   private logger: pino.Logger;
@@ -78,6 +103,7 @@ export class OperationService {
   private emitter = new EventEmitter();
   private activity: ActivityService;
   public qualification: QualificationOrchestrator;
+  private semaphores = new Map<string, AsyncSemaphore>();
 
   constructor(input: { prisma: PrismaClient; logger: pino.Logger; env: Record<string, string | undefined>; discovery: DiscoveryService; activity: ActivityService }) {
     this.prisma = input.prisma;
@@ -186,7 +212,33 @@ export class OperationService {
     return { run };
   }
 
+  private getConcurrencyKey(def: OperationDefinition): string {
+    // Browser-heavy operations share a single slot so Playwright and Lighthouse do not fight.
+    if (def.category === 'lighthouse' || def.category === 'audit') return 'HEAVY';
+    return def.category.toUpperCase();
+  }
+
+  private getSemaphore(def: OperationDefinition): AsyncSemaphore {
+    const key = this.getConcurrencyKey(def);
+    if (!this.semaphores.has(key)) {
+      const envKey = `CONCURRENCY_${key}`;
+      const raw = this.env[envKey] ?? {
+        HEAVY: '1',
+        AI: '1',
+        SCORING: '2',
+        DISCOVERY: '1',
+        ENRICHMENT: '1',
+        FACTORY: '1',
+      }[key] ?? '1';
+      const limit = Math.max(1, parseInt(raw, 10) || 1);
+      this.semaphores.set(key, new AsyncSemaphore(limit));
+    }
+    return this.semaphores.get(key)!;
+  }
+
   private async start(runId: string, def: OperationDefinition, input: Record<string, any>, operationId: string) {
+    const sem = this.getSemaphore(def);
+    await sem.acquire();
     try {
       const run = await this.prisma.operationRun.update({
         where: { id: runId },
@@ -220,15 +272,22 @@ export class OperationService {
     } catch (err: any) {
       const message = err instanceof Error ? err.message : String(err);
       this.logger.warn({ runId, err }, 'operation.failed');
+      const error: any = { message, name: err instanceof Error ? err.name : 'Error' };
+      if (err.code) error.code = err.code;
+      if (err.protocolMethod) error.protocolMethod = err.protocolMethod;
+      if (err.attempt) error.attempt = err.attempt;
+      if (err.details) error.details = err.details;
       await this.prisma.operationRun.update({
         where: { id: runId },
-        data: { status: 'FAILED', finishedAt: new Date(), error: { message } },
+        data: { status: 'FAILED', finishedAt: new Date(), error },
       });
       try {
         const failedRun = await this.prisma.operationRun.findUnique({ where: { id: runId } });
         const ctx = this.createContext(def, failedRun || { id: runId });
-        await ctx.error(message, { stage: 'error', metadata: { error: { message } } });
+        await ctx.error(message, { stage: 'error', metadata: { error } });
       } catch {}
+    } finally {
+      sem.release();
     }
   }
 

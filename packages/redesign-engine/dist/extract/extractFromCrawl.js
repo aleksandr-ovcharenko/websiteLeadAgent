@@ -1,12 +1,22 @@
+/**
+ * @deprecated LEGACY / V1 content extraction.
+ *
+ * This path exists only to keep the current live generator working while
+ * Generation V2 is being built. SourceDocument extraction (`buildSourceDocuments.ts`)
+ * is the V2 source-structure extraction and must remain DOM/language agnostic.
+ * This file intentionally contains generic multilingual keyword heuristics
+ * (English, Russian, Belarusian, German) — NOT customer-specific logic.
+ */
 import { extractedContentSchema } from '../../../content-schema/dist/index.js';
 function toSlug(title) {
     return title
         .toLowerCase()
         .replace(/\s+/g, '-')
+        .replace(/[«»"'"]/g, '')
         .replace(/[^a-z0-9а-яё\-]/g, '')
         .replace(/--+/g, '-')
         .replace(/^-|-$/g, '')
-        .slice(0, 80) || `page-${Date.now()}`;
+        .slice(0, 80) || `page-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
 }
 function normalizeUrl(base, href) {
     try {
@@ -75,93 +85,85 @@ function findSocialLinks(text, links = []) {
     return out;
 }
 function findWorkingHours(text) {
-    const m = text.match(/(?:пн|вт|ср|чт|пт|сб|вс|понедельник|вторник|среда|четверг|пятница|суббота|воскресенье)[–\-—]?\s*(?:пн|вт|ср|чт|пт|сб|вс)?.*?(?:\d{1,2}[\:\.]\d{2}).*?(?:\d{1,2}[\:\.]\d{2})/i);
+    const day = '(?:mon|tue|wed|thu|fri|sat|sun|monday|tuesday|wednesday|thursday|friday|saturday|sunday|пн|вт|ср|чт|пт|сб|вс|понедельник|вторник|среда|четверг|пятница|суббота|воскресенье)?';
+    const m = text.match(new RegExp(`(?:^|[^\\p{L}\\p{N}])${day}[-–—]?\\s*${day}[^\\n\\d]{0,60}\\d{1,2}[:\\.]\\d{2}[^\\n\\d]{0,60}\\d{1,2}[:\\.]\\d{2}`, 'iu'));
     if (m)
         return m[0].trim();
     return undefined;
 }
 function findLegalName(text) {
-    const re = /((?:ООО|ЗАО|ОАО|АО|ИП|ООО\s+«[^»]+»|ОАО\s+«[^»]+»|ЗАО\s+«[^»]+»|АО\s+«[^»]+»|«[^»]+»))/gi;
+    const re = /[\"«]([^\"«»]{3,})[\"»]/;
     const m = text.match(re);
     if (m) {
-        const cleaned = m[0].replace(/\s+/g, ' ').trim();
+        const cleaned = m[1].replace(/\s+/g, ' ').trim();
         if (cleaned.length > 3 && cleaned.length < 120)
             return cleaned;
     }
     return undefined;
 }
 function findUNP(text) {
-    const m = text.match(/(?:УНП|ЕГР|UNP)[^\d]*(\d{9})/i);
+    const m = text.match(/(?:^|[^\p{L}\p{N}])(?:UNP|INN|VAT|TIN|EIN|REG|УНП|ИНН|ОГРН|БИН|РНН|СТН)[^\d]{0,5}(\d{9,15})/iu);
     return m?.[1];
 }
 function findFounded(text) {
-    const m = text.match(/(?:основан[аы]?|работаем)\s+(?:с\s+)?(\d{4})/i) || text.match(/(\d{4})\s*(?:год|г\.)/);
+    const m = text.match(/(?:^|[^\p{L}\p{N}])(?:founded|established|since|started|основан[ао]?|создан[ао]?|работает с|на рынке с|год основания)[^0-9]{0,40}(\d{4})/iu);
     return m?.[1];
 }
 function findEmployees(text) {
-    const m = text.match(/(\d{2,4})\+?\s*(?:сотрудник|человек|специалист|работник|штат)/i) ||
-        text.match(/(?:штат|сотрудников)\s*(?:составляет|более|свыше)?\s*(\d{2,4})/i);
+    const people = 'employees?|staff|team|personnel|workers?|сотрудников|работников|персонал[а]?|штат[а]?|человек|сотрудник|работник';
+    const m = text.match(new RegExp(`(\\d{2,4})\\+?\\s*(?:${people})`, 'iu')) ||
+        text.match(new RegExp(`(?:${people})\\s*(?:of|size|is|are|составляет|в|на)?\\s*(\\d{2,4})`, 'iu'));
     return m ? m[1] + (m[0].includes('+') ? '+' : '') : undefined;
 }
 function inferIndustry(services, text) {
     const lower = text.toLowerCase();
-    if (lower.includes('интернет') || lower.includes('телевидение') || lower.includes('wi-fi') || lower.includes('связь')) {
-        return 'Интернет-провайдер · Беларусь';
+    if (lower.includes('internet') || lower.includes('telecom') || lower.includes('provider') || lower.includes('wi-fi') || lower.includes('wifi') || lower.includes('интернет') || lower.includes('телеком') || lower.includes('провайдер') || lower.includes('связь')) {
+        return 'Internet provider';
     }
-    if (services.some((s) => /интернет|телевид|wifi|wi-fi|связь/i.test(s.title))) {
-        return 'Интернет-провайдер · Беларусь';
+    if (services.some((s) => /internet|telecom|wifi|wi-fi|provider|интернет|телеком|провайдер|связь/i.test(s.title))) {
+        return 'Internet provider';
     }
-    if (lower.includes('строитель') || lower.includes('монтаж') || lower.includes('генподряд') || lower.includes('бетон') || lower.includes('железобетон') || lower.includes('объект')) {
-        return 'Строительная компания · Беларусь';
+    if (lower.includes('construction') || lower.includes('building') || lower.includes('contractor') || lower.includes('concrete') || lower.includes('installation') || lower.includes('renovation') || lower.includes('строительство') || lower.includes('строительная') || lower.includes('стройка') || lower.includes('строитель')) {
+        return 'Construction company';
     }
-    if (services.some((s) => /строитель|монтаж|проектирование|бетон|объект/i.test(s.title))) {
-        return 'Строительная компания · Беларусь';
+    if (services.some((s) => /construction|building|contractor|concrete|installation|renovation|строительство|строительная|стройка|строитель/i.test(s.title))) {
+        return 'Construction company';
     }
-    return 'Компания · Беларусь';
+    return 'Company';
 }
 function inferLocation(address) {
-    if (!address)
-        return '';
-    const lower = address.toLowerCase();
-    if (lower.includes('минск'))
-        return 'Минск · Беларусь';
-    if (lower.includes('гродно'))
-        return 'Гродно · Беларусь';
-    if (lower.includes('брест'))
-        return 'Брест · Беларусь';
-    if (lower.includes('витебск'))
-        return 'Витебск · Беларусь';
-    if (lower.includes('могилев'))
-        return 'Могилев · Беларусь';
-    if (lower.includes('гомель'))
-        return 'Гомель · Беларусь';
+    // Phase 1 does not infer locale-specific locations from free text.
     return '';
 }
 function classifyPage(p, baseUrl) {
-    const lowerUrl = p.url.toLowerCase();
+    const url = (() => { try {
+        return decodeURIComponent(p.url);
+    }
+    catch {
+        return p.url;
+    } })().toLowerCase();
+    const lowerUrl = url;
     const lowerTitle = (p.title + ' ' + p.h1).toLowerCase();
     const homeUrl = normalizeUrl(baseUrl, baseUrl);
     const self = normalizeUrl(baseUrl, p.url);
     if (self && homeUrl && (self === homeUrl || self === homeUrl + '/' || p.path === 'index'))
         return 'home';
     const has = (keys) => keys.some((k) => lowerUrl.includes(k) || lowerTitle.includes(k));
-    if (has(['vakansii', 'vacanc', 'career', 'rabota', 'job', 'ваканс', 'карьера', 'работа']) && !has(['vakansiya', 'vacancy-', 'job-', 'position']))
+    if (has(['vacancies', 'vacancy', 'career', 'careers', 'job', 'jobs', 'вакансии', 'вакансия', 'rabota', 'работа', 'vakansii']))
         return 'vacancies';
-    if (has(['vakansiya', 'vacancy-', 'job-', 'position', 'вакансия']))
-        return 'vacancy';
-    if (has(['contact', 'kontakt', 'контакт']))
+    if (has(['contact', 'contacts', 'контакты', 'контакт', 'kontakty', 'kontakt']))
         return 'contacts';
-    if (has(['about', 'o-kompanii', 'o-nas', 'о-нас', 'о-компании', 'about-us', 'о-застройщике', 'о-нас']))
+    if (has(['about', 'about-us', 'о компании', 'о нас', 'о предприятии', 'o-kompanii', 'o-nas', 'o-nas']))
         return 'about';
-    if (has(['news', 'novost', 'новост', 'press', 'blog', 'press-reliz']))
+    if (has(['news', 'blog', 'press', 'новости', 'новость', 'novosti', 'novost']))
         return 'news';
-    if (has(['service', 'uslugi', 'услуг', 'servis', 'решения', 'montazh', 'монтаж', 'проектирование', 'дизайн']))
+    if (has(['service', 'услуга', 'usluga', 'прайс', 'preiskurant']))
         return 'service';
-    if (has(['services', 'spisok-uslug', 'catalog', 'каталог-услуг', 'all-services']))
+    if (has(['services', 'catalog', 'all-services', 'услуги', 'каталог', 'каталог услуг', 'uslugi', 'uslugi']))
         return 'services';
-    if (has(['project', 'object', 'objecty', 'объект', 'портфолио', 'portfolio', 'строительство', 'kommercheskie']))
+    if (has(['project', 'portfolio', 'object', 'objects', 'проект', 'проекты', 'объект', 'объекты', 'портфолио', 'proekty', 'obekty']))
         return 'project';
-    if (has(['projects', 'objects', 'obekty', 'объекты', 'portfolio', 'портфолио']))
+    if (has(['projects', 'portfolio', 'objects', 'проекты', 'объекты', 'портфолио']))
         return 'projects';
     return 'page';
 }
@@ -290,10 +292,10 @@ function summarizeServices(services) {
         return titles[0];
     const last = titles[titles.length - 1];
     const rest = titles.slice(0, -1).join(', ');
-    return `${rest} и ${last}`;
+    return `${rest} and ${last}`;
 }
 function makeHeroTitle(companyName, shortName, services, projects, h1) {
-    if (h1 && !/главная|home|о-нас|o-nas/i.test(h1) && h1.length < 120) {
+    if (h1 && !/home|about/i.test(h1) && h1.length < 120) {
         return h1.split(/[\|—–\-]/)[0].trim();
     }
     if (services.length) {
@@ -301,7 +303,7 @@ function makeHeroTitle(companyName, shortName, services, projects, h1) {
         return s ? s.slice(0, 120) : shortName || companyName;
     }
     if (projects.length && projects[0].category) {
-        return `Объекты ${projects[0].category.toLowerCase()}`;
+        return `Projects ${projects[0].category.toLowerCase()}`;
     }
     return shortName || companyName;
 }
@@ -315,10 +317,10 @@ function makeHeroSubtitle(companyName, shortName, description, services, project
     if (location)
         parts.push(`· ${location}`);
     if (services.length) {
-        parts.push(`Основные направления: ${summarizeServices(services)}.`);
+        parts.push(`Main services: ${summarizeServices(services)}.`);
     }
     else if (projects.length) {
-        parts.push(`Реализовано проектов: ${projects.length}.`);
+        parts.push(`Completed projects: ${projects.length}.`);
     }
     else if (description) {
         parts.push(firstSentences(description, 1, 160));
@@ -348,12 +350,12 @@ function pickHeroImage(allImages, homepage, aboutPage, projects) {
 }
 function chooseHeroCta(services, projects) {
     if (services.length) {
-        return { buttonLabel: 'Наши услуги', buttonUrl: '/services', secondaryCtaLabel: 'Смотреть объекты', secondaryCtaTarget: 'PROJECTS' };
+        return { buttonLabel: 'Our services', buttonUrl: '/services', secondaryCtaLabel: 'View projects', secondaryCtaTarget: 'PROJECTS' };
     }
     if (projects.length) {
-        return { buttonLabel: 'Смотреть объекты', buttonUrl: '/projects', secondaryCtaLabel: 'О компании', secondaryCtaTarget: 'ABOUT' };
+        return { buttonLabel: 'View projects', buttonUrl: '/projects', secondaryCtaLabel: 'About us', secondaryCtaTarget: 'ABOUT' };
     }
-    return { buttonLabel: 'Связаться', buttonUrl: '/contacts', secondaryCtaLabel: 'О компании', secondaryCtaTarget: 'ABOUT' };
+    return { buttonLabel: 'Contact us', buttonUrl: '/contacts', secondaryCtaLabel: 'About us', secondaryCtaTarget: 'ABOUT' };
 }
 function buildHero(opts) {
     const allImages = opts.pages.flatMap((p) => p.images);
@@ -374,8 +376,8 @@ function buildHero(opts) {
 }
 export function extractFromCrawl(pages, baseUrl, navigation) {
     const homepage = pages.find((p) => classifyPage(p, baseUrl) === 'home') || pages[0];
-    const companyName = homepage?.h1?.split(/[\|—–\-]/)[0]?.trim() || homepage?.title?.split(/[\|—–\-]/)[0]?.trim() || 'Компания';
-    const shortName = companyName.replace(/(?:ООО|ЗАО|ОАО|АО|ИП)\s*/gi, '').replace(/[«»]/g, '').trim();
+    const companyName = homepage?.h1?.split(/[\|—–\-]/)[0]?.trim() || homepage?.title?.split(/[\|—–\-]/)[0]?.trim() || 'Company';
+    const shortName = companyName.replace(/(?:LLC|Inc\.?|Ltd\.?|GmbH|PLC|LLP|Corp\.?|Co\.?|S\.?A\.?|S\.?p\.?A\.?|B\.?V\.?|K\.?K\.?|ООО|ОАО|ЗАО|АО|УП|ИП|РУП|ОДО|ТЧУП|ЧУП|ГУП|КУП|ПУ|СООО)\s*/giu, '').replace(/[«»""'']/gu, '').trim();
     const navItems = navigation ?? [];
     const allPhones = [];
     const allEmails = [];
@@ -401,10 +403,11 @@ export function extractFromCrawl(pages, baseUrl, navigation) {
     const workingHours = contactsPage ? findWorkingHours(contactsPage.text) : undefined;
     const address = contactsPage ? contactsPage.text.split('\n').slice(0, 4).join(' ').slice(0, 300) : undefined;
     const aboutText = aboutPage ? firstSentences(aboutPage.text, 4, 1200) : firstSentences(homepage?.text || '', 4, 1200);
-    const aboutHeading = aboutPage?.h1 || aboutPage?.title || 'О компании';
+    const aboutHeading = aboutPage?.h1 || aboutPage?.title || 'About';
     const aboutImage = contentMediaFromImage(pickCoverImage(aboutPage?.images || homepage?.images || []));
     const theme = inferTheme(homepage);
-    const logoSrc = homepage?.logo || homepage?.images.find((i) => i.likelyLogo)?.src;
+    const firstHeaderImage = homepage?.images.find((i) => i.context?.toLowerCase().includes('header') && !i.src.startsWith('data:'));
+    const logoSrc = homepage?.logo || homepage?.images.find((i) => i.likelyLogo)?.src || homepage?.heroImage || firstHeaderImage?.src || homepage?.images[0]?.src;
     const services = [];
     const projects = [];
     const news = [];
@@ -455,7 +458,7 @@ export function extractFromCrawl(pages, baseUrl, navigation) {
                 title,
                 slug: toSlug(title),
                 excerpt: p.metaDescription || firstSentences(p.text, 1, 250),
-                category: inferIndustry([], p.text).replace(' · Беларусь', ''),
+                category: inferIndustry([], p.text),
                 location: '',
                 blocks: [{ type: 'text', content: p.text.slice(0, 1500) }],
                 sourceUrl: p.url,
@@ -513,19 +516,19 @@ export function extractFromCrawl(pages, baseUrl, navigation) {
         imageId: aboutImage?.sourceUrl
     };
     const cta = {
-        title: 'Обсудим ваш проект',
+        title: "Let's discuss your project",
         description: about.content || firstSentences(contactsText || homepage?.text || '', 2, 220),
-        buttonLabel: 'Связаться',
+        buttonLabel: 'Contact us',
         buttonUrl: '/contacts'
     };
     const homepageSections = [
         { type: 'hero', enabled: true, sortOrder: 0, title: hero.title },
         { type: 'about', enabled: !!about.content, sortOrder: 1, title: about.heading },
-        { type: 'services', enabled: services.length > 0, sortOrder: 2, title: 'Услуги', limit: 6 },
-        { type: 'projects', enabled: projects.length > 0, sortOrder: 3, title: 'Объекты', limit: 4 },
-        { type: 'news', enabled: news.length > 0, sortOrder: 4, title: 'Новости', limit: 3 },
-        { type: 'vacancies', enabled: vacancies.length > 0, sortOrder: 5, title: 'Вакансии', limit: 3 },
-        { type: 'contacts', enabled: true, sortOrder: 6, title: 'Контакты' },
+        { type: 'services', enabled: services.length > 0, sortOrder: 2, title: 'Services', limit: 6 },
+        { type: 'projects', enabled: projects.length > 0, sortOrder: 3, title: 'Projects', limit: 4 },
+        { type: 'news', enabled: news.length > 0, sortOrder: 4, title: 'News', limit: 3 },
+        { type: 'vacancies', enabled: vacancies.length > 0, sortOrder: 5, title: 'Vacancies', limit: 3 },
+        { type: 'contacts', enabled: true, sortOrder: 6, title: 'Contacts' },
     ];
     const result = {
         company: {

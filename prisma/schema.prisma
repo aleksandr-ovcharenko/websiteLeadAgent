@@ -109,6 +109,7 @@ enum ContentSourceType {
   IMPORTED
   MANUAL
   AI_REWRITTEN
+  GENERATED
 }
 
 model Lead {
@@ -192,6 +193,11 @@ model LighthouseReport {
   leadId    String   @unique
 
   reportPath String
+
+  status      String   @default("SUCCESS")
+  error       Json?
+  attempts    Int      @default(1)
+  durationMs  Int?
 
   performance     Int
   accessibility   Int
@@ -284,6 +290,8 @@ model DemoVariant {
   status    SiteStatus @default(DRAFT)
   themeConfig Json?    @default("{}")
   isPreferred Boolean @default(false)
+  generatedByRunId String?
+  generatedByDemoVariantId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -330,12 +338,18 @@ model SiteSettings {
   language String?
   timezone String?
   previewUrl String?
+  generatedByRunId String?
+  generatedByDemoVariantId String?
+  manualModifiedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
   logo Media? @relation("LogoMedia", fields: [logoMediaId], references: [id])
   favicon Media? @relation("FaviconMedia", fields: [faviconMediaId], references: [id])
+
+  @@index([generatedByRunId])
+  @@index([generatedByDemoVariantId])
 }
 
 model User {
@@ -376,6 +390,8 @@ model Media {
   caption   String?
   storagePath String
   sourceUrl String?
+  generatedByRunId String?
+  generatedByDemoVariantId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -386,6 +402,9 @@ model Media {
   projectMedia ProjectMedia[]
   logoForSites SiteSettings[] @relation("LogoMedia")
   faviconForSites SiteSettings[] @relation("FaviconMedia")
+
+  @@index([generatedByRunId])
+  @@index([generatedByDemoVariantId])
 }
 
 model Page {
@@ -400,6 +419,9 @@ model Page {
   publishedAt DateTime?
   sourceUrl String?
   sourceType ContentSourceType @default(IMPORTED)
+  generatedByRunId String?
+  generatedByDemoVariantId String?
+  manualModifiedAt DateTime?
   isHomepage Boolean @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -408,6 +430,8 @@ model Page {
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
   @@unique([siteId, slug])
+  @@index([generatedByRunId])
+  @@index([generatedByDemoVariantId])
 }
 
 model NewsPost {
@@ -424,6 +448,9 @@ model NewsPost {
   seoDescription String?
   sourceUrl String?
   sourceType ContentSourceType @default(IMPORTED)
+  generatedByRunId String?
+  generatedByDemoVariantId String?
+  manualModifiedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -431,6 +458,8 @@ model NewsPost {
   coverImage Media? @relation("NewsCover", fields: [coverImageId], references: [id])
 
   @@unique([siteId, slug])
+  @@index([generatedByRunId])
+  @@index([generatedByDemoVariantId])
 }
 
 model Project {
@@ -451,6 +480,9 @@ model Project {
   seoDescription String?
   sourceUrl String?
   sourceType ContentSourceType @default(IMPORTED)
+  generatedByRunId String?
+  generatedByDemoVariantId String?
+  manualModifiedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -459,6 +491,8 @@ model Project {
   projectMedia ProjectMedia[]
 
   @@unique([siteId, slug])
+  @@index([generatedByRunId])
+  @@index([generatedByDemoVariantId])
 }
 
 model ProjectMedia {
@@ -491,6 +525,9 @@ model Service {
   seoDescription String?
   sourceUrl String?
   sourceType ContentSourceType @default(IMPORTED)
+  generatedByRunId String?
+  generatedByDemoVariantId String?
+  manualModifiedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -498,6 +535,8 @@ model Service {
   image Media? @relation("ServiceImage", fields: [imageId], references: [id])
 
   @@unique([siteId, slug])
+  @@index([generatedByRunId])
+  @@index([generatedByDemoVariantId])
 }
 
 model Vacancy {
@@ -513,12 +552,18 @@ model Vacancy {
   sourceUrl String?
   status    PageStatus @default(DRAFT)
   publishedAt DateTime?
+  sourceType ContentSourceType @default(IMPORTED)
+  generatedByRunId String?
+  generatedByDemoVariantId String?
+  manualModifiedAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
 
   @@unique([siteId, slug])
+  @@index([generatedByRunId])
+  @@index([generatedByDemoVariantId])
 }
 
 model Menu {
@@ -526,11 +571,16 @@ model Menu {
   siteId    String
   name      String
   isMain    Boolean  @default(false)
+  generatedByRunId String?
+  generatedByDemoVariantId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
   items MenuItem[]
+
+  @@index([generatedByRunId])
+  @@index([generatedByDemoVariantId])
 }
 
 model MenuItem {
@@ -540,14 +590,16 @@ model MenuItem {
   label      String
   pageId     String?
   url        String?
-  targetType String? // HOME, HOME_SECTION, COLLECTION, PAGE, CONTENT_DETAIL, CUSTOM_URL, EXTERNAL_URL
-  target     String? // section/collection key, content slug, or custom target
+  targetType String?
+  target     String?
   parentId   String?
   sortOrder  Int      @default(0)
-  visible   Boolean  @default(true)
+  visible   Boolean   @default(true)
   showInHeader   Boolean  @default(true)
   showInFooter   Boolean  @default(true)
   showOnHomepage Boolean  @default(true)
+  generatedByRunId String?
+  generatedByDemoVariantId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -556,6 +608,9 @@ model MenuItem {
   page   Page?    @relation(fields: [pageId], references: [id], onDelete: SetNull)
   parent MenuItem? @relation("MenuItemChildren", fields: [parentId], references: [id], onDelete: SetNull)
   children MenuItem[] @relation("MenuItemChildren")
+
+  @@index([generatedByRunId])
+  @@index([generatedByDemoVariantId])
 }
 
 model RedesignRun {

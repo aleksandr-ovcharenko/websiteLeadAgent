@@ -16,6 +16,7 @@ export interface RadarStatsData {
   good: number;
   selected: number;
   generated: number;
+  readyForGeneration: number;
   failed: number;
 }
 
@@ -49,6 +50,7 @@ export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qua
     { label: 'Total', value: 'total' },
     { label: 'With website', value: 'withWebsite' },
     { label: 'Ready for review', value: 'readyForReview', positive: true },
+    { label: 'Ready for generation', value: 'readyForGeneration', positive: true },
     { label: 'Pending', value: 'qualificationPending' },
     { label: 'Failed', value: 'qualificationFailed', warn: true },
     { label: 'GOOD', value: 'good', positive: true },

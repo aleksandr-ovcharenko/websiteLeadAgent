@@ -87,7 +87,7 @@ app.get('/api/cms/sites/:siteId', requireSiteAccess('siteId'), async (req: Reque
 
 app.post('/api/cms/sites/:siteId/settings', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
   const { siteId } = req.params;
-  const data = req.body;
+  const data = { ...req.body, manualModifiedAt: new Date() };
   const settings = await (prisma as any).siteSettings.upsert({
     where: { siteId },
     create: { siteId, ...data },
@@ -119,7 +119,7 @@ app.post('/api/cms/sites/:siteId/pages', requireSiteAccess('siteId'), requireSit
 app.put('/api/cms/sites/:siteId/pages/:pageId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
   const { siteId, pageId } = req.params;
   const { title, slug, blocks, status, isHomepage, seoTitle, seoDescription } = req.body;
-  const data: any = {};
+  const data: any = { manualModifiedAt: new Date() };
   if (title !== undefined) data.title = title;
   if (slug !== undefined) data.slug = slug;
   if (blocks !== undefined) data.blocks = blocks;
@@ -151,7 +151,7 @@ app.post('/api/cms/sites/:siteId/news', requireSiteAccess('siteId'), requireSite
 
 app.put('/api/cms/sites/:siteId/news/:newsId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
   const { siteId, newsId } = req.params;
-  const data: any = {};
+  const data: any = { manualModifiedAt: new Date() };
   ['title', 'slug', 'excerpt', 'blocks', 'status', 'coverImageId', 'publishedAt', 'seoTitle', 'seoDescription'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
   if (data.coverImageId === '') data.coverImageId = null;
   if (data.publishedAt !== undefined) data.publishedAt = data.publishedAt ? new Date(data.publishedAt) : null;
@@ -186,7 +186,7 @@ app.post('/api/cms/sites/:siteId/projects', requireSiteAccess('siteId'), require
 
 app.put('/api/cms/sites/:siteId/projects/:projectId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
   const { siteId, projectId } = req.params;
-  const data: any = {};
+  const data: any = { manualModifiedAt: new Date() };
   ['title', 'slug', 'excerpt', 'category', 'location', 'completionDate', 'blocks', 'status', 'coverImageId', 'projectStatus', 'seoTitle', 'seoDescription'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
   if (data.coverImageId === '') data.coverImageId = null;
   if (data.status === 'PUBLISHED' && data.publishedAt === undefined) data.publishedAt = new Date();
@@ -223,7 +223,7 @@ app.post('/api/cms/sites/:siteId/services', requireSiteAccess('siteId'), require
 
 app.put('/api/cms/sites/:siteId/services/:serviceId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
   const { siteId, serviceId } = req.params;
-  const data: any = {};
+  const data: any = { manualModifiedAt: new Date() };
   ['title', 'slug', 'shortDescription', 'blocks', 'status', 'imageId', 'sortOrder', 'icon', 'seoTitle', 'seoDescription'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
   if (data.imageId === '') data.imageId = null;
   if (data.status === 'PUBLISHED') data.publishedAt = new Date();
@@ -250,7 +250,7 @@ app.post('/api/cms/sites/:siteId/vacancies', requireSiteAccess('siteId'), requir
 
 app.put('/api/cms/sites/:siteId/vacancies/:vacancyId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
   const { siteId, vacancyId } = req.params;
-  const data: any = {};
+  const data: any = { manualModifiedAt: new Date() };
   ['title', 'slug', 'location', 'description', 'requirements', 'conditions', 'contact', 'status'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
   if (data.status === 'PUBLISHED') data.publishedAt = new Date();
   const vacancy = await (prisma as any).vacancy.update({ where: { id: vacancyId, siteId }, data });
@@ -321,7 +321,7 @@ app.get('/api/cms/sites/:siteId/media', requireSiteAccess('siteId'), async (req:
 app.post('/api/cms/sites/:siteId/media', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), upload.single('file'), async (req: Request, res: Response) => {
   const { siteId } = req.params;
   if (!req.file) { res.status(400).json({ error: 'no_file' }); return; }
-  const storage = mediaStorage(siteId);
+  const storage = mediaStorage(String(siteId));
   const result = await storage.upload({ data: req.file.buffer, filename: req.file.originalname, mimeType: req.file.mimetype });
   const file = await (prisma as any).media.create({
     data: {
@@ -348,7 +348,7 @@ app.delete('/api/cms/sites/:siteId/media/:mediaId', requireSiteAccess('siteId'),
   const { siteId, mediaId } = req.params;
   const media = await (prisma as any).media.findUnique({ where: { id: mediaId, siteId } });
   if (media) {
-    const storage = mediaStorage(siteId);
+    const storage = mediaStorage(String(siteId));
     await storage.delete(media.storagePath);
     await (prisma as any).media.delete({ where: { id: mediaId } });
   }

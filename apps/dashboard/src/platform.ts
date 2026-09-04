@@ -324,6 +324,34 @@ router.get('/api/factory/runs/:runId/crawl', requireSuperAdmin, async (req: Requ
   }
 });
 
+router.get('/api/factory/runs/:runId/source-documents', requireSuperAdmin, async (req: Request, res: Response) => {
+  const runId = String(req.params.runId);
+  const run = await prisma.redesignRun.findUnique({ where: { id: runId } });
+  if (!run || !run.crawlJsonPath) { res.status(404).json({ error: 'not_found' }); return; }
+  const sourceDocPath = run.crawlJsonPath.replace(/crawl\.json$/i, 'source-documents.json');
+  try {
+    const data = await fs.readFile(sourceDocPath, 'utf8');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(data);
+  } catch (err: any) {
+    res.status(500).json({ error: 'read_failed', message: err?.message });
+  }
+});
+
+router.get('/api/factory/runs/:runId/source-content-graph', requireSuperAdmin, async (req: Request, res: Response) => {
+  const runId = String(req.params.runId);
+  const run = await prisma.redesignRun.findUnique({ where: { id: runId } });
+  if (!run || !run.crawlJsonPath) { res.status(404).json({ error: 'not_found' }); return; }
+  const graphPath = run.crawlJsonPath.replace(/crawl\.json$/i, 'source-content-graph.json');
+  try {
+    const data = await fs.readFile(graphPath, 'utf8');
+    res.setHeader('Content-Type', 'application/json');
+    res.send(data);
+  } catch (err: any) {
+    res.status(500).json({ error: 'read_failed', message: err?.message });
+  }
+});
+
 router.post('/api/factory/runs/:runId/retry', requireSuperAdmin, async (req: Request, res: Response) => {
   const runId = String(req.params.runId);
   const run = await prisma.redesignRun.findUnique({
@@ -338,6 +366,7 @@ router.post('/api/factory/runs/:runId/retry', requireSuperAdmin, async (req: Req
     crawlRunId: run.id,
     templateId: run.site?.templateId || 'construction-modern-v1',
     force: true,
+    mode: 'retry',
     prisma,
   });
   res.json({ ok: true, ...result });
