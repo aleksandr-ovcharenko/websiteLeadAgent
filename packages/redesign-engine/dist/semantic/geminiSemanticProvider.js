@@ -327,6 +327,9 @@ export class HybridGeminiProvider {
     async extractRelationships(ctx) {
         return this.rule.extractRelationships(ctx);
     }
+    drainFactRejections() {
+        return this.rule.drainFactRejections();
+    }
     async adjudicatePage(ctx, ruleResult) {
         if (!this.enabled || !this.client) {
             return { ...ruleResult, reason: this.appendReason(ruleResult.reason, 'Gemini not configured; keeping rule result') };
@@ -346,6 +349,8 @@ export class HybridGeminiProvider {
             else {
                 raw = await this.callGemini(text, 'page', inputHash);
                 durationMs = Date.now() - start;
+                if (raw)
+                    await this.cache.set(inputHash, raw).catch(() => { });
             }
             const decision = this.parsePageDecision(raw, validIds);
             if (!decision) {
@@ -432,6 +437,8 @@ export class HybridGeminiProvider {
             else {
                 raw = await this.callGemini(text, 'collections-batch', inputHash);
                 durationMs = Date.now() - start;
+                if (raw)
+                    await this.cache.set(inputHash, raw).catch(() => { });
             }
             const decisions = this.parseCollectionsBatch(raw, validIds);
             if (!decisions) {
@@ -644,13 +651,15 @@ Return ONLY a valid JSON object with no markdown, no commentary. It must contain
         return { text: prompt, validIds, input };
     }
     async callGemini(promptText, callType, inputHash) {
-        if (this.geminiResponseOverride) {
-            return String(await this.geminiResponseOverride(promptText, callType, inputHash));
-        }
-        if (!this.client)
-            throw new Error('Gemini client not configured');
+        // The concurrency bound applies to every adjudication call — including
+        // the test override — so the cap is real, not just a client detail.
         await this.acquireSemaphore();
         try {
+            if (this.geminiResponseOverride) {
+                return String(await this.geminiResponseOverride(promptText, callType, inputHash));
+            }
+            if (!this.client)
+                throw new Error('Gemini client not configured');
             const responseSchema = callType === 'page' ? pageResponseSchema() : collectionBatchResponseSchema();
             const { text } = await this.client.generate(promptText, responseSchema, 1200);
             return text;

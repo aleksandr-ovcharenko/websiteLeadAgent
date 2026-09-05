@@ -275,6 +275,17 @@ export const sourceContentGraphSchema = z.object({
       reason: z.string(),
     })
   ),
+  // Fact candidates that failed validation — kept for diagnostics.
+  rejectedFacts: z.array(
+    z.object({
+      rawValue: z.string(),
+      attemptedType: z.string(),
+      source: z.string(),
+      rejectionReason: z.string(),
+      context: z.string().optional(),
+      sourceDocumentId: z.string().optional(),
+    })
+  ).optional(),
   warnings: z.array(z.string()),
 });
 

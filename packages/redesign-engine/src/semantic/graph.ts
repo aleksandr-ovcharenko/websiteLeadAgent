@@ -122,6 +122,7 @@ export async function buildSourceContentGraph({
   const products = await p.extractProducts(ctx);
   const facts = await p.extractFacts(ctx);
   const relationships = await p.extractRelationships(ctx);
+  const rejectedFacts = p.drainFactRejections?.() ?? [];
 
   // Warnings for low confidence classifications
   for (const doc of sourceDocuments) {
@@ -154,6 +155,7 @@ export async function buildSourceContentGraph({
     media: uniqueMedia,
     relationships,
     rejectedCollections,
+    rejectedFacts,
     warnings,
   };
 

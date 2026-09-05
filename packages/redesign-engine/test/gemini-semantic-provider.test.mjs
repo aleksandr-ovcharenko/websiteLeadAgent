@@ -259,4 +259,99 @@ describe('HybridGeminiProvider', () => {
     assert.equal(results[0].contentSubtype, 'NEWS');
     assert.equal(results[1].contentSubtype, 'PROJECTS');
   });
+
+  it('does not call Gemini for UNKNOWN pages with no meaningful evidence', async () => {
+    const provider = new HybridGeminiProvider({ geminiApiKey: 'fake', geminiCachePath: makeCacheDir() });
+    let called = false;
+    provider.setGeminiResponseOverride(() => { called = true; return geminiPageResponse('ABOUT', 0.9, ['title']); });
+
+    const doc = makeSourceDocument({ url: 'https://example.com/x', path: 'x', title: '', isHomepage: false });
+    const result = await provider.classifyPage({ sourceDocument: doc, allDocuments: [doc], baseUrl: 'https://example.com/' });
+
+    assert.equal(called, false, 'empty UNKNOWN must not trigger Gemini just to reduce UNKNOWN counts');
+    assert.ok(result.confidence < 0.85);
+  });
+
+  it('rejects an AI decision that invents entities via unknown evidence IDs', async () => {
+    const provider = new HybridGeminiProvider({ geminiApiKey: 'fake', geminiCachePath: makeCacheDir() });
+    provider.setGeminiResponseOverride(() => geminiCollectionResponse('PROJECTS', 0.95, ['col-99-fabricated']));
+
+    const doc = makeSourceDocument({ title: 'Updates' });
+    const result = await provider.classifyCollection({
+      collection: makeCollection(),
+      sourceDocument: doc,
+      pageClassification: { sourceDocumentId: doc.id, type: 'ABOUT', confidence: 0.5, evidence: [] },
+      baseUrl: 'https://example.com/',
+    });
+
+    assert.notEqual(result.contentSubtype, 'PROJECTS', 'invented evidence must not produce an entity');
+  });
+
+  it('keeps the rule result when Gemini times out', async () => {
+    const provider = new HybridGeminiProvider({ geminiApiKey: 'fake', geminiCachePath: makeCacheDir() });
+    provider.setGeminiResponseOverride(() => { throw new Error('AbortError: The operation timed out'); });
+
+    const doc = makeSourceDocument({ title: 'Updates' });
+    const result = await provider.classifyCollection({
+      collection: makeCollection(),
+      sourceDocument: doc,
+      pageClassification: { sourceDocumentId: doc.id, type: 'ABOUT', confidence: 0.5, evidence: [] },
+      baseUrl: 'https://example.com/',
+    });
+
+    assert.ok(result.reason.includes('Gemini error'), 'timeout must fall back to the rule result');
+  });
+
+  it('keeps the rule result on invalid JSON output', async () => {
+    const provider = new HybridGeminiProvider({ geminiApiKey: 'fake', geminiCachePath: makeCacheDir() });
+    provider.setGeminiResponseOverride(() => 'not json at all');
+
+    const doc = makeSourceDocument({ title: 'Updates' });
+    const result = await provider.classifyCollection({
+      collection: makeCollection(),
+      sourceDocument: doc,
+      pageClassification: { sourceDocumentId: doc.id, type: 'ABOUT', confidence: 0.5, evidence: [] },
+      baseUrl: 'https://example.com/',
+    });
+
+    assert.ok(result.reason.includes('invalid'), 'invalid output must fall back to the rule result');
+  });
+
+  it('bounds concurrency via the semaphore', async () => {
+    const provider = new HybridGeminiProvider({ geminiApiKey: 'fake', geminiCachePath: makeCacheDir(), geminiConcurrency: 2 });
+    let inFlight = 0;
+    let maxInFlight = 0;
+    provider.setGeminiResponseOverride(async () => {
+      inFlight++;
+      maxInFlight = Math.max(maxInFlight, inFlight);
+      await new Promise((r) => setTimeout(r, 20));
+      inFlight--;
+      return geminiPageResponse('ABOUT', 0.9, ['title', 'url']);
+    });
+
+    const docs = Array.from({ length: 6 }, (_, i) =>
+      makeSourceDocument({ id: `doc-${i}`, url: `https://example.com/p${i}`, path: `p${i}`, title: `Page ${i}`, isHomepage: false }));
+    await Promise.all(docs.map((doc) => provider.classifyPage({ sourceDocument: doc, allDocuments: docs, baseUrl: 'https://example.com/' })));
+
+    assert.ok(maxInFlight <= 2, `max in-flight ${maxInFlight} exceeded concurrency 2`);
+  });
+
+  it('retries 429 then succeeds, without infinite retry', async () => {
+    const { GeminiClient } = await import('../dist/semantic/geminiSemanticProvider.js');
+    let calls = 0;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      calls++;
+      if (calls === 1) return new Response('rate limited', { status: 429 });
+      return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: '{"ok":true}' }] } }] }), { status: 200 });
+    };
+    try {
+      const client = new GeminiClient({ apiKey: 'fake', model: 'test-model', apiUrl: 'https://example.invalid' });
+      const res = await client.generate('prompt');
+      assert.equal(res.text, '{"ok":true}');
+      assert.equal(calls, 2, 'one retry for 429');
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

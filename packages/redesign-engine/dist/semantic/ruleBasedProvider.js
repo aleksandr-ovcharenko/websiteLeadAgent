@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { FactGate } from './factValidation.js';
 function cleanText(text) {
     return text.replace(/\s+/g, ' ').trim();
 }
@@ -364,6 +365,12 @@ export class RuleBasedSemanticProvider {
         medium: 0.65,
         low: 0.4,
     };
+    // Fact candidates are validated before becoming facts; rejections are kept
+    // as diagnostics. Drain once per graph build via drainFactRejections().
+    factGate = new FactGate();
+    drainFactRejections() {
+        return this.factGate.drain();
+    }
     async classifyPage(ctx) {
         const { sourceDocument: doc, allDocuments, baseUrl } = ctx;
         const signals = [];
@@ -954,7 +961,26 @@ export class RuleBasedSemanticProvider {
         const companyText = `${home.title} ${home.h1 || ''} ${home.mainText || ''}`;
         const empMatch = companyText.match(EMPLOYEES_RE);
         const unpMatch = companyText.match(UNP_RE);
-        const cleanMatch = (m) => m ? m[0].replace(/\s+/g, ' ').trim() : undefined;
+        // Identity/contact facts are candidates until validated — a wrong value
+        // is worse than UNKNOWN.
+        const employees = empMatch
+            ? this.factGate.accept({
+                rawValue: empMatch[0].replace(/\s+/g, ' ').trim(),
+                attemptedType: 'EMPLOYEE_COUNT',
+                source: 'company-text',
+                context: companyText.slice(Math.max(0, (empMatch.index ?? 0) - 80), (empMatch.index ?? 0) + empMatch[0].length + 80),
+                sourceDocumentId: home.id,
+            })
+            : undefined;
+        const unp = unpMatch
+            ? this.factGate.accept({
+                rawValue: unpMatch[0],
+                attemptedType: 'REGISTRATION_ID',
+                source: 'company-text',
+                context: companyText.slice(Math.max(0, (unpMatch.index ?? 0) - 80), (unpMatch.index ?? 0) + unpMatch[0].length + 80),
+                sourceDocumentId: home.id,
+            })
+            : undefined;
         return {
             id: id(),
             title: display,
@@ -967,8 +993,8 @@ export class RuleBasedSemanticProvider {
             sourceDocumentIds: [home.id],
             evidence: candidates.slice(0, 4).map((c) => c.evidence),
             founded: founded?.value,
-            employees: cleanMatch(empMatch),
-            unp: cleanMatch(unpMatch),
+            employees,
+            unp,
         };
     }
     extractCompanyDescription(ctx, home) {
@@ -991,13 +1017,25 @@ export class RuleBasedSemanticProvider {
         return ctx.sourceDocuments
             .flatMap((d) => d.evidence?.dates?.map((dt) => ({ doc: d, dt })) || [])
             .filter(({ dt }) => (type === 'FOUNDING_DATE' && /foundingDate|startDate|founded|since|создан|основан/.test(dt.type + ' ' + dt.context)) || false)
-            .map(({ doc, dt }) => ({
-            id: id(),
-            type: 'FOUNDING_DATE',
-            value: dt.text,
-            confidence: dt.type === 'jsonld' ? 0.9 : 0.6,
-            evidence: [evidence(dt.type, dt.text, dt.type === 'jsonld' ? 0.9 : 0.6, { sourceDocumentId: doc.id, context: dt.context })],
-        }))[0];
+            .map(({ doc, dt }) => {
+            const v = this.factGate.accept({
+                rawValue: dt.text,
+                attemptedType: 'FOUNDING_DATE',
+                source: dt.type,
+                context: dt.context,
+                sourceDocumentId: doc.id,
+            });
+            if (!v)
+                return undefined;
+            return {
+                id: id(),
+                type: 'FOUNDING_DATE',
+                value: v,
+                confidence: dt.type === 'jsonld' ? 0.9 : 0.6,
+                evidence: [evidence(dt.type, dt.text, dt.type === 'jsonld' ? 0.9 : 0.6, { sourceDocumentId: doc.id, context: dt.context })],
+            };
+        })
+            .filter((f) => f !== undefined)[0];
     }
     async extractContacts(ctx) {
         const contactDoc = ctx.sourceDocuments.find((d) => ctx.pageClassifications.get(d.id)?.type === 'CONTACTS');
@@ -1010,24 +1048,30 @@ export class RuleBasedSemanticProvider {
         const addresses = [];
         const socialLinks = [];
         const seen = new Set();
+        // All extraction output is a FactCandidate — only validated values become
+        // accepted business facts. Rejections are recorded for diagnostics.
         for (const doc of docs) {
             const chrome = doc.chrome.contacts;
+            const contactContext = `${doc.title || ''} ${doc.url}`;
             for (const p of chrome?.phones || []) {
-                if (!seen.has(p)) {
-                    seen.add(p);
-                    phones.push({ value: p, evidence: evidence('chrome-phone', p, 0.85, { sourceDocumentId: doc.id }) });
+                const v = this.factGate.accept({ rawValue: p, attemptedType: 'PHONE', source: 'chrome-phone', context: contactContext, sourceDocumentId: doc.id });
+                if (v && !seen.has(v)) {
+                    seen.add(v);
+                    phones.push({ value: v, evidence: evidence('chrome-phone', v, 0.85, { sourceDocumentId: doc.id }) });
                 }
             }
             for (const e of chrome?.emails || []) {
-                if (!seen.has(e)) {
-                    seen.add(e);
-                    emails.push({ value: e, evidence: evidence('chrome-email', e, 0.85, { sourceDocumentId: doc.id }) });
+                const v = this.factGate.accept({ rawValue: e, attemptedType: 'EMAIL', source: 'chrome-email', context: contactContext, sourceDocumentId: doc.id });
+                if (v && !seen.has(v)) {
+                    seen.add(v);
+                    emails.push({ value: v, evidence: evidence('chrome-email', v, 0.85, { sourceDocumentId: doc.id }) });
                 }
             }
             for (const a of chrome?.addresses || []) {
-                if (!seen.has(a)) {
-                    seen.add(a);
-                    addresses.push({ value: a, evidence: evidence('chrome-address', a, 0.7, { sourceDocumentId: doc.id }) });
+                const v = this.factGate.accept({ rawValue: a, attemptedType: 'ADDRESS', source: 'chrome-address', context: contactContext, sourceDocumentId: doc.id });
+                if (v && !seen.has(v)) {
+                    seen.add(v);
+                    addresses.push({ value: v, evidence: evidence('chrome-address', v, 0.7, { sourceDocumentId: doc.id }) });
                 }
             }
             for (const s of chrome?.socialLinks || []) {
@@ -1042,19 +1086,21 @@ export class RuleBasedSemanticProvider {
                 const sc = sections.find((s) => s.sectionId === sec.id);
                 if (sc?.type === 'CONTACT_DETAILS' || doc === contactDoc) {
                     const text = sec.paragraphs.join('\n');
+                    const sectionContext = `${sec.heading || ''} ${text.slice(0, 400)}`;
                     const phoneMatches = text.match(/[\(\+]\d(?:[\s\(\)\-]?\d){6,30}/g) || [];
                     for (const p of phoneMatches) {
-                        const clean = p.replace(/\s+/g, ' ').trim();
-                        if (clean.replace(/[^\d]/g, '').length >= 7 && !seen.has(clean)) {
-                            seen.add(clean);
-                            phones.push({ value: clean, evidence: evidence('section-phone', clean, 0.75, { sourceDocumentId: doc.id, sourceSectionId: sec.id }) });
+                        const v = this.factGate.accept({ rawValue: p, attemptedType: 'PHONE', source: 'section-phone', context: sectionContext, sourceDocumentId: doc.id });
+                        if (v && !seen.has(v)) {
+                            seen.add(v);
+                            phones.push({ value: v, evidence: evidence('section-phone', v, 0.75, { sourceDocumentId: doc.id, sourceSectionId: sec.id }) });
                         }
                     }
                     const emailMatches = text.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g) || [];
                     for (const e of emailMatches) {
-                        if (!seen.has(e)) {
-                            seen.add(e);
-                            emails.push({ value: e, evidence: evidence('section-email', e, 0.8, { sourceDocumentId: doc.id, sourceSectionId: sec.id }) });
+                        const v = this.factGate.accept({ rawValue: e, attemptedType: 'EMAIL', source: 'section-email', context: sectionContext, sourceDocumentId: doc.id });
+                        if (v && !seen.has(v)) {
+                            seen.add(v);
+                            emails.push({ value: v, evidence: evidence('section-email', v, 0.8, { sourceDocumentId: doc.id, sourceSectionId: sec.id }) });
                         }
                     }
                 }
@@ -1507,14 +1553,23 @@ export class RuleBasedSemanticProvider {
         for (const doc of ctx.sourceDocuments) {
             for (const dt of doc.evidence?.dates || []) {
                 const isFounding = /foundingDate|startDate|founded|since|создан|основан|год основания|года|foundation/i.test(dt.type + ' ' + dt.context);
-                if (isFounding && YEAR_RE.test(dt.text)) {
-                    const key = `FOUNDING_DATE:${dt.text}`;
+                if (!isFounding)
+                    continue;
+                const v = this.factGate.accept({
+                    rawValue: dt.text,
+                    attemptedType: 'FOUNDING_DATE',
+                    source: dt.type,
+                    context: dt.context,
+                    sourceDocumentId: doc.id,
+                });
+                if (v) {
+                    const key = `FOUNDING_DATE:${v}`;
                     if (!seen.has(key)) {
                         seen.add(key);
                         facts.push({
                             id: id(),
                             type: 'FOUNDING_DATE',
-                            value: dt.text,
+                            value: v,
                             confidence: dt.type === 'jsonld' ? 0.9 : 0.6,
                             evidence: [evidence(dt.type, dt.text, dt.type === 'jsonld' ? 0.9 : 0.6, { sourceDocumentId: doc.id, context: dt.context })],
                         });
@@ -1524,19 +1579,40 @@ export class RuleBasedSemanticProvider {
             const text = `${doc.title} ${doc.h1 || ''} ${doc.mainText || ''}`;
             const empMatch = text.match(EMPLOYEES_RE);
             if (empMatch) {
-                const value = empMatch[0].trim();
-                const key = `EMPLOYEE_COUNT:${value}`;
-                if (!seen.has(key)) {
-                    seen.add(key);
-                    facts.push({ id: id(), type: 'EMPLOYEE_COUNT', value, confidence: 0.55, evidence: [evidence('text-match', value, 0.55, { sourceDocumentId: doc.id })] });
+                const empCtx = text.slice(Math.max(0, (empMatch.index ?? 0) - 80), (empMatch.index ?? 0) + empMatch[0].length + 80);
+                const v = this.factGate.accept({
+                    rawValue: empMatch[0].trim(),
+                    attemptedType: 'EMPLOYEE_COUNT',
+                    source: 'text-match',
+                    context: empCtx,
+                    sourceDocumentId: doc.id,
+                });
+                if (v) {
+                    const key = `EMPLOYEE_COUNT:${v}`;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        facts.push({ id: id(), type: 'EMPLOYEE_COUNT', value: v, confidence: 0.55, evidence: [evidence('text-match', v, 0.55, { sourceDocumentId: doc.id, context: empCtx.slice(0, 200) })] });
+                    }
                 }
             }
-            const unpMatch = text.match(UNP_RE);
-            if (unpMatch) {
-                const key = `UNP:${unpMatch[0]}`;
-                if (!seen.has(key)) {
-                    seen.add(key);
-                    facts.push({ id: id(), type: 'UNP', value: unpMatch[0], confidence: 0.5, evidence: [evidence('regex', unpMatch[0], 0.5, { sourceDocumentId: doc.id })] });
+            // Registration / tax IDs keep their own fact type — never a phone, and
+            // only accepted with explicit УНП/ИНН/registration label context.
+            for (const m of text.matchAll(new RegExp(UNP_RE.source, 'gu'))) {
+                const idx = m.index ?? 0;
+                const ctxWindow = text.slice(Math.max(0, idx - 80), idx + m[0].length + 80);
+                const v = this.factGate.accept({
+                    rawValue: m[0],
+                    attemptedType: 'REGISTRATION_ID',
+                    source: 'regex',
+                    context: ctxWindow,
+                    sourceDocumentId: doc.id,
+                });
+                if (v) {
+                    const key = `UNP:${v}`;
+                    if (!seen.has(key)) {
+                        seen.add(key);
+                        facts.push({ id: id(), type: 'UNP', value: v, confidence: 0.65, evidence: [evidence('regex', v, 0.65, { sourceDocumentId: doc.id, context: ctxWindow.slice(0, 200) })] });
+                    }
                 }
             }
         }

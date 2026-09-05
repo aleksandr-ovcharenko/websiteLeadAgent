@@ -1,6 +1,7 @@
 import type { SourceDocument, SourceDocumentCollection, SourceDocumentSection, SourceDocumentImage } from '../types.js';
 import { RuleBasedSemanticProvider, pageCategoryAndSubType } from './ruleBasedProvider.js';
 import { HybridGeminiProvider } from './geminiSemanticProvider.js';
+import type { RejectedFactCandidate } from './factValidation.js';
 import type {
   PageClassification,
   CollectionClassification,
@@ -76,10 +77,12 @@ export interface GenerationSemanticProvider {
   extractProducts(ctx: EntityExtractionContext): Promise<ProductEntity[]>;
   extractFacts(ctx: EntityExtractionContext): Promise<FactEntity[]>;
   extractRelationships(ctx: EntityExtractionContext): Promise<Relationship[]>;
+  /** Drain rejected fact candidates accumulated during extraction (diagnostics). */
+  drainFactRejections?(): RejectedFactCandidate[];
 }
 
 export interface ProviderOptions {
-  type?: 'rule-based' | 'openai' | 'llm-fallback' | 'gemini' | 'auto';
+  type?: 'rule-based' | 'openai' | 'llm-fallback' | 'gemini' | 'hybrid-gemini' | 'auto';
   openaiApiKey?: string;
   openaiModel?: string;
   temperature?: number;
