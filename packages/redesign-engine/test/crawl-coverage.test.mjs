@@ -100,6 +100,28 @@ describe('crawl frontier', () => {
     assert.equal(f.has('https://www.x/page?utm_source=x'), true, 'www variant deduped');
   });
 
+  it('upgrades a sitemap-seeded URL when nav evidence arrives later', () => {
+    const f = new CrawlFrontier(3);
+    // Sitemap floods the frontier first (cheap seeding).
+    f.add('https://x/news-post-1', 0, 'sitemap');
+    f.add('https://x/uslugi', 0, 'sitemap');
+    f.add('https://x/random-article', 0, 'sitemap');
+    // Then the rendered nav exposes /uslugi as a primary navigation link —
+    // it must outrank plain sitemap entries despite the earlier claim.
+    f.add('https://x/uslugi', 1, 'nav');
+    assert.equal(f.next().url, 'https://x/uslugi', 'nav evidence must upgrade priority over sitemap seed');
+  });
+
+  it('boosts hub ancestors of discovered detail URLs', () => {
+    const f = new CrawlFrontier(3);
+    f.add('https://x/body-a', 2, 'body');
+    f.add('https://x/category/novosti/child-1', 2, 'body');
+    f.add('https://x/category/novosti', 2, 'body');
+    f.add('https://x/category/novosti/child-2', 2, 'body');
+    const order = [f.next().url, f.next().url, f.next().url, f.next().url];
+    assert.ok(order.indexOf('https://x/category/novosti') < order.indexOf('https://x/body-a'), 'hub index should outrank a leaf body link');
+  });
+
   it('marks unattempted candidates as BUDGET_EXHAUSTED', () => {
     const f = new CrawlFrontier(3);
     f.add('https://x/a', 1, 'body');

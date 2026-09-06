@@ -17,8 +17,10 @@ import { HybridGeminiProvider } from '../packages/redesign-engine/dist/semantic/
 const SKIP_CRAWL = process.argv.includes('--skip-crawl');
 const RULE_ONLY = process.argv.includes('--rule-only');
 const CACHE_PROOF = process.argv.includes('--cache-proof');
+const MAX_PAGES = (() => { const i = process.argv.indexOf('--max-pages'); return i > 0 ? Number(process.argv[i + 1]) : 30; })();
 const TS = new Date().toISOString().replace(/[:.]/g, '-');
 const OUT_DIR = `data/redesign/ab-${TS}`;
+const REDESIGN_DIR = 'data/redesign';
 
 // Regression fixtures only — no domain-specific branches anywhere.
 const subjects = [
@@ -53,7 +55,7 @@ async function ensureSourceDocuments(subject) {
     return { path: docsPath, reused: true, crawlResult };
   }
   console.log(`  [crawl] live crawl ${subject.url} ...`);
-  const crawlResult = await crawlSite({ baseUrl: subject.url, maxPages: 30, maxDepth: 3, timeoutMs: 30000, rootTimeoutMs: 45000, rootRetries: 1 });
+  const crawlResult = await crawlSite({ baseUrl: subject.url, maxPages: MAX_PAGES, maxDepth: 3, timeoutMs: 30000, rootTimeoutMs: 45000, rootRetries: 1 });
   const docs = buildSourceDocuments(crawlResult);
   fs.mkdirSync(siteDir, { recursive: true });
   fs.writeFileSync(path.join(siteDir, 'crawl.json'), JSON.stringify({ baseUrl: subject.url, pages: crawlResult.pages?.length ?? 0, warnings: crawlResult.warnings, skipped: crawlResult.skipped, crawlResult }, null, 2));
@@ -64,13 +66,15 @@ async function ensureSourceDocuments(subject) {
 
 // --- gold evaluation -------------------------------------------------------
 
-function evaluateSite(name, docs, graph) {
+function evaluateSite(name, docs, graph, coverage) {
   const docByUrl = new Map(docs.map((d) => [canonicalUrl(d.url), d]));
   const docById = new Map(docs.map((d) => [d.id, d]));
+  const resolvedBy = new Map((coverage?.pages?.all || []).map((s) => [canonicalUrl(s.goldUrl), s.resolvedUrl]));
 
   const pageEval = { correct: 0, wrong: 0, missing: 0, coarseCorrect: 0, errors: [] };
   for (const sample of (GOLD.pages || []).filter((p) => p.site === name)) {
-    const doc = docByUrl.get(canonicalUrl(sample.url));
+    const doc = docByUrl.get(canonicalUrl(sample.url)) ||
+      (resolvedBy.get(canonicalUrl(sample.url)) ? docByUrl.get(canonicalUrl(resolvedBy.get(canonicalUrl(sample.url)))) : undefined);
     const page = doc && graph.pages.find((p) => p.sourceDocumentId === doc.id);
     if (!page) { pageEval.missing++; pageEval.errors.push({ url: sample.url, reason: 'page not in graph' }); continue; }
     const typeOk = page.classification.type === sample.expected;
@@ -83,7 +87,8 @@ function evaluateSite(name, docs, graph) {
 
   const collEval = { correct: 0, wrong: 0, missing: 0, errors: [] };
   for (const sample of (GOLD.collections || []).filter((c) => c.site === name)) {
-    const doc = docByUrl.get(canonicalUrl(sample.docUrl));
+    const doc = docByUrl.get(canonicalUrl(sample.docUrl)) ||
+      (resolvedBy.get(canonicalUrl(sample.docUrl)) ? docByUrl.get(canonicalUrl(resolvedBy.get(canonicalUrl(sample.docUrl)))) : undefined);
     if (!doc) { collEval.missing++; continue; }
     const page = graph.pages.find((p) => p.sourceDocumentId === doc.id);
     if (!page) { collEval.missing++; continue; }
@@ -126,71 +131,140 @@ const canonKey = (url) => {
   } catch { return (url || '').toLowerCase(); }
 };
 
-function coverageForSite(name, docs, crawlResult) {
+// Classify a gold collection target by where it should live in the
+// SourceDocument schema — content collections vs chrome vs utility structures.
+function structureKind(hint, g) {
+  const h = (hint || '').toLowerCase();
+  if (g.expectedType === 'NAVIGATION' || /nav|menu/.test(h)) return 'CHROME_STRUCTURE';
+  if (/breadcrumb/.test(h)) return 'CHROME_STRUCTURE';
+  if (/social/.test(h)) return 'CHROME_STRUCTURE';
+  if (/contact/.test(h)) return 'CHROME_STRUCTURE';
+  if (/lang|theme-widget|dark|switch|search|login/.test(h)) return 'UTILITY_STRUCTURE';
+  if (g.expectedType === 'CONTENT_COLLECTION' || /list|grid|slider|teaser/.test(h)) return 'CONTENT_COLLECTION';
+  return 'OTHER_EXPECTED_STRUCTURE';
+}
+
+// Bounded live probe — used ONLY to classify a gold URL that the plan never
+// saw: is it dead upstream (404), a redirect to a covered resource, or a real
+// undiscovered page?
+async function probeGoldUrl(url) {
+  try {
+    const res = await fetch(url, { redirect: 'follow', headers: { 'User-Agent': 'Mozilla/5.0' }, signal: AbortSignal.timeout(15000) });
+    return { status: res.status, finalUrl: res.url };
+  } catch (e) {
+    return { status: 0, error: String(e?.message || e).slice(0, 120) };
+  }
+}
+
+async function coverageForSite(name, docs, crawlResult) {
   const docKeys = new Set(docs.map((d) => canonKey(d.url)));
   const plan = crawlResult?.crawlPlan || [];
   const planByKey = new Map(plan.map((e) => [canonKey(e.url), e]));
 
-  const pageStatuses = (GOLD.pages || []).filter((p) => p.site === name).map((g) => {
+  const pageStatuses = await Promise.all((GOLD.pages || []).filter((p) => p.site === name).map(async (g) => {
     const key = canonKey(g.url);
-    if (docKeys.has(key)) return { url: g.url, status: 'CRAWLED' };
-    // A gold URL may be covered by the root-resolution redirect chain or by a
-    // page whose final URL canonicalizes to it.
+    const base = { site: name, goldUrl: g.url, normalized: key };
+    if (docKeys.has(key)) {
+      const doc = docs.find((d) => canonKey(d.url) === key);
+      return { ...base, resolvedUrl: doc.url, verdict: 'COVERED_DIRECT', documentId: doc.id };
+    }
     const rr = crawlResult?.rootResolution;
     if (rr && [rr.requestedUrl, ...(rr.redirectChain || []), rr.finalUrl].some((u) => u && canonKey(u) === key) &&
         rr.finalUrl && docKeys.has(canonKey(rr.finalUrl))) {
-      return { url: g.url, status: 'REDIRECTED_TO_CANONICAL', finalUrl: rr.finalUrl };
+      return { ...base, resolvedUrl: rr.finalUrl, verdict: 'COVERED_REDIRECT' };
     }
     const entry = planByKey.get(key);
-    if (!entry) return { url: g.url, status: 'NOT_DISCOVERED' };
-    if (entry.result === 'REDIRECTED_TO_CANONICAL' && entry.finalUrl && docKeys.has(canonKey(entry.finalUrl))) {
-      return { url: g.url, status: 'REDIRECTED_TO_CANONICAL', finalUrl: entry.finalUrl };
+    if (entry) {
+      if ((entry.result === 'REDIRECTED_TO_CANONICAL' || entry.result === 'CRAWLED') &&
+          entry.finalUrl && canonKey(entry.finalUrl) !== key && docKeys.has(canonKey(entry.finalUrl))) {
+        return { ...base, resolvedUrl: entry.finalUrl, verdict: 'COVERED_REDIRECT' };
+      }
+      if (entry.result === 'HTTP_ERROR') return { ...base, verdict: 'HTTP_ERROR', planStatus: entry.status, failureReason: entry.failureReason };
+      if (entry.result === 'TIMEOUT') return { ...base, verdict: 'TIMEOUT', failureReason: entry.failureReason };
+      if (entry.result === 'BLOCKED') return { ...base, verdict: 'BLOCKED' };
+      if (!entry.attempted) return { ...base, verdict: 'BUDGET_EXHAUSTED' };
+      return { ...base, verdict: 'OTHER', planResult: entry.result };
     }
-    return { url: g.url, status: entry.result || (entry.attempted ? 'OTHER' : 'BUDGET_EXHAUSTED'), failureReason: entry.failureReason };
-  });
+    // Never seen by the crawler — bounded live probe to classify why.
+    const probe = await probeGoldUrl(g.url);
+    if (probe.status === 404 || probe.status === 410) return { ...base, verdict: 'HTTP_ERROR', planStatus: probe.status, failureReason: 'gold URL returns 404 upstream — not linked anywhere (stale gold)' };
+    if (probe.status === 0) return { ...base, verdict: 'TIMEOUT', failureReason: `probe failed: ${probe.error}` };
+    if (probe.finalUrl && canonKey(probe.finalUrl) !== key && docKeys.has(canonKey(probe.finalUrl))) {
+      return { ...base, resolvedUrl: probe.finalUrl, verdict: 'COVERED_REDIRECT', failureReason: 'live redirect to a covered canonical page' };
+    }
+    return { ...base, verdict: 'NOT_DISCOVERED', planStatus: probe.status, resolvedUrl: probe.finalUrl, failureReason: `reachable upstream (HTTP ${probe.status}) but no link/plan entry` };
+  }));
 
-  const byStatus = pageStatuses.reduce((a, s) => { a[s.status] = (a[s.status] || 0) + 1; return a; }, {});
+  const COVERED = new Set(['COVERED_DIRECT', 'COVERED_REDIRECT']);
+  const byVerdict = pageStatuses.reduce((a, s) => { a[s.verdict] = (a[s.verdict] || 0) + 1; return a; }, {});
+  const coveredCount = pageStatuses.filter((s) => COVERED.has(s.verdict)).length;
+  const docKeysWithCovered = new Set([...docKeys, ...pageStatuses.filter((s) => COVERED.has(s.verdict)).map((s) => canonKey(s.goldUrl))]);
 
-  // Collection coverage conditioned on the parent page being crawled.
-  // Gold selectorHints are semantic labels — some refer to chrome elements
-  // (main-nav, breadcrumbs, social links), not doc.collections. Check the
-  // artifact that actually holds the structure.
-  let parentCrawled = 0, extracted = 0;
-  const collectionGaps = [];
+  // Collections — honest denominators, structure-aware.
+  // A total / B parent covered / C represented in the correct structure /
+  // D classified by the semantic provider / E correctly classified.
   const navNodes = (n) => (n || []).flatMap((x) => [x, ...navNodes(x.children)]);
-  for (const g of (GOLD.collections || []).filter((c) => c.site === name)) {
-    const parentKey = canonKey(g.docUrl);
-    const doc = docs.find((d) => canonKey(d.url) === parentKey);
-    if (!doc) { collectionGaps.push({ docUrl: g.docUrl, hint: g.selectorHint, reason: 'PARENT_PAGE_NOT_CRAWLED' }); continue; }
-    parentCrawled++;
+  const colGold = (GOLD.collections || []).filter((c) => c.site === name);
+  const goldByPage = new Map();
+  const details = [];
+  let B = 0, C = 0;
+  for (const g of colGold) {
+    const kind = structureKind(g.selectorHint, g);
+    // The gold page may be covered via redirect — resolve to the actual doc.
+    const parentEntry = pageStatuses.find((p) => p.goldUrl === g.docUrl);
+    const parentDoc = docs.find((d) => canonKey(d.url) === canonKey(parentEntry?.resolvedUrl || g.docUrl));
+    const row = { docUrl: g.docUrl, hint: g.selectorHint, kind };
+    if (!parentDoc) { details.push({ ...row, represented: false, reason: 'PARENT_PAGE_NOT_CRAWLED' }); continue; }
+    B++;
     const hint = (g.selectorHint || '').toLowerCase();
     let present;
-    if (/nav/.test(hint)) {
-      present = (navNodes(doc.chrome?.nav?.primary).length + navNodes(doc.chrome?.nav?.secondary).length) > 0 || (doc.collections || []).length > 0;
-    } else if (/breadcrumb/.test(hint)) {
-      present = (doc.chrome?.nav?.breadcrumbs || []).length > 0;
-    } else if (/social/.test(hint)) {
-      present = (doc.chrome?.contacts?.socialLinks || []).length > 0;
-    } else if (/contact/.test(hint)) {
-      const c = doc.chrome?.contacts || {};
-      present = (c.phones?.length || 0) + (c.emails?.length || 0) + (c.addresses?.length || 0) > 0;
-    } else if (/lang|theme-widget|dark|switch/.test(hint)) {
-      // Utility chrome widgets — check raw DOM evidence in chrome text/links.
-      const hay = `${doc.chrome?.header?.text || ''} ${(doc.chrome?.header?.links || []).map((l) => l.href).join(' ')}`.toLowerCase();
-      present = /lang|theme|dark|light|en\/|\/en|flag/.test(hay) || (doc.collections || []).length > 0;
+    if (kind === 'CHROME_STRUCTURE') {
+      if (/nav/.test(hint)) present = navNodes(parentDoc.chrome?.nav?.primary).length + navNodes(parentDoc.chrome?.nav?.secondary).length > 0;
+      else if (/breadcrumb/.test(hint)) present = (parentDoc.chrome?.nav?.breadcrumbs || []).length > 0;
+      else if (/social/.test(hint)) present = (parentDoc.chrome?.contacts?.socialLinks || []).length > 0;
+      else present = (parentDoc.chrome?.contacts?.phones?.length || 0) + (parentDoc.chrome?.contacts?.emails?.length || 0) + (parentDoc.chrome?.contacts?.addresses?.length || 0) > 0;
+    } else if (kind === 'UTILITY_STRUCTURE') {
+      const hay = `${parentDoc.chrome?.header?.text || ''} ${(parentDoc.chrome?.header?.links || []).map((l) => l.href).join(' ')}`.toLowerCase();
+      present = /lang|theme|dark|light|en\/|\/en|flag/.test(hay);
+      row.note = 'utility chrome widget — may intentionally not be a SourceDocument collection';
     } else {
-      // Content collections: any repeated-items collection on the page.
-      present = (doc.collections || []).some((c) => (c.items || []).length >= 2);
-      if (!present) present = (doc.collections || []).length > 0;
+      present = (parentDoc.collections || []).some((c) => (c.items || []).length >= 2) || (parentDoc.collections || []).length > 0;
     }
-    if (present) extracted++;
-    else collectionGaps.push({ docUrl: g.docUrl, hint: g.selectorHint, reason: 'COLLECTION_NOT_EXTRACTED' });
+    if (present) { C++; goldByPage.set(parentDoc.id, [...(goldByPage.get(parentDoc.id) || []), g]); details.push({ ...row, represented: true }); }
+    else details.push({ ...row, represented: false, reason: 'STRUCTURE_NOT_EXTRACTED' });
   }
 
+  // D/E come from the semantic eval: a represented collection counts as
+  // classified when findCollection (or the type fallback) produced a verdict.
   return {
-    pages: { total: pageStatuses.length, crawled: byStatus.CRAWLED || 0, byStatus, details: pageStatuses.filter((s) => s.status !== 'CRAWLED') },
-    collections: { total: (GOLD.collections || []).filter((c) => c.site === name).length, parentCrawled, extracted, gaps: collectionGaps },
+    pages: { total: pageStatuses.length, covered: coveredCount, byVerdict, all: pageStatuses, details: pageStatuses.filter((s) => !COVERED.has(s.verdict)) },
+    collections: { A: colGold.length, B, C, gaps: details.filter((d) => !d.represented) },
+    coverageAtBudget: coverageAtBudgets(plan, pageStatuses),
   };
+}
+
+// Deterministic coverage-at-budget: frontier pop order is (priority, insertion).
+// A gold page is covered at budget N when a plan entry for it sits within the
+// first N pops and wasn't BLOCKED/HTTP_ERROR — regardless of whether the actual
+// run's budget reached it.
+function coverageAtBudgets(plan, pageStatuses) {
+  const order = plan.map((e, i) => ({ ...e, i })).sort((a, b) => a.priority - b.priority || a.i - b.i);
+  const rankByKey = new Map();
+  for (let rank = 0; rank < order.length; rank++) {
+    const e = order[rank];
+    for (const k of [canonKey(e.url), e.finalUrl ? canonKey(e.finalUrl) : null]) {
+      if (k && !rankByKey.has(k) && e.result !== 'BLOCKED' && e.result !== 'HTTP_ERROR') rankByKey.set(k, rank + 1);
+    }
+  }
+  const out = {};
+  for (const n of [20, 30, 40, 50]) {
+    out[n] = pageStatuses.filter((s) => {
+      const rank = rankByKey.get(canonKey(s.goldUrl)) ?? (s.resolvedUrl ? rankByKey.get(canonKey(s.resolvedUrl)) : undefined);
+      if (rank !== undefined) return rank <= n;
+      return s.verdict === 'COVERED_DIRECT' || s.verdict === 'COVERED_REDIRECT';
+    }).length;
+  }
+  return out;
 }
 
 function prf(ent) {
@@ -238,9 +312,11 @@ for (const subject of subjects) {
     if (docs.crawlResult) {
       siteOut.rootResolution = docs.crawlResult.rootResolution;
       siteOut.homepage = docs.crawlResult.homepage;
-      siteOut.coverage = coverageForSite(subject.name, sourceDocuments, docs.crawlResult);
+      siteOut.coverage = await coverageForSite(subject.name, sourceDocuments, docs.crawlResult);
       console.log(`  homepage: ${docs.crawlResult.homepage?.status || 'n/a'} ${docs.crawlResult.homepage?.url || ''}`);
-      console.log(`  coverage: pages ${siteOut.coverage.pages.crawled}/${siteOut.coverage.pages.total} crawled; collections ${siteOut.coverage.collections.extracted}/${siteOut.coverage.collections.parentCrawled} extracted of ${siteOut.coverage.collections.total} gold`);
+      const cv = siteOut.coverage;
+      console.log(`  coverage: pages ${cv.pages.covered}/${cv.pages.total} | collections A=${cv.collections.A} B=${cv.collections.B} C=${cv.collections.C}`);
+      console.log(`  coverage@budget: ${JSON.stringify(cv.coverageAtBudget)}`);
     }
 
     // RULE-only graph
@@ -274,8 +350,33 @@ for (const subject of subjects) {
     siteOut.ruleGraph = { path: rulePath, sha256: sha256(fs.readFileSync(rulePath)) };
     siteOut.hybridGraph = { path: hybridPath, sha256: sha256(fs.readFileSync(hybridPath)) };
 
-    siteOut.rule = evaluateSite(subject.name, sourceDocuments, ruleGraph);
-    siteOut.hybrid = evaluateSite(subject.name, sourceDocuments, hybridGraph);
+    siteOut.rule = evaluateSite(subject.name, sourceDocuments, ruleGraph, siteOut.coverage);
+    siteOut.hybrid = evaluateSite(subject.name, sourceDocuments, hybridGraph, siteOut.coverage);
+
+    // Honest collection denominators: A total / B parent covered /
+    // C represented in the right structure / D classified / E correct.
+    if (siteOut.coverage) {
+      const represented = (GOLD.collections || []).filter((g) => g.site === subject.name &&
+        !siteOut.coverage.collections.gaps.some((gap) => gap.docUrl === g.docUrl && gap.hint === g.selectorHint));
+      let D = 0, E = 0;
+      // Resolve redirect-covered parents: gold URL → resolved doc URL.
+      const pageTable = siteOut.coverage.pages.all || [];
+      for (const g of represented) {
+        const resolved = pageTable.find((p) => p.goldUrl === g.docUrl)?.resolvedUrl || g.docUrl;
+        const doc = sourceDocuments.find((d) => canonKey(d.url) === canonKey(resolved));
+        const page = doc && ruleGraph.pages.find((p) => p.sourceDocumentId === doc.id);
+        const rawColl = doc?.collections?.find((c) => (c.selector || '').toLowerCase().includes((g.selectorHint || '').toLowerCase()));
+        const coll = page && rawColl ? page.collections.find((c) => c.collectionId === rawColl.id) : undefined;
+        const fb = page?.collections.find((c) => c.type === g.expectedType && (!g.expectedSubtype || c.contentSubtype === g.expectedSubtype));
+        const chosen = coll || fb;
+        if (chosen) {
+          D++;
+          if (chosen.type === g.expectedType && (!g.expectedSubtype || chosen.contentSubtype === g.expectedSubtype)) E++;
+        }
+      }
+      siteOut.coverage.collections.D = D;
+      siteOut.coverage.collections.E = E;
+    }
 
     // Override table: per-page / per-collection diffs between the two graphs.
     const overrides = [];
@@ -334,5 +435,32 @@ try {
 
 const outJson = path.join(OUT_DIR, 'ab-report.json');
 fs.writeFileSync(outJson, JSON.stringify(report, null, 2));
+
+// Frozen-corpus manifest — the authoritative input set for semantic A/B.
+const { execSync } = await import('node:child_process');
+let commit = 'unknown';
+try { commit = execSync('git rev-parse --short HEAD').toString().trim(); } catch {}
+const manifest = {
+  frozenAt: new Date().toISOString(),
+  crawlerCommit: commit,
+  ruleOnly: RULE_ONLY,
+  sites: report.sites.filter((s) => !s.error).map((s) => {
+    const siteDir = path.join(REDESIGN_DIR, s.name);
+    const f = (p) => fs.existsSync(p) ? { path: p, sha256: sha256(fs.readFileSync(p)) } : null;
+    return {
+      site: s.name,
+      inputUrl: subjects.find((x) => x.name === s.name)?.url,
+      canonicalRoot: s.rootResolution?.finalUrl || null,
+      homepageStatus: s.homepage?.status || null,
+      crawl: f(path.join(siteDir, 'crawl.json')),
+      sourceDocuments: f(path.join(siteDir, 'source-documents.json')),
+      crawlPlan: f(path.join(siteDir, 'crawl-plan.json')),
+      pageCount: s.sourceDocuments?.count,
+    };
+  }),
+};
+const manifestPath = path.join(REDESIGN_DIR, 'semantic-corpus-manifest.json');
+fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2));
 console.log(`\nReport: ${outJson}`);
+console.log(`Manifest: ${manifestPath}`);
 console.log(`Gemini stats: ${JSON.stringify(report.geminiStats)}`);

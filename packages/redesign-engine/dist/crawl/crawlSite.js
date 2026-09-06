@@ -185,7 +185,14 @@ async function fetchSitemap(baseUrl) {
     } })();
     for (const candidate of candidates) {
         const sitemapUrl = /^https?:/i.test(candidate) ? candidate : new URL(candidate, baseUrl).toString();
-        const urls = await fetchSitemapUrls(sitemapUrl);
+        let urls = await fetchSitemapUrls(sitemapUrl);
+        // One level of nested sitemap indexes (WP-style post-sitemap.xml etc.).
+        const nested = urls.filter((u) => /\.xml$/i.test(u));
+        if (nested.length) {
+            for (const n of nested.slice(0, 8)) {
+                urls.push(...(await fetchSitemapUrls(n)));
+            }
+        }
         for (const u of urls) {
             // Same-site check tolerates www/non-www relative to the sitemap host.
             try {
@@ -195,6 +202,8 @@ async function fetchSitemap(baseUrl) {
             catch {
                 continue;
             }
+            if (/\.xml$/i.test(u))
+                continue; // never enqueue sitemap indexes as pages
             const nu = normalizeUrl(baseUrl, u) || u;
             nodes.push({ label: 'Sitemap', url: nu, source: 'sitemap', children: [] });
         }
