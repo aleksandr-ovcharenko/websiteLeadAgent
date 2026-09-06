@@ -53,6 +53,7 @@ export interface RenderContext {
   pages: any[];
   services: any[];
   projects: any[];
+  products?: any[];
   news: any[];
   vacancies: any[];
   menu: NavItem[];

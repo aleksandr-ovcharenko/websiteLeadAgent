@@ -231,7 +231,7 @@ export function constructionModernV1(ctx: RenderContext): string {
     slug: s.slug,
     num: String(i + 1).padStart(2, '0'),
     title: s.title || 'Услуга',
-    desc: s.shortDescription || (Array.isArray(s.blocks) ? s.blocks.map((b: any) => b.content || b.text || '').join(' ').slice(0, 240) : ''),
+    desc: s.shortDescription || '',  // never dump raw scraped blocks into cards
     content: textFrom(s),
     img: mediaUrl(ctx, s.imageId)
   }));
@@ -267,6 +267,23 @@ export function constructionModernV1(ctx: RenderContext): string {
     content: textFrom(p),
     img: mediaUrl(ctx, p.coverImageId),
     gallery: (p.projectMedia || []).map((pm: any) => mediaUrl(ctx, pm.media?.id) || pm.media?.sourceUrl).filter(Boolean)
+  }));
+
+  const products = ((ctx as any).products || []).map((p: any) => ({
+    id: p.id,
+    slug: p.slug,
+    title: p.title || 'Продукт',
+    summary: p.summary || '',
+    attributes: p.attributes || {},
+    category: p.category || '',
+    price: p.price || '',
+    img: mediaUrl(ctx, p.coverImageId),
+    gallery: (p.productMedia || []).map((pm: any) => mediaUrl(ctx, pm.media?.id) || pm.media?.sourceUrl).filter(Boolean),
+    content: textFrom(p)
+  }));
+
+  const dynamicSections = ((ctx as any).dynamicSections || (ctx.theme as any)?.dynamicSections || []).map((d: any) => ({
+    kind: d.kind, heading: d.heading, items: d.items || []
   }));
 
   const news = (ctx.news || []).map((n) => ({
@@ -368,6 +385,8 @@ export function constructionModernV1(ctx: RenderContext): string {
     PAGES: pages,
     SERVICES: services,
     PROJECTS: projects,
+    PRODUCTS: products,
+    DYNAMIC: dynamicSections,
     NEWS_ITEMS: news,
     VACANCIES: vacancies,
     PROCESS_STEPS: []

@@ -2225,6 +2225,521 @@ export declare const contentNewsSchema: z.ZodObject<{
     } | undefined;
     publishedAt?: string | undefined;
 }>;
+export declare const contentProductSchema: z.ZodObject<{
+    title: z.ZodString;
+    slug: z.ZodString;
+    summary: z.ZodOptional<z.ZodString>;
+    attributes: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodString>>;
+    blocks: z.ZodDefault<z.ZodArray<z.ZodUnion<[z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+    } & {
+        type: z.ZodLiteral<"hero">;
+        title: z.ZodString;
+        subtitle: z.ZodOptional<z.ZodString>;
+        imageId: z.ZodOptional<z.ZodString>;
+        buttonLabel: z.ZodOptional<z.ZodString>;
+        buttonUrl: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        type: "hero";
+        title: string;
+        id?: string | undefined;
+        subtitle?: string | undefined;
+        imageId?: string | undefined;
+        buttonLabel?: string | undefined;
+        buttonUrl?: string | undefined;
+    }, {
+        type: "hero";
+        title: string;
+        id?: string | undefined;
+        subtitle?: string | undefined;
+        imageId?: string | undefined;
+        buttonLabel?: string | undefined;
+        buttonUrl?: string | undefined;
+    }>, z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+    } & {
+        type: z.ZodLiteral<"text">;
+        heading: z.ZodOptional<z.ZodString>;
+        content: z.ZodString;
+    }, "strip", z.ZodTypeAny, {
+        type: "text";
+        content: string;
+        id?: string | undefined;
+        heading?: string | undefined;
+    }, {
+        type: "text";
+        content: string;
+        id?: string | undefined;
+        heading?: string | undefined;
+    }>, z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+    } & {
+        type: z.ZodLiteral<"image">;
+        imageId: z.ZodString;
+        caption: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        type: "image";
+        imageId: string;
+        id?: string | undefined;
+        caption?: string | undefined;
+    }, {
+        type: "image";
+        imageId: string;
+        id?: string | undefined;
+        caption?: string | undefined;
+    }>, z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+    } & {
+        type: z.ZodLiteral<"gallery">;
+        imageIds: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+    }, "strip", z.ZodTypeAny, {
+        type: "gallery";
+        imageIds: string[];
+        id?: string | undefined;
+    }, {
+        type: "gallery";
+        id?: string | undefined;
+        imageIds?: string[] | undefined;
+    }>, z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+    } & {
+        type: z.ZodLiteral<"services">;
+        limit: z.ZodOptional<z.ZodNumber>;
+        heading: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        type: "services";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    }, {
+        type: "services";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    }>, z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+    } & {
+        type: z.ZodLiteral<"projects">;
+        limit: z.ZodOptional<z.ZodNumber>;
+        heading: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        type: "projects";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    }, {
+        type: "projects";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    }>, z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+    } & {
+        type: z.ZodLiteral<"news">;
+        limit: z.ZodOptional<z.ZodNumber>;
+        heading: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        type: "news";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    }, {
+        type: "news";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    }>, z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+    } & {
+        type: z.ZodLiteral<"reviews">;
+        reviews: z.ZodDefault<z.ZodArray<z.ZodObject<{
+            author: z.ZodOptional<z.ZodString>;
+            text: z.ZodString;
+            rating: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            text: string;
+            author?: string | undefined;
+            rating?: number | undefined;
+        }, {
+            text: string;
+            author?: string | undefined;
+            rating?: number | undefined;
+        }>, "many">>;
+    }, "strip", z.ZodTypeAny, {
+        type: "reviews";
+        reviews: {
+            text: string;
+            author?: string | undefined;
+            rating?: number | undefined;
+        }[];
+        id?: string | undefined;
+    }, {
+        type: "reviews";
+        id?: string | undefined;
+        reviews?: {
+            text: string;
+            author?: string | undefined;
+            rating?: number | undefined;
+        }[] | undefined;
+    }>, z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+    } & {
+        type: z.ZodLiteral<"about">;
+        heading: z.ZodOptional<z.ZodString>;
+        content: z.ZodString;
+        imageId: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        type: "about";
+        content: string;
+        id?: string | undefined;
+        imageId?: string | undefined;
+        heading?: string | undefined;
+    }, {
+        type: "about";
+        content: string;
+        id?: string | undefined;
+        imageId?: string | undefined;
+        heading?: string | undefined;
+    }>, z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+    } & {
+        type: z.ZodLiteral<"vacancies">;
+        heading: z.ZodOptional<z.ZodString>;
+        limit: z.ZodOptional<z.ZodNumber>;
+    }, "strip", z.ZodTypeAny, {
+        type: "vacancies";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    }, {
+        type: "vacancies";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    }>, z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+    } & {
+        type: z.ZodLiteral<"cta">;
+        title: z.ZodString;
+        description: z.ZodOptional<z.ZodString>;
+        buttonLabel: z.ZodOptional<z.ZodString>;
+        buttonUrl: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        type: "cta";
+        title: string;
+        id?: string | undefined;
+        buttonLabel?: string | undefined;
+        buttonUrl?: string | undefined;
+        description?: string | undefined;
+    }, {
+        type: "cta";
+        title: string;
+        id?: string | undefined;
+        buttonLabel?: string | undefined;
+        buttonUrl?: string | undefined;
+        description?: string | undefined;
+    }>, z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+    } & {
+        type: z.ZodLiteral<"contacts">;
+        heading: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        type: "contacts";
+        id?: string | undefined;
+        heading?: string | undefined;
+    }, {
+        type: "contacts";
+        id?: string | undefined;
+        heading?: string | undefined;
+    }>]>, "many">>;
+    sourceUrl: z.ZodOptional<z.ZodString>;
+    sourceType: z.ZodDefault<z.ZodEnum<["IMPORTED", "MANUAL", "AI_REWRITTEN"]>>;
+    seoTitle: z.ZodOptional<z.ZodString>;
+    seoDescription: z.ZodOptional<z.ZodString>;
+    coverImage: z.ZodOptional<z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+        sourceUrl: z.ZodOptional<z.ZodString>;
+        filename: z.ZodString;
+        originalFilename: z.ZodOptional<z.ZodString>;
+        mimeType: z.ZodOptional<z.ZodString>;
+        alt: z.ZodOptional<z.ZodString>;
+        caption: z.ZodOptional<z.ZodString>;
+        dataBase64: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        filename: string;
+        id?: string | undefined;
+        caption?: string | undefined;
+        sourceUrl?: string | undefined;
+        originalFilename?: string | undefined;
+        mimeType?: string | undefined;
+        alt?: string | undefined;
+        dataBase64?: string | undefined;
+    }, {
+        filename: string;
+        id?: string | undefined;
+        caption?: string | undefined;
+        sourceUrl?: string | undefined;
+        originalFilename?: string | undefined;
+        mimeType?: string | undefined;
+        alt?: string | undefined;
+        dataBase64?: string | undefined;
+    }>>;
+    gallery: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        id: z.ZodOptional<z.ZodString>;
+        sourceUrl: z.ZodOptional<z.ZodString>;
+        filename: z.ZodString;
+        originalFilename: z.ZodOptional<z.ZodString>;
+        mimeType: z.ZodOptional<z.ZodString>;
+        alt: z.ZodOptional<z.ZodString>;
+        caption: z.ZodOptional<z.ZodString>;
+        dataBase64: z.ZodOptional<z.ZodString>;
+    }, "strip", z.ZodTypeAny, {
+        filename: string;
+        id?: string | undefined;
+        caption?: string | undefined;
+        sourceUrl?: string | undefined;
+        originalFilename?: string | undefined;
+        mimeType?: string | undefined;
+        alt?: string | undefined;
+        dataBase64?: string | undefined;
+    }, {
+        filename: string;
+        id?: string | undefined;
+        caption?: string | undefined;
+        sourceUrl?: string | undefined;
+        originalFilename?: string | undefined;
+        mimeType?: string | undefined;
+        alt?: string | undefined;
+        dataBase64?: string | undefined;
+    }>, "many">>;
+}, "strip", z.ZodTypeAny, {
+    title: string;
+    gallery: {
+        filename: string;
+        id?: string | undefined;
+        caption?: string | undefined;
+        sourceUrl?: string | undefined;
+        originalFilename?: string | undefined;
+        mimeType?: string | undefined;
+        alt?: string | undefined;
+        dataBase64?: string | undefined;
+    }[];
+    slug: string;
+    sourceType: "IMPORTED" | "MANUAL" | "AI_REWRITTEN";
+    blocks: ({
+        type: "hero";
+        title: string;
+        id?: string | undefined;
+        subtitle?: string | undefined;
+        imageId?: string | undefined;
+        buttonLabel?: string | undefined;
+        buttonUrl?: string | undefined;
+    } | {
+        type: "text";
+        content: string;
+        id?: string | undefined;
+        heading?: string | undefined;
+    } | {
+        type: "image";
+        imageId: string;
+        id?: string | undefined;
+        caption?: string | undefined;
+    } | {
+        type: "gallery";
+        imageIds: string[];
+        id?: string | undefined;
+    } | {
+        type: "services";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    } | {
+        type: "projects";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    } | {
+        type: "news";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    } | {
+        type: "reviews";
+        reviews: {
+            text: string;
+            author?: string | undefined;
+            rating?: number | undefined;
+        }[];
+        id?: string | undefined;
+    } | {
+        type: "about";
+        content: string;
+        id?: string | undefined;
+        imageId?: string | undefined;
+        heading?: string | undefined;
+    } | {
+        type: "vacancies";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    } | {
+        type: "cta";
+        title: string;
+        id?: string | undefined;
+        buttonLabel?: string | undefined;
+        buttonUrl?: string | undefined;
+        description?: string | undefined;
+    } | {
+        type: "contacts";
+        id?: string | undefined;
+        heading?: string | undefined;
+    })[];
+    attributes: Record<string, string>;
+    sourceUrl?: string | undefined;
+    seoTitle?: string | undefined;
+    seoDescription?: string | undefined;
+    coverImage?: {
+        filename: string;
+        id?: string | undefined;
+        caption?: string | undefined;
+        sourceUrl?: string | undefined;
+        originalFilename?: string | undefined;
+        mimeType?: string | undefined;
+        alt?: string | undefined;
+        dataBase64?: string | undefined;
+    } | undefined;
+    summary?: string | undefined;
+}, {
+    title: string;
+    slug: string;
+    gallery?: {
+        filename: string;
+        id?: string | undefined;
+        caption?: string | undefined;
+        sourceUrl?: string | undefined;
+        originalFilename?: string | undefined;
+        mimeType?: string | undefined;
+        alt?: string | undefined;
+        dataBase64?: string | undefined;
+    }[] | undefined;
+    sourceUrl?: string | undefined;
+    sourceType?: "IMPORTED" | "MANUAL" | "AI_REWRITTEN" | undefined;
+    seoTitle?: string | undefined;
+    seoDescription?: string | undefined;
+    blocks?: ({
+        type: "hero";
+        title: string;
+        id?: string | undefined;
+        subtitle?: string | undefined;
+        imageId?: string | undefined;
+        buttonLabel?: string | undefined;
+        buttonUrl?: string | undefined;
+    } | {
+        type: "text";
+        content: string;
+        id?: string | undefined;
+        heading?: string | undefined;
+    } | {
+        type: "image";
+        imageId: string;
+        id?: string | undefined;
+        caption?: string | undefined;
+    } | {
+        type: "gallery";
+        id?: string | undefined;
+        imageIds?: string[] | undefined;
+    } | {
+        type: "services";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    } | {
+        type: "projects";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    } | {
+        type: "news";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    } | {
+        type: "reviews";
+        id?: string | undefined;
+        reviews?: {
+            text: string;
+            author?: string | undefined;
+            rating?: number | undefined;
+        }[] | undefined;
+    } | {
+        type: "about";
+        content: string;
+        id?: string | undefined;
+        imageId?: string | undefined;
+        heading?: string | undefined;
+    } | {
+        type: "vacancies";
+        id?: string | undefined;
+        heading?: string | undefined;
+        limit?: number | undefined;
+    } | {
+        type: "cta";
+        title: string;
+        id?: string | undefined;
+        buttonLabel?: string | undefined;
+        buttonUrl?: string | undefined;
+        description?: string | undefined;
+    } | {
+        type: "contacts";
+        id?: string | undefined;
+        heading?: string | undefined;
+    })[] | undefined;
+    coverImage?: {
+        filename: string;
+        id?: string | undefined;
+        caption?: string | undefined;
+        sourceUrl?: string | undefined;
+        originalFilename?: string | undefined;
+        mimeType?: string | undefined;
+        alt?: string | undefined;
+        dataBase64?: string | undefined;
+    } | undefined;
+    summary?: string | undefined;
+    attributes?: Record<string, string> | undefined;
+}>;
+export declare const dynamicSectionSchema: z.ZodObject<{
+    kind: z.ZodString;
+    heading: z.ZodOptional<z.ZodString>;
+    items: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        title: z.ZodOptional<z.ZodString>;
+        text: z.ZodOptional<z.ZodString>;
+        meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+    }, "strip", z.ZodTypeAny, {
+        title?: string | undefined;
+        text?: string | undefined;
+        meta?: Record<string, string> | undefined;
+    }, {
+        title?: string | undefined;
+        text?: string | undefined;
+        meta?: Record<string, string> | undefined;
+    }>, "many">>;
+}, "strip", z.ZodTypeAny, {
+    kind: string;
+    items: {
+        title?: string | undefined;
+        text?: string | undefined;
+        meta?: Record<string, string> | undefined;
+    }[];
+    heading?: string | undefined;
+}, {
+    kind: string;
+    heading?: string | undefined;
+    items?: {
+        title?: string | undefined;
+        text?: string | undefined;
+        meta?: Record<string, string> | undefined;
+    }[] | undefined;
+}>;
 export declare const contentVacancySchema: z.ZodObject<{
     title: z.ZodString;
     slug: z.ZodString;
@@ -2282,13 +2797,13 @@ export declare const contentContactsSchema: z.ZodObject<{
         url: string;
         platform: string;
     }[];
-    phone?: string | undefined;
     email?: string | undefined;
+    phone?: string | undefined;
     address?: string | undefined;
     workingHours?: string | undefined;
 }, {
-    phone?: string | undefined;
     email?: string | undefined;
+    phone?: string | undefined;
     address?: string | undefined;
     workingHours?: string | undefined;
     socialLinks?: {
@@ -2508,8 +3023,8 @@ export declare const extractedContentSchema: z.ZodObject<{
             platform: string;
         }[];
         description?: string | undefined;
-        phone?: string | undefined;
         email?: string | undefined;
+        phone?: string | undefined;
         address?: string | undefined;
         workingHours?: string | undefined;
         name?: string | undefined;
@@ -2520,8 +3035,8 @@ export declare const extractedContentSchema: z.ZodObject<{
         employees?: string | undefined;
     }, {
         description?: string | undefined;
-        phone?: string | undefined;
         email?: string | undefined;
+        phone?: string | undefined;
         address?: string | undefined;
         workingHours?: string | undefined;
         socialLinks?: {
@@ -4069,6 +4584,521 @@ export declare const extractedContentSchema: z.ZodObject<{
             dataBase64?: string | undefined;
         } | undefined;
     }>, "many">>;
+    products: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        title: z.ZodString;
+        slug: z.ZodString;
+        summary: z.ZodOptional<z.ZodString>;
+        attributes: z.ZodDefault<z.ZodRecord<z.ZodString, z.ZodString>>;
+        blocks: z.ZodDefault<z.ZodArray<z.ZodUnion<[z.ZodObject<{
+            id: z.ZodOptional<z.ZodString>;
+        } & {
+            type: z.ZodLiteral<"hero">;
+            title: z.ZodString;
+            subtitle: z.ZodOptional<z.ZodString>;
+            imageId: z.ZodOptional<z.ZodString>;
+            buttonLabel: z.ZodOptional<z.ZodString>;
+            buttonUrl: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            type: "hero";
+            title: string;
+            id?: string | undefined;
+            subtitle?: string | undefined;
+            imageId?: string | undefined;
+            buttonLabel?: string | undefined;
+            buttonUrl?: string | undefined;
+        }, {
+            type: "hero";
+            title: string;
+            id?: string | undefined;
+            subtitle?: string | undefined;
+            imageId?: string | undefined;
+            buttonLabel?: string | undefined;
+            buttonUrl?: string | undefined;
+        }>, z.ZodObject<{
+            id: z.ZodOptional<z.ZodString>;
+        } & {
+            type: z.ZodLiteral<"text">;
+            heading: z.ZodOptional<z.ZodString>;
+            content: z.ZodString;
+        }, "strip", z.ZodTypeAny, {
+            type: "text";
+            content: string;
+            id?: string | undefined;
+            heading?: string | undefined;
+        }, {
+            type: "text";
+            content: string;
+            id?: string | undefined;
+            heading?: string | undefined;
+        }>, z.ZodObject<{
+            id: z.ZodOptional<z.ZodString>;
+        } & {
+            type: z.ZodLiteral<"image">;
+            imageId: z.ZodString;
+            caption: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            type: "image";
+            imageId: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+        }, {
+            type: "image";
+            imageId: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+        }>, z.ZodObject<{
+            id: z.ZodOptional<z.ZodString>;
+        } & {
+            type: z.ZodLiteral<"gallery">;
+            imageIds: z.ZodDefault<z.ZodArray<z.ZodString, "many">>;
+        }, "strip", z.ZodTypeAny, {
+            type: "gallery";
+            imageIds: string[];
+            id?: string | undefined;
+        }, {
+            type: "gallery";
+            id?: string | undefined;
+            imageIds?: string[] | undefined;
+        }>, z.ZodObject<{
+            id: z.ZodOptional<z.ZodString>;
+        } & {
+            type: z.ZodLiteral<"services">;
+            limit: z.ZodOptional<z.ZodNumber>;
+            heading: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            type: "services";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        }, {
+            type: "services";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        }>, z.ZodObject<{
+            id: z.ZodOptional<z.ZodString>;
+        } & {
+            type: z.ZodLiteral<"projects">;
+            limit: z.ZodOptional<z.ZodNumber>;
+            heading: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            type: "projects";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        }, {
+            type: "projects";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        }>, z.ZodObject<{
+            id: z.ZodOptional<z.ZodString>;
+        } & {
+            type: z.ZodLiteral<"news">;
+            limit: z.ZodOptional<z.ZodNumber>;
+            heading: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            type: "news";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        }, {
+            type: "news";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        }>, z.ZodObject<{
+            id: z.ZodOptional<z.ZodString>;
+        } & {
+            type: z.ZodLiteral<"reviews">;
+            reviews: z.ZodDefault<z.ZodArray<z.ZodObject<{
+                author: z.ZodOptional<z.ZodString>;
+                text: z.ZodString;
+                rating: z.ZodOptional<z.ZodNumber>;
+            }, "strip", z.ZodTypeAny, {
+                text: string;
+                author?: string | undefined;
+                rating?: number | undefined;
+            }, {
+                text: string;
+                author?: string | undefined;
+                rating?: number | undefined;
+            }>, "many">>;
+        }, "strip", z.ZodTypeAny, {
+            type: "reviews";
+            reviews: {
+                text: string;
+                author?: string | undefined;
+                rating?: number | undefined;
+            }[];
+            id?: string | undefined;
+        }, {
+            type: "reviews";
+            id?: string | undefined;
+            reviews?: {
+                text: string;
+                author?: string | undefined;
+                rating?: number | undefined;
+            }[] | undefined;
+        }>, z.ZodObject<{
+            id: z.ZodOptional<z.ZodString>;
+        } & {
+            type: z.ZodLiteral<"about">;
+            heading: z.ZodOptional<z.ZodString>;
+            content: z.ZodString;
+            imageId: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            type: "about";
+            content: string;
+            id?: string | undefined;
+            imageId?: string | undefined;
+            heading?: string | undefined;
+        }, {
+            type: "about";
+            content: string;
+            id?: string | undefined;
+            imageId?: string | undefined;
+            heading?: string | undefined;
+        }>, z.ZodObject<{
+            id: z.ZodOptional<z.ZodString>;
+        } & {
+            type: z.ZodLiteral<"vacancies">;
+            heading: z.ZodOptional<z.ZodString>;
+            limit: z.ZodOptional<z.ZodNumber>;
+        }, "strip", z.ZodTypeAny, {
+            type: "vacancies";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        }, {
+            type: "vacancies";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        }>, z.ZodObject<{
+            id: z.ZodOptional<z.ZodString>;
+        } & {
+            type: z.ZodLiteral<"cta">;
+            title: z.ZodString;
+            description: z.ZodOptional<z.ZodString>;
+            buttonLabel: z.ZodOptional<z.ZodString>;
+            buttonUrl: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            type: "cta";
+            title: string;
+            id?: string | undefined;
+            buttonLabel?: string | undefined;
+            buttonUrl?: string | undefined;
+            description?: string | undefined;
+        }, {
+            type: "cta";
+            title: string;
+            id?: string | undefined;
+            buttonLabel?: string | undefined;
+            buttonUrl?: string | undefined;
+            description?: string | undefined;
+        }>, z.ZodObject<{
+            id: z.ZodOptional<z.ZodString>;
+        } & {
+            type: z.ZodLiteral<"contacts">;
+            heading: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            type: "contacts";
+            id?: string | undefined;
+            heading?: string | undefined;
+        }, {
+            type: "contacts";
+            id?: string | undefined;
+            heading?: string | undefined;
+        }>]>, "many">>;
+        sourceUrl: z.ZodOptional<z.ZodString>;
+        sourceType: z.ZodDefault<z.ZodEnum<["IMPORTED", "MANUAL", "AI_REWRITTEN"]>>;
+        seoTitle: z.ZodOptional<z.ZodString>;
+        seoDescription: z.ZodOptional<z.ZodString>;
+        coverImage: z.ZodOptional<z.ZodObject<{
+            id: z.ZodOptional<z.ZodString>;
+            sourceUrl: z.ZodOptional<z.ZodString>;
+            filename: z.ZodString;
+            originalFilename: z.ZodOptional<z.ZodString>;
+            mimeType: z.ZodOptional<z.ZodString>;
+            alt: z.ZodOptional<z.ZodString>;
+            caption: z.ZodOptional<z.ZodString>;
+            dataBase64: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            filename: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+            sourceUrl?: string | undefined;
+            originalFilename?: string | undefined;
+            mimeType?: string | undefined;
+            alt?: string | undefined;
+            dataBase64?: string | undefined;
+        }, {
+            filename: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+            sourceUrl?: string | undefined;
+            originalFilename?: string | undefined;
+            mimeType?: string | undefined;
+            alt?: string | undefined;
+            dataBase64?: string | undefined;
+        }>>;
+        gallery: z.ZodDefault<z.ZodArray<z.ZodObject<{
+            id: z.ZodOptional<z.ZodString>;
+            sourceUrl: z.ZodOptional<z.ZodString>;
+            filename: z.ZodString;
+            originalFilename: z.ZodOptional<z.ZodString>;
+            mimeType: z.ZodOptional<z.ZodString>;
+            alt: z.ZodOptional<z.ZodString>;
+            caption: z.ZodOptional<z.ZodString>;
+            dataBase64: z.ZodOptional<z.ZodString>;
+        }, "strip", z.ZodTypeAny, {
+            filename: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+            sourceUrl?: string | undefined;
+            originalFilename?: string | undefined;
+            mimeType?: string | undefined;
+            alt?: string | undefined;
+            dataBase64?: string | undefined;
+        }, {
+            filename: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+            sourceUrl?: string | undefined;
+            originalFilename?: string | undefined;
+            mimeType?: string | undefined;
+            alt?: string | undefined;
+            dataBase64?: string | undefined;
+        }>, "many">>;
+    }, "strip", z.ZodTypeAny, {
+        title: string;
+        gallery: {
+            filename: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+            sourceUrl?: string | undefined;
+            originalFilename?: string | undefined;
+            mimeType?: string | undefined;
+            alt?: string | undefined;
+            dataBase64?: string | undefined;
+        }[];
+        slug: string;
+        sourceType: "IMPORTED" | "MANUAL" | "AI_REWRITTEN";
+        blocks: ({
+            type: "hero";
+            title: string;
+            id?: string | undefined;
+            subtitle?: string | undefined;
+            imageId?: string | undefined;
+            buttonLabel?: string | undefined;
+            buttonUrl?: string | undefined;
+        } | {
+            type: "text";
+            content: string;
+            id?: string | undefined;
+            heading?: string | undefined;
+        } | {
+            type: "image";
+            imageId: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+        } | {
+            type: "gallery";
+            imageIds: string[];
+            id?: string | undefined;
+        } | {
+            type: "services";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "projects";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "news";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "reviews";
+            reviews: {
+                text: string;
+                author?: string | undefined;
+                rating?: number | undefined;
+            }[];
+            id?: string | undefined;
+        } | {
+            type: "about";
+            content: string;
+            id?: string | undefined;
+            imageId?: string | undefined;
+            heading?: string | undefined;
+        } | {
+            type: "vacancies";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "cta";
+            title: string;
+            id?: string | undefined;
+            buttonLabel?: string | undefined;
+            buttonUrl?: string | undefined;
+            description?: string | undefined;
+        } | {
+            type: "contacts";
+            id?: string | undefined;
+            heading?: string | undefined;
+        })[];
+        attributes: Record<string, string>;
+        sourceUrl?: string | undefined;
+        seoTitle?: string | undefined;
+        seoDescription?: string | undefined;
+        coverImage?: {
+            filename: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+            sourceUrl?: string | undefined;
+            originalFilename?: string | undefined;
+            mimeType?: string | undefined;
+            alt?: string | undefined;
+            dataBase64?: string | undefined;
+        } | undefined;
+        summary?: string | undefined;
+    }, {
+        title: string;
+        slug: string;
+        gallery?: {
+            filename: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+            sourceUrl?: string | undefined;
+            originalFilename?: string | undefined;
+            mimeType?: string | undefined;
+            alt?: string | undefined;
+            dataBase64?: string | undefined;
+        }[] | undefined;
+        sourceUrl?: string | undefined;
+        sourceType?: "IMPORTED" | "MANUAL" | "AI_REWRITTEN" | undefined;
+        seoTitle?: string | undefined;
+        seoDescription?: string | undefined;
+        blocks?: ({
+            type: "hero";
+            title: string;
+            id?: string | undefined;
+            subtitle?: string | undefined;
+            imageId?: string | undefined;
+            buttonLabel?: string | undefined;
+            buttonUrl?: string | undefined;
+        } | {
+            type: "text";
+            content: string;
+            id?: string | undefined;
+            heading?: string | undefined;
+        } | {
+            type: "image";
+            imageId: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+        } | {
+            type: "gallery";
+            id?: string | undefined;
+            imageIds?: string[] | undefined;
+        } | {
+            type: "services";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "projects";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "news";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "reviews";
+            id?: string | undefined;
+            reviews?: {
+                text: string;
+                author?: string | undefined;
+                rating?: number | undefined;
+            }[] | undefined;
+        } | {
+            type: "about";
+            content: string;
+            id?: string | undefined;
+            imageId?: string | undefined;
+            heading?: string | undefined;
+        } | {
+            type: "vacancies";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "cta";
+            title: string;
+            id?: string | undefined;
+            buttonLabel?: string | undefined;
+            buttonUrl?: string | undefined;
+            description?: string | undefined;
+        } | {
+            type: "contacts";
+            id?: string | undefined;
+            heading?: string | undefined;
+        })[] | undefined;
+        coverImage?: {
+            filename: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+            sourceUrl?: string | undefined;
+            originalFilename?: string | undefined;
+            mimeType?: string | undefined;
+            alt?: string | undefined;
+            dataBase64?: string | undefined;
+        } | undefined;
+        summary?: string | undefined;
+        attributes?: Record<string, string> | undefined;
+    }>, "many">>;
+    dynamicSections: z.ZodDefault<z.ZodArray<z.ZodObject<{
+        kind: z.ZodString;
+        heading: z.ZodOptional<z.ZodString>;
+        items: z.ZodDefault<z.ZodArray<z.ZodObject<{
+            title: z.ZodOptional<z.ZodString>;
+            text: z.ZodOptional<z.ZodString>;
+            meta: z.ZodOptional<z.ZodRecord<z.ZodString, z.ZodString>>;
+        }, "strip", z.ZodTypeAny, {
+            title?: string | undefined;
+            text?: string | undefined;
+            meta?: Record<string, string> | undefined;
+        }, {
+            title?: string | undefined;
+            text?: string | undefined;
+            meta?: Record<string, string> | undefined;
+        }>, "many">>;
+    }, "strip", z.ZodTypeAny, {
+        kind: string;
+        items: {
+            title?: string | undefined;
+            text?: string | undefined;
+            meta?: Record<string, string> | undefined;
+        }[];
+        heading?: string | undefined;
+    }, {
+        kind: string;
+        heading?: string | undefined;
+        items?: {
+            title?: string | undefined;
+            text?: string | undefined;
+            meta?: Record<string, string> | undefined;
+        }[] | undefined;
+    }>, "many">>;
     news: z.ZodDefault<z.ZodArray<z.ZodObject<{
         title: z.ZodString;
         slug: z.ZodString;
@@ -4567,13 +5597,13 @@ export declare const extractedContentSchema: z.ZodObject<{
             url: string;
             platform: string;
         }[];
-        phone?: string | undefined;
         email?: string | undefined;
+        phone?: string | undefined;
         address?: string | undefined;
         workingHours?: string | undefined;
     }, {
-        phone?: string | undefined;
         email?: string | undefined;
+        phone?: string | undefined;
         address?: string | undefined;
         workingHours?: string | undefined;
         socialLinks?: {
@@ -4928,8 +5958,8 @@ export declare const extractedContentSchema: z.ZodObject<{
             url: string;
             platform: string;
         }[];
-        phone?: string | undefined;
         email?: string | undefined;
+        phone?: string | undefined;
         address?: string | undefined;
         workingHours?: string | undefined;
     };
@@ -4939,8 +5969,8 @@ export declare const extractedContentSchema: z.ZodObject<{
             platform: string;
         }[];
         description?: string | undefined;
-        phone?: string | undefined;
         email?: string | undefined;
+        phone?: string | undefined;
         address?: string | undefined;
         workingHours?: string | undefined;
         name?: string | undefined;
@@ -5074,6 +6104,113 @@ export declare const extractedContentSchema: z.ZodObject<{
         sourceUrl?: string | undefined;
         seoTitle?: string | undefined;
         seoDescription?: string | undefined;
+    }[];
+    products: {
+        title: string;
+        gallery: {
+            filename: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+            sourceUrl?: string | undefined;
+            originalFilename?: string | undefined;
+            mimeType?: string | undefined;
+            alt?: string | undefined;
+            dataBase64?: string | undefined;
+        }[];
+        slug: string;
+        sourceType: "IMPORTED" | "MANUAL" | "AI_REWRITTEN";
+        blocks: ({
+            type: "hero";
+            title: string;
+            id?: string | undefined;
+            subtitle?: string | undefined;
+            imageId?: string | undefined;
+            buttonLabel?: string | undefined;
+            buttonUrl?: string | undefined;
+        } | {
+            type: "text";
+            content: string;
+            id?: string | undefined;
+            heading?: string | undefined;
+        } | {
+            type: "image";
+            imageId: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+        } | {
+            type: "gallery";
+            imageIds: string[];
+            id?: string | undefined;
+        } | {
+            type: "services";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "projects";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "news";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "reviews";
+            reviews: {
+                text: string;
+                author?: string | undefined;
+                rating?: number | undefined;
+            }[];
+            id?: string | undefined;
+        } | {
+            type: "about";
+            content: string;
+            id?: string | undefined;
+            imageId?: string | undefined;
+            heading?: string | undefined;
+        } | {
+            type: "vacancies";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "cta";
+            title: string;
+            id?: string | undefined;
+            buttonLabel?: string | undefined;
+            buttonUrl?: string | undefined;
+            description?: string | undefined;
+        } | {
+            type: "contacts";
+            id?: string | undefined;
+            heading?: string | undefined;
+        })[];
+        attributes: Record<string, string>;
+        sourceUrl?: string | undefined;
+        seoTitle?: string | undefined;
+        seoDescription?: string | undefined;
+        coverImage?: {
+            filename: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+            sourceUrl?: string | undefined;
+            originalFilename?: string | undefined;
+            mimeType?: string | undefined;
+            alt?: string | undefined;
+            dataBase64?: string | undefined;
+        } | undefined;
+        summary?: string | undefined;
+    }[];
+    dynamicSections: {
+        kind: string;
+        items: {
+            title?: string | undefined;
+            text?: string | undefined;
+            meta?: Record<string, string> | undefined;
+        }[];
+        heading?: string | undefined;
     }[];
     media: {
         filename: string;
@@ -5400,8 +6537,8 @@ export declare const extractedContentSchema: z.ZodObject<{
         description?: string | undefined;
     } | undefined;
     contacts?: {
-        phone?: string | undefined;
         email?: string | undefined;
+        phone?: string | undefined;
         address?: string | undefined;
         workingHours?: string | undefined;
         socialLinks?: {
@@ -5411,8 +6548,8 @@ export declare const extractedContentSchema: z.ZodObject<{
     } | undefined;
     company?: {
         description?: string | undefined;
-        phone?: string | undefined;
         email?: string | undefined;
+        phone?: string | undefined;
         address?: string | undefined;
         workingHours?: string | undefined;
         socialLinks?: {
@@ -5550,6 +6687,113 @@ export declare const extractedContentSchema: z.ZodObject<{
             id?: string | undefined;
             heading?: string | undefined;
         })[] | undefined;
+    }[] | undefined;
+    products?: {
+        title: string;
+        slug: string;
+        gallery?: {
+            filename: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+            sourceUrl?: string | undefined;
+            originalFilename?: string | undefined;
+            mimeType?: string | undefined;
+            alt?: string | undefined;
+            dataBase64?: string | undefined;
+        }[] | undefined;
+        sourceUrl?: string | undefined;
+        sourceType?: "IMPORTED" | "MANUAL" | "AI_REWRITTEN" | undefined;
+        seoTitle?: string | undefined;
+        seoDescription?: string | undefined;
+        blocks?: ({
+            type: "hero";
+            title: string;
+            id?: string | undefined;
+            subtitle?: string | undefined;
+            imageId?: string | undefined;
+            buttonLabel?: string | undefined;
+            buttonUrl?: string | undefined;
+        } | {
+            type: "text";
+            content: string;
+            id?: string | undefined;
+            heading?: string | undefined;
+        } | {
+            type: "image";
+            imageId: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+        } | {
+            type: "gallery";
+            id?: string | undefined;
+            imageIds?: string[] | undefined;
+        } | {
+            type: "services";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "projects";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "news";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "reviews";
+            id?: string | undefined;
+            reviews?: {
+                text: string;
+                author?: string | undefined;
+                rating?: number | undefined;
+            }[] | undefined;
+        } | {
+            type: "about";
+            content: string;
+            id?: string | undefined;
+            imageId?: string | undefined;
+            heading?: string | undefined;
+        } | {
+            type: "vacancies";
+            id?: string | undefined;
+            heading?: string | undefined;
+            limit?: number | undefined;
+        } | {
+            type: "cta";
+            title: string;
+            id?: string | undefined;
+            buttonLabel?: string | undefined;
+            buttonUrl?: string | undefined;
+            description?: string | undefined;
+        } | {
+            type: "contacts";
+            id?: string | undefined;
+            heading?: string | undefined;
+        })[] | undefined;
+        coverImage?: {
+            filename: string;
+            id?: string | undefined;
+            caption?: string | undefined;
+            sourceUrl?: string | undefined;
+            originalFilename?: string | undefined;
+            mimeType?: string | undefined;
+            alt?: string | undefined;
+            dataBase64?: string | undefined;
+        } | undefined;
+        summary?: string | undefined;
+        attributes?: Record<string, string> | undefined;
+    }[] | undefined;
+    dynamicSections?: {
+        kind: string;
+        heading?: string | undefined;
+        items?: {
+            title?: string | undefined;
+            text?: string | undefined;
+            meta?: Record<string, string> | undefined;
+        }[] | undefined;
     }[] | undefined;
     media?: {
         filename: string;

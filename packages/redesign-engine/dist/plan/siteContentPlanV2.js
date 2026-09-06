@@ -22,6 +22,26 @@ function isNonEntityTitle(title, selfIndexUrls, url) {
     return null;
 }
 const digits = (s) => s.replace(/\D/g, '');
+/** Strip nav/CTA/contact/process fragments; keep at most ~2 clean sentences. */
+export function cleanCardSummary(raw, title) {
+    if (!raw)
+        return undefined;
+    const JUNK = /запросить|оставьте заявку|позвоните|звоните|закажите|записаться|подробнее|читать далее|порядок выполнения|наши контакты|все права|cookie|карта сайта|политика конфиденциальности|menu|меню|наверх|call us|order now|read more/i;
+    const PHONE = /\+?\d[\d\s()\-]{6,}/;
+    const sentences = raw.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter((s) => {
+        if (!s || s.length < 12)
+            return false;
+        if (JUNK.test(s) || PHONE.test(s))
+            return false;
+        if (normTitle(s).includes(normTitle(title)))
+            return false; // repeated heading
+        if (/^\d+\s*[.\)]/.test(s))
+            return false; // "1. тёплая встреча" list fragments
+        return true;
+    });
+    const out = sentences.slice(0, 2).join(' ');
+    return out.length >= 20 ? out.slice(0, 200) : undefined;
+}
 const normTitle = (t) => (t || '').toLowerCase().replace(/ё/g, 'е').replace(/[«»"“”'‘’`]/g, '').replace(/\s+/g, ' ').trim();
 /** Strip brand suffix (" - Пазл Хаус") and feed prefixes ("ЖК Минска X", "От дизайнера X") for canonical matching. */
 const stripBrand = (t, brand) => {
@@ -93,22 +113,49 @@ function detectDynamicKind(heading, items, classification) {
 const ARTICLE_PATH_RE = /blog|stati|statya|articles?|sovety|journal|polezn|gids?|guide/iu;
 const ARTICLE_TITLE_RE = /^(как |что такое|почему |этапы|ошибки|топ-?\d|\d+ (способ|вещ|совет|ошиб|причин|признак))/iu;
 // Company display name: prefer brand evidence over SEO titles.
-function bestDisplayName(graph, docs) {
+const GENERIC_LOGO_WORD_RE = /^(logo|logotip|лого|логотип|лого\s*\w*|logo\s*\w*|\w+\s+logo|\w+\s+logotip|.*\b(logo|logotip|лого)\b.*)$/iu;
+function isGenericLogoText(s) {
+    const v = (s || '').trim();
+    if (!v)
+        return true;
+    return GENERIC_LOGO_WORD_RE.test(v) || /^(image|img|icon|иконка|картинка|banner|баннер)/iu.test(v);
+}
+function domainBrand(baseUrl) {
+    try {
+        const host = new URL(baseUrl).hostname.replace(/^www\./, '');
+        const sld = host.split('.')[0];
+        return sld ? sld.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : undefined;
+    }
+    catch {
+        return undefined;
+    }
+}
+function bestDisplayName(graph, docs, baseUrl = '') {
     const home = docs.find((d) => d.isHomepage);
+    // JSON-LD / structured organization name
+    const jsonldName = (home?.structuredData || [])
+        .map((s) => s?.data?.name || s?.data?.['@graph']?.find?.((x) => x?.name)?.name)
+        .find(Boolean);
     const cand = [
-        { v: home?.chrome?.logo?.alt, src: 'logo.alt' },
-        { v: home?.openGraph?.['og:site_name'], src: 'og:site_name' },
-        ...(home?.evidence?.companyNameCandidates || []).map((c) => ({ v: c.text, src: `candidate:${c.source}` })),
         { v: graph.company?.displayName, src: 'graph.company' },
+        { v: home?.openGraph?.['og:site_name'], src: 'og:site_name' },
+        { v: jsonldName, src: 'jsonld' },
+        ...(home?.evidence?.companyNameCandidates || []).map((c) => ({ v: c.text, src: `candidate:${c.source}` })),
+        { v: home?.chrome?.logo?.alt, src: 'logo.alt' },
     ];
     const isSeoTitle = (s) => !!s && (s.length > 60 || /[,|—–-]\s*(в|и|для|под|от)\s/iu.test(s) || /минск|беларусь|недорого|цены|заказать/iu.test(s) && s.length > 30);
+    // Pure descriptor phrase ("Дизайн интерьера в Минске") is not a brand —
+    // prefer a domain-derived brand over it.
+    const isDescriptor = (s) => !!s && /в\s+минск|в\s+беларус|под\s+ключ|заказать|купить|цены/iu.test(s) && !/[A-Z]{2,}|[A-ZА-Я][a-zа-я]+\s+[A-ZА-Я]/u.test(s.replace(/в\s+минск\w*/iu, ''));
     for (const c of cand) {
         const v = (c.v || '').trim();
-        if (v && v.length >= 2 && v.length <= 60 && !isSeoTitle(v))
+        if (v && v.length >= 2 && v.length <= 60 && !isSeoTitle(v) && !isGenericLogoText(v) && !isDescriptor(v))
             return { name: v, src: c.src };
     }
     const g = (graph.company?.displayName || '').trim();
-    return { name: g || undefined, src: 'graph.company' };
+    if (g && !isGenericLogoText(g) && !isDescriptor(g))
+        return { name: g.slice(0, 60), src: 'graph.company' };
+    return { name: domainBrand(baseUrl), src: 'domain' };
 }
 export function buildSiteContentPlanV2(opts) {
     const { graph, documents: docs } = opts;
@@ -116,9 +163,16 @@ export function buildSiteContentPlanV2(opts) {
     const omittedContent = [];
     const docById = new Map(docs.map((d) => [d.id, d]));
     const docByUrl = new Map(docs.map((d) => [d.url.replace(/\/+$/, ''), d]));
+    const absUrl = (u) => { if (!u)
+        return ''; try {
+        return new URL(u, opts.baseUrl).toString();
+    }
+    catch {
+        return '';
+    } };
     const homeDoc = docs.find((d) => d.isHomepage);
     const language = homeDoc?.language || 'ru';
-    const identity = bestDisplayName(graph, docs);
+    const identity = bestDisplayName(graph, docs, opts.baseUrl);
     const indexUrls = new Set(graph.pages.filter((p) => /_INDEX$/.test(p.classification.type)).map((p) => (docById.get(p.sourceDocumentId)?.url || '').replace(/\/+$/, '')).filter(Boolean));
     // --- entity materialization -------------------------------------------------
     const entities = [];
@@ -127,7 +181,25 @@ export function buildSiteContentPlanV2(opts) {
     const homeNorm = homeDoc?.url?.replace(/\/+$/, '');
     const isDetailUrl = (u) => !!u && u.replace(/\/+$/, '') !== homeNorm && !indexUrls.has(u.replace(/\/+$/, ''));
     const docSummary = (d) => (d?.metaDescription || d?.sections?.find((s) => s.paragraphs?.length)?.paragraphs?.[0] || '').slice(0, 400) || undefined;
-    const docImage = (d) => d?.images?.find((i) => !isPlaceholderMedia(i.src))?.src;
+    // Site-wide chrome detection: an image stem present on many docs is decoration.
+    const docStemFreq = new Map();
+    const stemOf = (u) => {
+        let f = (u || '').split('/').pop() || '';
+        try {
+            f = decodeURIComponent(f);
+        }
+        catch { /* keep raw */ }
+        return f.replace(/(\.(webp|avif|jpe?g|png|gif))+$/i, '').replace(/-?\d+x\d+$/, '').replace(/-\d+$/, '').toLowerCase();
+    };
+    for (const d of docs)
+        for (const i of d.images || [])
+            docStemFreq.set(stemOf(i.src || ''), (docStemFreq.get(stemOf(i.src || '')) || 0) + 1);
+    const isChromeImage = (i) => !isPlaceholderMedia(i.src || '')
+        && !/лого|logo|icon|filler|placeholder|banner/i.test(i.alt || '')
+        && !/filler|placeholder|blank\.|banner/i.test(i.src || '')
+        && !((i.width || 0) > 0 && (i.width || 0) < 240 && (i.height || 0) < 240)
+        && (docStemFreq.get(stemOf(i.src || '')) || 0) <= 2;
+    const docImage = (d) => d?.images?.find(isChromeImage)?.src;
     const docAttrs = (d) => {
         const out = {};
         for (const s of d?.sections || [])
@@ -174,16 +246,38 @@ export function buildSiteContentPlanV2(opts) {
         seenKey.add(key);
         byTitleIdx.set(keyByTitle, entities.length);
         const detailDoc = detailUrl ? docByUrl.get(detailUrl.replace(/\/+$/, '')) : undefined;
-        const media = (e.imageIds || []).map((id) => graph.media.find((m) => m.id === id)?.src).filter(Boolean);
-        const img = media.find((s) => !isPlaceholderMedia(s)) || docImage(detailDoc) || docImage(docIds.map((id) => docById.get(id)).find(Boolean));
+        // Media assignment priority: the entity's OWN detail-document images first,
+        // then explicitly associated entity media (excluding logo/icon roles),
+        // then sibling-doc images — never the site logo as an entity photo.
+        const isLogoish = (src) => {
+            const role = graph.media.find((m) => m.src === src)?.role;
+            return role === 'LOGO' || /\.svg(\?|$)|logo|icon|sprite|removebg|cropped-|filler|placeholder|blank\.|\d{2,3}x\d{2,3}\.png/i.test(src);
+        };
+        const isDocLogoish = (i) => /лого|logo|icon/i.test(i?.alt || '') || ((i?.width || 0) > 0 && (i?.width || 0) < 240 && (i?.height || 0) < 240);
+        const entityMedia = (e.imageIds || []).map((id) => absUrl(graph.media.find((m) => m.id === id)?.src)).filter(Boolean).filter((s) => !isLogoish(s) && !isPlaceholderMedia(s));
+        const docImages = (detailDoc?.images || []).filter((i) => !isDocLogoish(i) && isChromeImage(i)).map((i) => absUrl(i.src)).filter((s) => s && !isPlaceholderMedia(s) && !isLogoish(s));
+        const media = [...docImages, ...entityMedia].filter((s) => !isPlaceholderMedia(s));
+        const img = docImages[0] || entityMedia[0] || docImage(docIds.map((id) => docById.get(id)).find(Boolean));
         entities.push({
             id: `${type}-${entities.length + 1}`,
             type,
             title: e.title.trim(),
             slug: slugify(e.title),
-            summary: (e.description || docSummary(detailDoc))?.slice(0, 400),
+            summary: (() => {
+                const raw = (e.description || docSummary(detailDoc))?.slice(0, 400);
+                // a summary identical to the site-wide description is not entity copy
+                if (raw && graph.company?.description && normTitle(raw) === normTitle(graph.company.description))
+                    return undefined;
+                return raw;
+            })(),
+            cardSummary: (() => {
+                const raw = e.description || docSummary(detailDoc);
+                if (raw && graph.company?.description && normTitle(raw) === normTitle(graph.company.description))
+                    return undefined;
+                return cleanCardSummary(raw, e.title);
+            })(),
             attributes: extra?.attributes || docAttrs(detailDoc) || {},
-            primaryImage: img,
+            primaryImage: img ? absUrl(img) : undefined,
             media: media.filter((s) => !isPlaceholderMedia(s)),
             sourceUrls: urls,
             detailUrl,
@@ -403,7 +497,9 @@ export function buildSiteContentPlanV2(opts) {
     };
     const c = graph.contacts;
     const contacts = {
-        phones: normContacts(c?.phones, (v) => digits(v).replace(/^8/, '7')),
+        phones: normContacts(c?.phones, (v) => digits(v).replace(/^8/, '7'))
+            // full numbers first — truncated chrome fragments ("175 50 07") are secondary
+            .sort((a, b) => digits(b.value).length - digits(a.value).length),
         emails: normContacts(c?.emails, (v) => v.toLowerCase().trim()),
         addresses: normContacts(c?.addresses, (v) => normTitle(v)),
         socialLinks: [...new Map((c?.socialLinks || []).map((s) => [s.url, { platform: s.platform, url: s.url }])).values()],
@@ -478,6 +574,48 @@ export function buildSiteContentPlanV2(opts) {
     navPush('/news', L.news);
     navPush('/contacts', L.contacts);
     const sourceNavigation = (homeDoc?.chrome?.nav?.primary || []).slice(0, 14).map((n, i) => ({ label: n.label, url: n.url, order: i }));
+    const matchedMedia = [];
+    // --- filename↔slug media matching ------------------------------------------
+    // Source filenames often mirror entity slugs ("promyshlenny-obekt-1.jpg" →
+    // project "promyshlenny-obekt"). Grounded in the source URL itself.
+    {
+        const RU2LAT = { а: 'a', б: 'b', в: 'v', г: 'g', д: 'd', е: 'e', ё: 'e', ж: 'zh', з: 'z', и: 'i', й: 'y', к: 'k', л: 'l', м: 'm', н: 'n', о: 'o', п: 'p', р: 'r', с: 's', т: 't', у: 'u', ф: 'f', х: 'h', ц: 'c', ч: 'ch', ш: 'sh', щ: 'sch', ъ: '', ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya' };
+        const translit = (s) => s.toLowerCase().split('').map((c) => RU2LAT[c] ?? c).join('');
+        const pool = graph.media.map((m) => absUrl(m.src)).filter((s) => s && !isPlaceholderMedia(s) && !/\.svg(\?|$)/i.test(s));
+        const stem = (u) => {
+            let f = u.split('/').pop() || '';
+            try {
+                f = decodeURIComponent(f);
+            }
+            catch { /* keep raw */ }
+            return f.replace(/(\.(webp|avif|jpe?g|png|gif))+$/i, '').replace(/-?\d+x\d+$/, '').replace(/-\d+$/, '').toLowerCase();
+        };
+        // reject site-wide chrome: a stem appearing as the ONLY image on many docs is decoration
+        const stemFreq = new Map();
+        for (const d of docs)
+            for (const i of d.images || [])
+                stemFreq.set(stem(i.src || ''), (stemFreq.get(stem(i.src || '')) || 0) + 1);
+        for (const e of entities) {
+            if (e.primaryImage)
+                continue;
+            const slugs = [e.slug, translit(e.slug)].filter((x) => x && x.length >= 4);
+            if (!slugs.length)
+                continue;
+            const skeleton = (x) => x.replace(/[aeiouy]/g, '');
+            const hits = pool.filter((u) => {
+                const f = stem(u);
+                if (!f || (stemFreq.get(f) || 0) > 8)
+                    return false;
+                return slugs.some((sl) => f.includes(sl) || sl.includes(f) || (skeleton(f).length >= 5 && (skeleton(f).includes(skeleton(sl)) || skeleton(sl).includes(skeleton(f)))));
+            });
+            const uniq = [...new Set(hits)];
+            if (uniq.length) {
+                e.primaryImage = uniq[0];
+                e.media = [...uniq.slice(0, 6), ...e.media];
+                matchedMedia.push(...uniq);
+            }
+        }
+    }
     // --- homepage plan ----------------------------------------------------------------
     const sourceSections = [];
     const homePage = homeDoc && graph.pages.find((p) => p.sourceDocumentId === homeDoc.id);
@@ -491,7 +629,7 @@ export function buildSiteContentPlanV2(opts) {
     }
     const featured = (t, n = 6) => entities.filter((e) => e.type === t).sort((a, b) => Number(b.onHomepage) - Number(a.onHomepage)).slice(0, n).map((e) => e.id);
     const plannedSections = [];
-    plannedSections.push({ type: 'hero', heading: bestDisplayName(graph, docs).name || '', origin: 'SOURCE_CONTENT', entityIds: [], rationale: 'site identity + hero media' });
+    plannedSections.push({ type: 'hero', heading: identity.name || '', origin: 'SOURCE_CONTENT', entityIds: [], rationale: 'site identity + hero media' });
     if (has('service'))
         plannedSections.push({ type: 'services', heading: L.services, origin: 'SOURCE_CONTENT', entityIds: featured('service'), rationale: 'primary business offering' });
     if (has('project'))
@@ -510,9 +648,38 @@ export function buildSiteContentPlanV2(opts) {
     plannedSections.push({ type: 'contacts', heading: L.contacts, origin: 'SOURCE_FACT', entityIds: [], rationale: 'validated contacts' });
     // --- media --------------------------------------------------------------------------
     const media = {
-        logo: graph.media.find((m) => m.role === 'LOGO' && !isPlaceholderMedia(m.src))?.src || homeDoc?.chrome?.logo?.src,
-        hero: graph.media.find((m) => m.role === 'HERO_CANDIDATE' && !isPlaceholderMedia(m.src))?.src || homeDoc?.openGraph?.['og:image'],
-        images: (graph.media || []).filter((m) => !isPlaceholderMedia(m.src) && m.role !== 'UTILITY_ICON' && m.role !== 'LANGUAGE_ICON').slice(0, 80).map((m) => ({ id: m.id, src: m.src, role: m.role })),
+        logo: absUrl(graph.media.find((m) => m.role === 'LOGO' && !isPlaceholderMedia(m.src))?.src || homeDoc?.chrome?.logo?.src) || undefined,
+        // Business-relevant hero: explicit hero candidate → homepage content photo →
+        // og:image → strongest project/product image. Never logo/icon.
+        hero: (() => {
+            const norm = (src) => {
+                if (!src)
+                    return undefined;
+                try {
+                    return new URL(src, opts.baseUrl).toString();
+                }
+                catch {
+                    return undefined;
+                }
+            };
+            const pick = (src) => {
+                const u = norm(src);
+                return u && !isPlaceholderMedia(u) && !/\.svg(\?|$)|logo|icon|sprite|removebg/i.test(u) ? u : undefined;
+            };
+            return pick(entities.find((e) => (e.type === 'project' || e.type === 'product') && e.primaryImage)?.primaryImage)
+                || pick(graph.media.find((m) => m.role === 'HERO_CANDIDATE')?.src)
+                || pick(homeDoc?.images?.find((i) => isChromeImage(i) && ((i.width || 0) >= 600 || i.width == null))?.src)
+                || pick(homeDoc?.openGraph?.['og:image']);
+        })(),
+        images: (() => {
+            const base = (graph.media || []).filter((m) => !isPlaceholderMedia(m.src) && m.role !== 'UTILITY_ICON' && m.role !== 'LANGUAGE_ICON')
+                .map((m) => ({ id: m.id, src: absUrl(m.src) || m.src, role: m.role }));
+            const seen = new Set(base.map((m) => m.src));
+            // entity-matched images go FIRST — they drive entity cover resolution;
+            // the tail cap must never evict them.
+            const matched = matchedMedia.filter((src) => !seen.has(src)).map((src) => ({ id: `matched-${src}`, src, role: 'PROJECT_IMAGE' }));
+            return [...matched, ...base].slice(0, 200);
+        })(),
     };
     for (const rc of graph.rejectedCollections || [])
         omittedContent.push({ what: `collection ${rc.collectionId}`, reason: rc.reason });
@@ -528,6 +695,75 @@ export function buildSiteContentPlanV2(opts) {
         reasons.push('no contacts');
     const readiness = reasons.some((r) => /homepage|no content/i.test(r)) ? 'NOT_READY' : reasons.length ? 'READY_WITH_WARNINGS' : 'READY';
     warnings.push(...reasons);
+    // --- experience / presentation layer -----------------------------------------
+    const cnt = (t) => entities.filter((e) => e.type === t).length;
+    const identityText = `${graph.company?.industry || ''} ${graph.company?.description || ''} ${entities.slice(0, 8).map((e) => e.title).join(' ')}`;
+    const isCreative = /дизайн|design|интерьер|архитект|студи|interior|studio/i.test(identityText);
+    const archetype = cnt('product') >= 3 ? 'CATALOG' : isCreative && cnt('project') >= 1 ? 'CREATIVE_PORTFOLIO' : 'SERVICE_PORTFOLIO';
+    const archetypeReason = cnt('product') >= 3
+        ? `${cnt('product')} catalogue items dominate`
+        : isCreative && cnt('project') >= 1
+            ? `design/portfolio signals in identity + ${cnt('project')} projects`
+            : 'service offering with portfolio';
+    // Grounded hero copy: value proposition (first clean sentence of the company
+    // description) as headline; brand + remaining context as subheadline.
+    const brandName = identity.name || 'Компания';
+    const descClean = cleanCardSummary(graph.company?.description || homeDoc?.metaDescription, brandName) || '';
+    const firstSentence = (descClean.split(/(?<=[.!?])\s+/)[0] || '').replace(/[.!?]+$/, '');
+    const heroHeadline = firstSentence && firstSentence.length <= 70 ? firstSentence : brandName;
+    const heroSub = [brandName, descClean.slice(firstSentence.length).trim().replace(/^[.!?\s]+/, '').slice(0, 160)]
+        .filter(Boolean).join(' — ').slice(0, 220) || undefined;
+    // Dark-safe presets — light-theme presets break hardcoded light-on-dark sections.
+    const ARCHETYPE_PRESETS = {
+        SERVICE_PORTFOLIO: ['foret', 'atlas', 'ember'],
+        CATALOG: ['atlas', 'foret', 'ember'],
+        CREATIVE_PORTFOLIO: ['ember', 'foret', 'atlas'],
+    };
+    const DYN_COMP = {
+        FAQ: 'faq', REVIEWS: 'reviews', PROCESS: 'process', ADVANTAGES: 'advantages',
+        TEAM: 'team', PARTNERS: 'partners', STATS: 'stats', PRICING: 'pricing', PROMOTION: 'promotion',
+    };
+    const composition = [{ component: 'hero', heading: heroHeadline, entityIds: [] }];
+    const feat = (t, n = 6) => entities.filter((e) => e.type === t).sort((a, b) => Number(b.onHomepage) - Number(a.onHomepage)).slice(0, n);
+    const orders = {
+        SERVICE_PORTFOLIO: ['service', 'project'],
+        CATALOG: ['product'],
+        CREATIVE_PORTFOLIO: ['project', 'service'],
+    };
+    for (const t of orders[archetype]) {
+        if (feat(t).length)
+            composition.push({ component: `${t}-grid`, heading: t === 'service' ? L.services : t === 'project' ? L.projects : L.products, entityIds: feat(t).map((e) => e.id) });
+    }
+    const seenDyn = new Set();
+    for (const d of dynamicSections) {
+        const comp = DYN_COMP[d.kind];
+        if (!comp || seenDyn.has(comp) || !d.items.length)
+            continue;
+        seenDyn.add(comp);
+        composition.push({ component: comp, heading: d.heading || d.kind, entityIds: [], dynamicSectionId: d.id });
+    }
+    if (has('article'))
+        composition.push({ component: 'article-list', heading: L.articles, entityIds: feat('article', 3).map((e) => e.id) });
+    if (has('news'))
+        composition.push({ component: 'news-list', heading: L.news, entityIds: feat('news', 3).map((e) => e.id) });
+    if (graph.company?.description)
+        composition.push({ component: 'about', heading: L.about, entityIds: [] });
+    composition.push({ component: 'cta', heading: L.contacts, entityIds: [] });
+    composition.push({ component: 'contacts', heading: L.contacts, entityIds: [] });
+    const experience = {
+        archetype, archetypeReason,
+        brand: { name: identity.name || 'Компания', source: identity.src },
+        presentation: {
+            heroHeadline,
+            heroSubheadline: heroSub,
+            heroCtaLabel: 'Связаться',
+            heroCtaSecondary: archetype === 'CATALOG' ? 'Смотреть каталог' : archetype === 'CREATIVE_PORTFOLIO' ? 'Смотреть проекты' : 'Наши услуги',
+            sectionIntros: {},
+        },
+        composition,
+        stylePresets: ARCHETYPE_PRESETS[archetype],
+        preferredPreset: ARCHETYPE_PRESETS[archetype][0],
+    };
     const plan = {
         version: '2.0', generatedAt: new Date().toISOString(), siteKey: opts.siteKey, baseUrl: opts.baseUrl,
         sourceGraphHash: opts.sourceGraphHash, language,
@@ -539,6 +775,7 @@ export function buildSiteContentPlanV2(opts) {
         contacts, sourceNavigation, plannedNavigation, plannedPages,
         homepage: { sourceSections, plannedSections },
         entities, dynamicSections, media, omittedContent, warnings, readiness, readinessReasons: reasons,
+        experience,
     };
     plan.planHash = computePlanHashV2(plan);
     return plan;

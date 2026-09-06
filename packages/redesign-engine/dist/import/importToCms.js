@@ -83,7 +83,7 @@ export async function importToCms(options, prisma = new PrismaClient()) {
     const ownership = runId ? { generatedByRunId: runId, generatedByDemoVariantId: '' } : {};
     const generatedSource = ContentSourceType.GENERATED;
     const previewUrl = `http://localhost:3000/showcase/${options.previewSlug}`;
-    const themeConfig = options.content.theme ? { ...options.content.theme, homepageSections: options.content.homepageSections, hero: options.content.hero, about: options.content.about, cta: options.content.cta } : {};
+    const themeConfig = options.content.theme ? { ...options.content.theme, homepageSections: options.content.homepageSections, hero: options.content.hero, about: options.content.about, cta: options.content.cta, dynamicSections: options.content.dynamicSections || [] } : {};
     const site = await prisma.site.upsert({
         where: { leadId: options.leadId },
         update: { name: options.siteName, slug: options.siteSlug, previewToken: options.previewSlug, templateId: options.templateId, themeConfig, settings: { previewUrl }, status: 'DRAFT' },
@@ -174,10 +174,22 @@ export async function importToCms(options, prisma = new PrismaClient()) {
         if (!sourceUrl)
             return undefined;
         if (sourceUrl.startsWith('http')) {
-            const dbm = mediaMap.get(sourceUrl);
+            const dbm = mediaFromSourceUrl(sourceUrl);
             return dbm?.id;
         }
         return sourceUrl;
+    }
+    // themeConfig was written before media import — resolve hero/about image refs now.
+    {
+        const hero = site.themeConfig && site.themeConfig.hero;
+        const about = site.themeConfig && site.themeConfig.about;
+        const heroId = mapImageId(hero?.imageId) || hero?.imageId;
+        const aboutId = mapImageId(about?.imageId) || about?.imageId;
+        if (heroId !== hero?.imageId || aboutId !== about?.imageId) {
+            const tc = { ...site.themeConfig, hero: { ...(hero || {}), imageId: heroId }, about: { ...(about || {}), imageId: aboutId } };
+            await prisma.site.update({ where: { id: siteId }, data: { themeConfig: tc } });
+            await prisma.demoVariant.updateMany({ where: { siteId, generatedByRunId: runId }, data: { themeConfig: tc } });
+        }
     }
     function mapBlocks(blocks) {
         return (blocks || []).map((b) => {
@@ -191,8 +203,11 @@ export async function importToCms(options, prisma = new PrismaClient()) {
             return mapped;
         });
     }
+    // Some pipelines persisted sourceUrl with a '.webp' suffix — try both forms.
     function mediaFromSourceUrl(sourceUrl) {
-        return sourceUrl ? mediaMap.get(sourceUrl) : undefined;
+        if (!sourceUrl)
+            return undefined;
+        return mediaMap.get(sourceUrl) || mediaMap.get(`${sourceUrl}.webp`) || mediaMap.get(sourceUrl.replace(/\.webp$/, ''));
     }
     const leadDisplayName = options.lead.companyName?.split(/[,;]/)[0]?.trim();
     const extractedCompanyName = options.content.company?.shortName ?? options.content.company?.name;
@@ -232,7 +247,7 @@ export async function importToCms(options, prisma = new PrismaClient()) {
     function resolveThemeImage(themeObject) {
         if (!themeObject || !themeObject.imageId || typeof themeObject.imageId !== 'string' || !themeObject.imageId.startsWith('http'))
             return themeObject;
-        const dbm = mediaMap.get(themeObject.imageId);
+        const dbm = mediaFromSourceUrl(themeObject.imageId);
         if (dbm) {
             return { ...themeObject, imageId: dbm.id };
         }
@@ -248,6 +263,7 @@ export async function importToCms(options, prisma = new PrismaClient()) {
     const keptPageIds = new Set();
     const keptServiceIds = new Set();
     const keptProjectIds = new Set();
+    const keptProductIds = new Set();
     const keptNewsIds = new Set();
     const keptVacancyIds = new Set();
     const keptMenuItemIds = new Set();
@@ -299,7 +315,7 @@ export async function importToCms(options, prisma = new PrismaClient()) {
             siteId,
             title: s.title,
             slug,
-            shortDescription: s.shortDescription,
+            shortDescription: s.shortDescription ?? null,
             blocks: mapBlocks(s.blocks),
             imageId: image?.id,
             seoTitle: s.seoTitle,
@@ -333,7 +349,7 @@ export async function importToCms(options, prisma = new PrismaClient()) {
             siteId,
             title: p.title,
             slug,
-            excerpt: p.excerpt,
+            excerpt: p.excerpt ?? null,
             category: p.category,
             location: p.location,
             completionDate: p.completionDate,
@@ -362,6 +378,49 @@ export async function importToCms(options, prisma = new PrismaClient()) {
     }
     for (const p of options.content.projects || []) {
         await upsertProject(p);
+    }
+    async function upsertProduct(p) {
+        const slug = uniqueSlug(p.slug);
+        const existing = await prisma.product.findUnique({
+            where: { siteId_slug: { siteId, slug } },
+            select: { id: true, sourceType: true, manualModifiedAt: true }
+        });
+        if (existing && existing.sourceType === 'MANUAL')
+            return undefined;
+        const cover = mediaFromSourceUrl(p.coverImage?.sourceUrl);
+        const data = {
+            siteId,
+            title: p.title,
+            slug,
+            summary: p.summary ?? null,
+            attributes: (p.attributes || {}),
+            category: p.category,
+            price: p.attributes?.price || p.attributes?.['Цена'] || p.attributes?.['цена'],
+            blocks: mapBlocks(p.blocks),
+            coverImageId: cover?.id,
+            seoTitle: p.seoTitle,
+            seoDescription: p.seoDescription,
+            sourceUrl: p.sourceUrl,
+            sourceType: generatedSource,
+            status: PageStatus.PUBLISHED,
+            publishedAt: new Date(),
+            ...ownership
+        };
+        const record = existing && !existing.manualModifiedAt ? await prisma.product.update({ where: { id: existing.id }, data }) : await prisma.product.create({ data });
+        keptProductIds.add(record.id);
+        const newMediaIds = [...new Set((p.gallery || []).map((img) => mediaFromSourceUrl(img.sourceUrl)?.id).filter(Boolean))];
+        await prisma.productMedia.deleteMany({ where: { productId: record.id, mediaId: { notIn: newMediaIds } } });
+        for (const mediaId of newMediaIds) {
+            await prisma.productMedia.upsert({
+                where: { productId_mediaId: { productId: record.id, mediaId } },
+                create: { productId: record.id, mediaId, sortOrder: 0 },
+                update: { sortOrder: 0 }
+            });
+        }
+        return record;
+    }
+    for (const p of options.content.products || []) {
+        await upsertProduct(p);
     }
     async function upsertNews(n) {
         let slug = uniqueSlug(n.slug);
@@ -612,6 +671,7 @@ export async function importToCms(options, prisma = new PrismaClient()) {
         await prisma.page.deleteMany(staleContentWhere(siteId, runId, keptPageIds));
         await prisma.service.deleteMany(staleContentWhere(siteId, runId, keptServiceIds));
         await prisma.project.deleteMany(staleContentWhere(siteId, runId, keptProjectIds));
+        await prisma.product.deleteMany(staleContentWhere(siteId, runId, keptProductIds));
         await prisma.newsPost.deleteMany(staleContentWhere(siteId, runId, keptNewsIds));
         await prisma.vacancy.deleteMany(staleContentWhere(siteId, runId, keptVacancyIds));
         await prisma.menuItem.deleteMany(staleGeneratedWhere(siteId, runId, keptMenuItemIds));

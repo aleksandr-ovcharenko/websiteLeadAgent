@@ -57,6 +57,11 @@ async function renderPreview(req: Request, res: Response) {
     where: { siteId: site.id, status: 'PUBLISHED' },
     include: { projectMedia: { include: { media: true } } }
   });
+  const products = await (prisma as any).product.findMany({
+    where: { siteId: site.id, status: 'PUBLISHED' },
+    orderBy: { sortOrder: 'asc' },
+    include: { productMedia: { include: { media: true } } }
+  });
   const news = await (prisma as any).newsPost.findMany({ where: { siteId: site.id, status: 'PUBLISHED' } });
   const vacancies = await (prisma as any).vacancy.findMany({ where: { siteId: site.id, status: 'PUBLISHED' } });
   const menu = await (prisma as any).menuItem.findMany({
@@ -97,13 +102,14 @@ async function renderPreview(req: Request, res: Response) {
     pages,
     services,
     projects,
+    products,
     news,
     vacancies,
     menu,
     mediaMap,
     route,
     subRoute,
-    stylePreset: req.query.style as string | undefined
+    stylePreset: (req.query.style as string | undefined) || (variant?.themeConfig as any)?.stylePreset
   });
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
   res.type('html').send(html);
@@ -123,6 +129,16 @@ app.use('/template-assets', (req: Request, res: Response, next: any) => {
   const publicDir = path.resolve(REPO_ROOT, 'packages/templates/dist', templateId, 'public');
   req.url = '/' + rest.join('/');
   express.static(publicDir)(req, res, next);
+});
+
+// Variant screenshots captured during generation
+app.get('/shots/:siteId/*', async (req: Request, res: Response) => {
+  const siteId = String(req.params.siteId);
+  const file = String(req.params[0]).replace(/\.\./g, '');
+  const dir = path.resolve(REPO_ROOT, 'data/generated/sites', siteId, 'screenshots');
+  const p = path.resolve(dir, file);
+  if (!p.startsWith(dir)) { res.status(403).send(); return; }
+  try { await fs.access(p); res.sendFile(p); } catch { res.status(404).send(); }
 });
 
 // Site media from the generated sites directory

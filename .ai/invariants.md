@@ -657,3 +657,20 @@ promoted to HOME to fill the gap.
 
 When quota/circuit-breaker limits a hybrid run, report HYBRID QUALITY NOT
 MEASURED. Fallback-equal-to-rule output is not a semantic comparison.
+
+
+### GENERATION V2: PRESENTATION LAYER
+
+- SiteContentPlan V2 carries `experience` (archetype, brand, presentation copy,
+  composition, stylePresets). Rendering is deterministic from the plan —
+  no semantic reclassification downstream.
+- Brand identity rejects generic logo-alt text ("logo", "logotip") and pure
+  SEO descriptors; domain-derived fallback is allowed.
+- Card copy uses `cardSummary` — nav/CTA/phone/process fragments stripped.
+  Missing copy stays empty (UNKNOWN > WRONG), never raw scraped dumps.
+- Entity media prefers the entity's own document images, then filename↔slug
+  matching (transliteration + consonant skeleton), then graph association.
+  Logos, icons, SVGs, tiny thumbs, and site-wide chrome images are rejected.
+- Exactly 3 DemoVariants per site with distinct dark-safe style presets;
+  exactly one `isPreferred`. A site is not DEMO_READY without a captured,
+  linked screenshot and a passing visual/content gate.

@@ -1,4 +1,4 @@
-export const PRESET_IDS = ['manna', 'stykka', 'eindhoven', 'xai', 'yllw'] as const;
+export const PRESET_IDS = ['manna', 'stykka', 'eindhoven', 'xai', 'yllw', 'foret', 'ember', 'atlas'] as const;
 
 export type PresetId = typeof PRESET_IDS[number];
 
@@ -201,7 +201,67 @@ body[data-style="yllw"] button:hover,
 body[data-style="yllw"] a.inline-flex:hover {
   background-color: #b8b5a3 !important;
 }
-${heroOverrides('#000000', '#000000', 'rgba(202,199,180,0.35)', true, '2px')}`
+${heroOverrides('#000000', '#000000', 'rgba(202,199,180,0.35)', true, '2px')}`,
+
+  // ── Dark-safe presets: keep --dark dark so hardcoded light-on-dark copy stays
+  // legible; variants differ through accent, paper tone, radius and font.
+  foret: `body[data-style="foret"] {
+  --bg: #f4f1e8;
+  --fg: #161d18;
+  --dark: #14201a;
+  --brass: #c8742c;
+  --brass-light: #e0954f;
+  --muted: #5d6b60;
+  --border: #c8c2b2;
+  --card-bg: #ece7d8;
+  --overlay: rgba(20, 32, 26, 0.55);
+  --font-display: 'Space Grotesk', 'Geologica', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--bg);
+  color: var(--fg);
+}
+body[data-style="foret"] img,
+body[data-style="foret"] [class*="rounded"] { border-radius: 0 !important; }`,
+
+  ember: `body[data-style="ember"] {
+  --bg: #efece9;
+  --fg: #1a1512;
+  --dark: #1c1410;
+  --brass: #b04a2e;
+  --brass-light: #d4755a;
+  --muted: #6e6258;
+  --border: #cfc5bb;
+  --card-bg: #e7e1d9;
+  --overlay: rgba(28, 20, 16, 0.55);
+  --font-display: 'Geologica', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--bg);
+  color: var(--fg);
+}
+body[data-style="ember"] img,
+body[data-style="ember"] [class*="rounded"] { border-radius: 4px !important; }
+body[data-style="ember"] button,
+body[data-style="ember"] a.inline-flex { border-radius: 9999px !important; }`,
+
+  atlas: `body[data-style="atlas"] {
+  --bg: #eef1f4;
+  --fg: #0f1a24;
+  --dark: #0e1b26;
+  --brass: #1f6f9e;
+  --brass-light: #4b9cc9;
+  --muted: #55636e;
+  --border: #c3ccd4;
+  --card-bg: #e2e8ee;
+  --overlay: rgba(14, 27, 38, 0.55);
+  --font-display: 'Inter', 'Geologica', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--bg);
+  color: var(--fg);
+}
+body[data-style="atlas"] img,
+body[data-style="atlas"] [class*="rounded"] { border-radius: 10px !important; }
+body[data-style="atlas"] button,
+body[data-style="atlas"] a.inline-flex { border-radius: 6px !important; }`
 };
 
 export function presetCSS(id: PresetId): string {

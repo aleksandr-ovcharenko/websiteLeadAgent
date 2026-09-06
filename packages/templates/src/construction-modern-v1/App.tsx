@@ -65,14 +65,15 @@ function getCmsData() {
 }
 
 const cms = getCmsData();
-const { COMPANY, NAV, PAGES, SERVICES, PROJECTS, NEWS_ITEMS, VACANCIES, PROCESS_STEPS, HERO, ABOUT, CTA, LOGO, FAVICON, THEME, SETTINGS, HOME_SECTIONS } = cms;
+const { COMPANY, NAV, PAGES, SERVICES, PROJECTS, PRODUCTS = [], DYNAMIC = [], NEWS_ITEMS, VACANCIES, PROCESS_STEPS: PROCESS_STEPS_RAW, HERO, ABOUT, CTA, LOGO, FAVICON, THEME, SETTINGS, HOME_SECTIONS } = cms;
+const PROCESS_STEPS = (PROCESS_STEPS_RAW?.length ? PROCESS_STEPS_RAW : (DYNAMIC.find((d: any) => (d.kind || '').toLowerCase() === 'process')?.items || []).map((it: any, i: number) => ({ n: String(i + 1).padStart(2, '0'), label: it.title || '', desc: it.text || '', href: '#', linkLabel: '' })));
 const PREVIEW_TOKEN = (cms as any).PREVIEW_TOKEN || '';
 const SITE_ID = (cms as any).SITE_ID || '';
 const IMG = (cms as any).IMG || DEFAULT_IMG;
 
 const BASE = PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}` : '';
 
-const COLLECTION_ROUTES = ['news', 'projects', 'services', 'vacancies'];
+const COLLECTION_ROUTES = ['news', 'projects', 'services', 'vacancies', 'products'];
 const HOME_SECTION_TYPES = (HOME_SECTIONS || [])
   .filter((s: any) => s.enabled !== false)
   .map((s: any) => s.type)
@@ -90,6 +91,12 @@ function flattenNav(items: any[]): any[] {
 }
 
 const FLAT_NAV = flattenNav(NAV);
+
+function clampCopy(text: string | undefined, max = 180): string {
+  const t = (text || '').replace(/\s+/g, ' ').trim()
+  if (t.length <= max) return t
+  return t.slice(0, max).replace(/\s+\S*$/, '') + '…'
+}
 
 function sectionConfig(type: string) {
   return (HOME_SECTIONS || []).find((s: any) => s.type === type && s.enabled !== false);
@@ -131,6 +138,7 @@ function newsHref(slug: string, returnTo?: 'home' | 'collection') { return detai
 function projectHref(slug: string, returnTo?: 'home' | 'collection') { return detailHref('projects', slug, returnTo); }
 function serviceHref(slug: string, returnTo?: 'home' | 'collection') { return detailHref('services', slug, returnTo); }
 function vacancyHref(slug: string, returnTo?: 'home' | 'collection') { return detailHref('vacancies', slug, returnTo); }
+function productHref(slug: string, returnTo?: 'home' | 'collection') { return detailHref('products', slug, returnTo); }
 
 function backHref(target: string, returnTo?: 'home' | 'collection' | null) {
   if (returnTo === 'home') return sectionHref(target);
@@ -365,21 +373,35 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
 function Hero() {
   const title = HERO.title || COMPANY.name
   const titleWords = title.split(/\s+/).filter(Boolean)
+  // A hero without a real business image must NOT occupy a full empty viewport.
+  const hasImage = !!HERO.image
   return (
     <section
       data-hero="hero"
       className="relative overflow-hidden"
-      style={{ height: '100svh', minHeight: '640px', background: 'var(--dark)' }}
+      style={hasImage
+        ? { minHeight: '88svh', background: 'var(--dark)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }
+        : { minHeight: '420px', background: 'var(--dark)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
     >
-      {/* Full-bleed background photo */}
-      {HERO.image ? (
+      {/* Full-bleed background photo, or a composed accent panel when none exists */}
+      {hasImage ? (
         <img
           src={HERO.image}
           alt={title}
           className="absolute inset-0 w-full h-full object-cover"
           style={{ objectPosition: 'right center' }}
         />
-      ) : null}
+      ) : (
+        <div
+          className="absolute inset-0"
+          style={{
+            background: [
+              'radial-gradient(ellipse 80% 60% at 75% 30%, rgba(47,107,79,0.25), transparent 60%)',
+              'linear-gradient(135deg, var(--dark) 0%, rgba(47,107,79,0.12) 100%)',
+            ].join(', '),
+          }}
+        />
+      )}
 
       {/* Gradient stack */}
       <div
@@ -443,8 +465,8 @@ function Hero() {
           className="font-black text-white mb-8 md:mb-10"
           style={{
             ...GEO,
-            fontSize: 'clamp(3.2rem, 8.5vw, 7.25rem)',
-            lineHeight: 0.9,
+            fontSize: titleWords.length > 3 ? 'clamp(2.1rem, 5vw, 4.2rem)' : 'clamp(3.2rem, 8.5vw, 7.25rem)',
+            lineHeight: titleWords.length > 3 ? 1.02 : 0.9,
             letterSpacing: '-0.02em',
             maxWidth: '880px',
           }}
@@ -804,7 +826,7 @@ function Projects() {
                     </a>
                   </h3>
                   <p className="text-sm" style={{ color: 'var(--muted)' }}>
-                    {project.category} · {project.location}
+                    {clampCopy([project.category, project.location].filter(Boolean).join(' · '))}
                   </p>
                 </div>
               </article>
@@ -819,7 +841,7 @@ function Projects() {
         style={{ borderColor: 'var(--border)' }}
       >
         <p className="text-sm" style={{ color: 'var(--muted)' }}>
-          Промышленное и гражданское строительство по всей Беларуси
+          Реализованные объекты компании
         </p>
         <a
           href={collectionHref('PROJECTS')}
@@ -862,7 +884,7 @@ function Services() {
             </h2>
           </div>
           <p className="text-sm md:text-base leading-relaxed lg:pb-1" style={{ color: 'rgba(242,244,245,0.45)' }}>
-            Полный спектр строительных и инженерных работ. Собственные специалисты, техника и контроль качества на каждом этапе.
+            Услуги и направления работы компании.
           </p>
         </div>
       </div>
@@ -911,12 +933,14 @@ function Services() {
                 >
                   {s.title}
                 </h3>
-                <p
-                  className="text-sm leading-relaxed transition-colors duration-150"
-                  style={{ color: hov === i ? 'rgba(242,244,245,0.58)' : 'rgba(242,244,245,0.32)' }}
-                >
-                  {s.desc}
-                </p>
+                {s.desc ? (
+                  <p
+                    className="text-sm leading-relaxed transition-colors duration-150"
+                    style={{ color: hov === i ? 'rgba(242,244,245,0.58)' : 'rgba(242,244,245,0.32)' }}
+                  >
+                    {clampCopy(s.desc)}
+                  </p>
+                ) : null}
               </div>
 
               {/* Arrow */}
@@ -941,7 +965,7 @@ function Services() {
         style={{ borderColor: 'rgba(242,244,245,0.08)' }}
       >
         <p className="text-xs uppercase tracking-[0.25em]" style={{ color: 'rgba(242,244,245,0.22)' }}>
-          Собственные специалисты · Минск и регионы
+          Работаем с заказчиками по договору
         </p>
         <a
           href={sectionHref('CONTACTS')}
@@ -1053,7 +1077,7 @@ function Process() {
             </h2>
             <div className="w-10 h-px mb-7" style={{ background: 'var(--brass)' }} />
             <p className="text-sm leading-relaxed" style={{ color: 'var(--muted)', maxWidth: '272px' }}>
-              Полный цикл реализации — от проектирования и подготовительных работ до сдачи объекта заказчику.
+              Этапы работы над проектом — от первого контакта до результата.
             </p>
           </div>
 
@@ -1159,6 +1183,236 @@ function Process() {
           because gap-7 and py-8 give strong touch targets and the number column
           naturally sits left of content on all viewports. The timeline line is
           hidden below lg via the hidden/lg:block class on the line div.       */}
+    </section>
+  )
+}
+
+
+// ─── Products (catalogue) ─────────────────────────────────────────────────────
+function ProductCard({ p, i }: { p: any; i: number }) {
+  const attrs = Object.entries(p.attributes || {}).filter(([, v]) => v).slice(0, 4)
+  return (
+    <article className="border" style={{ borderColor: 'var(--border)', background: 'var(--card-bg)' }}>
+      <a href={productHref(p.slug, 'home')} className="block group">
+        <div className="overflow-hidden" style={{ aspectRatio: '4/3', background: 'var(--bg)' }}>
+          {p.img ? (
+            <img src={p.img} alt={p.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center" style={{ color: 'var(--border)' }}>
+              <span className="text-4xl font-black" style={GEO}>{String(i + 1).padStart(2, '0')}</span>
+            </div>
+          )}
+        </div>
+        <div className="p-5 md:p-6">
+          <h3 className="text-lg font-bold leading-snug mb-2" style={{ ...GEO, color: 'var(--fg)' }}>{p.title}</h3>
+          {p.summary ? <p className="text-sm mb-3" style={{ color: 'var(--muted)' }}>{clampCopy(p.summary, 140)}</p> : null}
+          {attrs.length ? (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {attrs.map(([k, v]) => (
+                <span key={k} className="text-[10px] uppercase tracking-[0.12em] px-2 py-1 border" style={{ borderColor: 'var(--border)', color: 'var(--muted)' }}>
+                  {k}: {String(v)}
+                </span>
+              ))}
+            </div>
+          ) : null}
+          {p.price ? <p className="mt-3 text-sm font-semibold" style={{ color: 'var(--brass)' }}>{p.price}</p> : null}
+        </div>
+      </a>
+    </article>
+  )
+}
+
+function ProductList({ preview = false }: { preview?: boolean }) {
+  if (PRODUCTS.length === 0) return null
+  if (typeof document !== 'undefined' && !preview) document.title = `Каталог — ${COMPANY.name}`
+  const items = preview ? PRODUCTS.slice(0, 6) : PRODUCTS
+  return (
+    <section id="products" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[1280px] mx-auto px-6 md:px-10">
+        <div className="flex items-end justify-between mb-12">
+          <div>
+            <Eyebrow>{sectionEyebrow('products', 'Каталог')}</Eyebrow>
+            <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>
+              {sectionHeading('products', 'Каталог')}
+            </h2>
+          </div>
+          {preview ? (
+            <a href={collectionHref('PRODUCTS')} className="hidden md:flex items-center gap-2 text-sm font-medium group" style={{ color: 'var(--fg)' }}
+              onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}>
+              Весь каталог <span className="transition-transform group-hover:translate-x-1">→</span>
+            </a>
+          ) : (
+            <a href={homeHref()} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к главной</a>
+          )}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {items.map((p: any, i: number) => <ProductCard key={p.id || p.slug} p={p} i={i} />)}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function ProductDetail({ slug }: { slug: string }) {
+  const p = PRODUCTS.find((x: any) => x.slug === slug)
+  const returnTo = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('returnTo') as 'home' | 'collection' | null) : null
+  if (typeof document !== 'undefined' && p) document.title = `${p.title} — ${COMPANY.name}`
+  if (!p) return (
+    <section className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[900px] mx-auto px-6 md:px-10"><h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>Товар не найден</h1></div>
+    </section>
+  )
+  const attrs = Object.entries(p.attributes || {}).filter(([, v]) => v)
+  return (
+    <section id="products" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[1100px] mx-auto px-6 md:px-10">
+        <a href={backHref('PRODUCTS', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к каталогу</a>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mt-8 items-start">
+          <div>
+            {p.img ? <img src={p.img} alt={p.title} className="w-full object-cover" style={{ aspectRatio: '4/3', background: 'var(--card-bg)' }} /> : null}
+            {p.gallery?.length ? (
+              <div className="grid grid-cols-2 gap-3 mt-3">
+                {p.gallery.slice(0, 6).map((src: string, i: number) => <img key={i} src={src} alt={`${p.title} ${i + 1}`} className="w-full h-32 object-cover" />)}
+              </div>
+            ) : null}
+          </div>
+          <div>
+            <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--muted)' }}>{p.category || 'Каталог'}</p>
+            <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-5" style={{ ...GEO, color: 'var(--fg)' }}>{p.title}</h1>
+            {p.summary ? <p className="text-base leading-relaxed mb-6" style={{ color: 'var(--muted)' }}>{clampCopy(p.summary, 400)}</p> : null}
+            {attrs.length ? (
+              <div className="border-t border-b py-4 mb-6" style={{ borderColor: 'var(--border)' }}>
+                {attrs.map(([k, v]) => (
+                  <div key={k} className="flex justify-between py-1.5 text-sm">
+                    <span style={{ color: 'var(--muted)' }}>{k}</span>
+                    <span className="font-medium" style={{ color: 'var(--fg)' }}>{String(v)}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {p.price ? <p className="text-xl font-bold mb-6" style={{ color: 'var(--brass)' }}>{p.price}</p> : null}
+            <a href={sectionHref('CONTACTS')} className="inline-flex items-center px-7 py-3.5 text-[11px] uppercase font-bold tracking-[0.18em]"
+              style={{ background: 'var(--brass)', color: 'var(--dark)' }}>
+              {CTA.buttonLabel || 'Связаться'}
+            </a>
+            {p.content ? <div className="mt-8 text-sm leading-relaxed" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{clampCopy(p.content, 1200)}</div> : null}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+// ─── Dynamic sections (FAQ / Process / Advantages / Reviews / Stats / ...) ────
+function DynSection({ kind }: { kind: string }) {
+  const sec = DYNAMIC.find((d: any) => (d.kind || '').toLowerCase() === kind.toLowerCase())
+  if (!sec || !sec.items?.length) return null
+  const items = sec.items.slice(0, kind === 'faq' ? 8 : 12)
+  const id = `dyn-${kind.toLowerCase()}`
+
+  if (kind === 'faq') return (
+    <section id={id} className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[900px] mx-auto px-6 md:px-10">
+        <Eyebrow>{sec.heading || 'FAQ'}</Eyebrow>
+        <h2 className="text-3xl md:text-4xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>{sec.heading || 'Часто задаваемые вопросы'}</h2>
+        <div className="border-t" style={{ borderColor: 'var(--border)' }}>
+          {items.map((it: any, i: number) => (
+            <details key={i} className="border-b py-5 group" style={{ borderColor: 'var(--border)' }}>
+              <summary className="cursor-pointer list-none flex justify-between items-center text-base font-medium" style={{ color: 'var(--fg)' }}>
+                {it.title || it.text}<span style={{ color: 'var(--brass)' }}>+</span>
+              </summary>
+              {it.text && it.text !== it.title ? <p className="mt-3 text-sm leading-relaxed" style={{ color: 'var(--muted)' }}>{clampCopy(it.text, 400)}</p> : null}
+            </details>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+
+  if (kind === 'reviews') return (
+    <section id={id} className="py-24 md:py-32 border-t" style={{ background: 'var(--card-bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[1280px] mx-auto px-6 md:px-10">
+        <Eyebrow>{sec.heading || 'Отзывы'}</Eyebrow>
+        <h2 className="text-3xl md:text-4xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>{sec.heading || 'Отзывы'}</h2>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+          {items.slice(0, 6).map((it: any, i: number) => (
+            <figure key={i} className="p-6 border" style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}>
+              <blockquote className="text-sm leading-relaxed mb-4" style={{ color: 'var(--fg)' }}>{clampCopy(it.text || it.title, 240)}</blockquote>
+              {it.meta?.author || it.title ? <figcaption className="text-xs uppercase tracking-widest" style={{ color: 'var(--muted)' }}>{it.meta?.author || it.title}</figcaption> : null}
+            </figure>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+
+  if (kind === 'process') return (
+    <section id={id} className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[900px] mx-auto px-6 md:px-10">
+        <Eyebrow>{sec.heading || 'Как мы работаем'}</Eyebrow>
+        <h2 className="text-3xl md:text-4xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>{sec.heading || 'Как мы работаем'}</h2>
+        <div className="border-t" style={{ borderColor: 'var(--border)' }}>
+          {items.map((it: any, i: number) => (
+            <div key={i} className="flex gap-6 py-6 border-b" style={{ borderColor: 'var(--border)' }}>
+              <span className="text-2xl font-black tabular-nums shrink-0" style={{ ...GEO, color: 'var(--brass)' }}>{String(i + 1).padStart(2, '0')}</span>
+              <div>
+                <h3 className="font-bold mb-1" style={{ color: 'var(--fg)' }}>{it.title || ''}</h3>
+                {it.text ? <p className="text-sm" style={{ color: 'var(--muted)' }}>{clampCopy(it.text, 240)}</p> : null}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+
+  if (kind === 'stats') return (
+    <section id={id} className="py-20 md:py-28 border-t" style={{ background: 'var(--dark)', borderColor: 'rgba(255,255,255,0.08)' }}>
+      <div className="max-w-[1280px] mx-auto px-6 md:px-10">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+          {items.slice(0, 4).map((it: any, i: number) => (
+            <div key={i}>
+              <p className="text-3xl md:text-4xl font-black mb-2" style={{ ...GEO, color: 'var(--brass)' }}>{it.title || it.text}</p>
+              {it.text && it.title ? <p className="text-xs uppercase tracking-widest" style={{ color: 'rgba(242,244,245,0.45)' }}>{clampCopy(it.text, 80)}</p> : null}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+
+  if (kind === 'pricing') return (
+    <section id={id} className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[1280px] mx-auto px-6 md:px-10">
+        <Eyebrow>{sec.heading || 'Цены'}</Eyebrow>
+        <h2 className="text-3xl md:text-4xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>{sec.heading || 'Цены'}</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {items.map((it: any, i: number) => (
+            <div key={i} className="p-6 border" style={{ borderColor: 'var(--border)', background: 'var(--card-bg)' }}>
+              <h3 className="font-bold mb-2" style={{ color: 'var(--fg)' }}>{it.title || ''}</h3>
+              {it.text ? <p className="text-sm" style={{ color: 'var(--muted)' }}>{clampCopy(it.text, 200)}</p> : null}
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+
+  // advantages / team / partners / promotion / other — generic card grid
+  return (
+    <section id={id} className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+      <div className="max-w-[1280px] mx-auto px-6 md:px-10">
+        <Eyebrow>{sec.heading || kind}</Eyebrow>
+        <h2 className="text-3xl md:text-4xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>{sec.heading || kind}</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+          {items.map((it: any, i: number) => (
+            <div key={i} className="p-6 border" style={{ borderColor: 'var(--border)', background: 'var(--card-bg)' }}>
+              <h3 className="font-bold mb-2" style={{ color: 'var(--fg)' }}>{it.title || ''}</h3>
+              {it.text ? <p className="text-sm" style={{ color: 'var(--muted)' }}>{clampCopy(it.text, 200)}</p> : null}
+            </div>
+          ))}
+        </div>
+      </div>
     </section>
   )
 }
@@ -1316,7 +1570,7 @@ function ProjectList({ preview = false }: { preview?: boolean }) {
                   <h3 className="text-xl font-bold mb-2 leading-snug" style={{ ...GEO, color: 'var(--fg)' }}>
                     {p.title}
                   </h3>
-                  <p className="text-sm" style={{ color: 'var(--muted)' }}>{p.excerpt || p.location}</p>
+                  <p className="text-sm" style={{ color: 'var(--muted)' }}>{clampCopy(p.excerpt || p.location)}</p>
                 </div>
               </a>
             </article>
@@ -1414,7 +1668,7 @@ function ServiceList({ preview = false }: { preview?: boolean }) {
                 <span className="text-sm font-bold tabular-nums" style={{ fontFamily: 'monospace', color: 'var(--brass)' }}>{s.num}</span>
                 <div>
                   <h3 className="font-bold mb-1" style={{ ...GEO, color: 'white' }}>{s.title}</h3>
-                  <p className="text-sm" style={{ color: 'rgba(242,244,245,0.5)' }}>{s.desc}</p>
+                  <p className="text-sm" style={{ color: 'rgba(242,244,245,0.5)' }}>{clampCopy(s.desc)}</p>
                 </div>
                 <span className="text-sm transition-transform group-hover:translate-x-1" style={{ color: 'var(--brass)' }}>→</span>
               </div>
@@ -1454,7 +1708,7 @@ function ServiceDetail({ slug }: { slug: string }) {
           ) : null}
           <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--brass)' }}>Услуга</p>
           <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-5" style={{ ...GEO, color: 'white' }}>{s.title}</h1>
-          {s.desc ? <p className="text-lg leading-relaxed mb-8" style={{ color: 'rgba(242,244,245,0.6)' }}>{s.desc}</p> : null}
+          {s.desc ? <p className="text-lg leading-relaxed mb-8" style={{ color: 'rgba(242,244,245,0.6)' }}>{clampCopy(s.desc, 260)}</p> : null}
           <div className="text-base leading-relaxed" style={{ color: 'rgba(242,244,245,0.82)', whiteSpace: 'pre-wrap' }}>{s.content}</div>
         </article>
       </div>
@@ -1944,8 +2198,10 @@ function Footer() {
   )
 }
 
-const SECTION_COMPONENTS: Record<string, () => JSX.Element | null> = {
+const SECTION_COMPONENTS: Record<string, (item?: any) => JSX.Element | null> = {
   about: () => <About />,
+  products: () => <ProductList preview />,
+  dynamic: (item?: any) => <DynSection kind={item?.sectionType || item?.title || ''} />,
   services: () => <ServiceList preview />,
   projects: () => <ProjectList preview />,
   news: () => <NewsList preview />,
@@ -1979,9 +2235,10 @@ function GenericSection({ section }: { section: any }) {
 }
 
 function SectionResolver({ item }: { item: any }) {
-  const key = (item.sectionType || item.type || item.target || '').toLowerCase()
+  const t = (item.type || item.sectionType || item.target || '').toLowerCase()
+  const key = t === 'dynamic' ? 'dynamic' : t
   const Comp = SECTION_COMPONENTS[key]
-  if (Comp) return <Comp />
+  if (Comp) return Comp(item)
   return <GenericSection section={item} />
 }
 
@@ -2036,11 +2293,13 @@ export default function App() {
           route === 'news' ? <NewsDetail slug={sub} /> :
           route === 'projects' ? <ProjectDetail slug={sub} /> :
           route === 'services' ? <ServiceDetail slug={sub} /> :
+          route === 'products' ? <ProductDetail slug={sub} /> :
           route === 'vacancies' ? <VacancyDetail slug={sub} /> : null
         ) : isCollection ? (
           route === 'news' ? <NewsList /> :
           route === 'projects' ? <ProjectList /> :
           route === 'services' ? <ServiceList /> :
+          route === 'products' ? <ProductList /> :
           route === 'vacancies' ? <VacancyList /> : null
         ) : matchedPage ? (
           <PageView slug={route} />

@@ -141,6 +141,28 @@ export const contentNewsSchema = z.object({
     seoDescription: z.string().optional(),
     coverImage: contentMediaSchema.optional(),
 });
+export const contentProductSchema = z.object({
+    title: z.string(),
+    slug: z.string(),
+    summary: z.string().optional(),
+    attributes: z.record(z.string(), z.string()).default({}),
+    blocks: z.array(contentBlockSchema).default([]),
+    sourceUrl: z.string().optional(),
+    sourceType: z.enum(['IMPORTED', 'MANUAL', 'AI_REWRITTEN']).default('IMPORTED'),
+    seoTitle: z.string().optional(),
+    seoDescription: z.string().optional(),
+    coverImage: contentMediaSchema.optional(),
+    gallery: z.array(contentMediaSchema).default([]),
+});
+export const dynamicSectionSchema = z.object({
+    kind: z.string(),
+    heading: z.string().optional(),
+    items: z.array(z.object({
+        title: z.string().optional(),
+        text: z.string().optional(),
+        meta: z.record(z.string(), z.string()).optional(),
+    })).default([]),
+});
 export const contentVacancySchema = z.object({
     title: z.string(),
     slug: z.string(),
@@ -244,6 +266,8 @@ export const extractedContentSchema = z.object({
     pages: z.array(contentPageSchema).default([]),
     services: z.array(contentServiceSchema).default([]),
     projects: z.array(contentProjectSchema).default([]),
+    products: z.array(contentProductSchema).default([]),
+    dynamicSections: z.array(dynamicSectionSchema).default([]),
     news: z.array(contentNewsSchema).default([]),
     vacancies: z.array(contentVacancySchema).default([]),
     reviews: reviewsBlockSchema.shape.reviews.default([]),

@@ -99,3 +99,10 @@ Reject a Radar implementation if:
 - Reject if "missing from payload" is treated as authoritative removal
   without proving the payload is a complete result for the current query
   scope (paginated/limited responses are not authoritative).
+
+- Reject a DEMO_READY claim without a linked, non-empty screenshot file and
+  a visible Hub preview — route-200 and CMS row counts are not evidence.
+- Reject visual QA that was not actually executed (empty/error responses are
+  not passes) — quota failures mean NEEDS_ATTENTION, not silent pass.
+- Reject entity card images that are logos, SVG icons, or images shared as
+  site-wide chrome across many documents.

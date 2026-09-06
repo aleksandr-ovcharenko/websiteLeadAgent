@@ -269,6 +269,7 @@ model Site {
   pages      Page[]
   newsPosts  NewsPost[]
   projects   Project[]
+  products   Product[]
   services   Service[]
   vacancies  Vacancy[]
   media      Media[]
@@ -400,6 +401,8 @@ model Media {
   coverForNews NewsPost[] @relation("NewsCover")
   imageForServices Service[] @relation("ServiceImage")
   projectMedia ProjectMedia[]
+  coverForProducts Product[] @relation("ProductCover")
+  productMedia ProductMedia[]
   logoForSites SiteSettings[] @relation("LogoMedia")
   faviconForSites SiteSettings[] @relation("FaviconMedia")
 
@@ -537,6 +540,54 @@ model Service {
   @@unique([siteId, slug])
   @@index([generatedByRunId])
   @@index([generatedByDemoVariantId])
+}
+
+
+model Product {
+  id        String   @id @default(cuid())
+  siteId    String
+  title     String
+  slug      String
+  summary   String?
+  attributes Json     @default("{}")
+  blocks    Json     @default("[]")
+  coverImageId String?
+  category  String?
+  price     String?
+  status    PageStatus @default(DRAFT)
+  publishedAt DateTime?
+  seoTitle  String?
+  seoDescription String?
+  sourceUrl String?
+  sourceType ContentSourceType @default(IMPORTED)
+  sortOrder Int      @default(0)
+  generatedByRunId String?
+  generatedByDemoVariantId String?
+  manualModifiedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  coverImage Media? @relation("ProductCover", fields: [coverImageId], references: [id])
+  productMedia ProductMedia[]
+
+  @@unique([siteId, slug])
+  @@index([generatedByRunId])
+  @@index([generatedByDemoVariantId])
+}
+
+model ProductMedia {
+  id        String   @id @default(cuid())
+  productId String
+  mediaId   String
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+  media   Media   @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, mediaId])
 }
 
 model Vacancy {

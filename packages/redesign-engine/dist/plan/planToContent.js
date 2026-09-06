@@ -1,5 +1,7 @@
+import { cleanCardSummary } from './siteContentPlanV2.js';
 // Bridge: SiteContentPlan V2 -> ExtractedContent (the importer's input).
 // Deterministic — the plan is authoritative; this only maps shapes.
+const clean = (s, n) => s.replace(/\s+/g, ' ').trim().slice(0, n) || undefined;
 const media = (src, alt) => (src ? { sourceUrl: src, filename: src.split('/').pop()?.split('?')[0] || 'media', alt } : undefined);
 const blocksOf = (e) => {
     const b = [];
@@ -13,12 +15,11 @@ const blocksOf = (e) => {
         b.push({ type: 'gallery', imageIds: gallery });
     return b;
 };
-// CMS homepage section enum lacks 'products'/'articles' — products get a CTA
-// banner into /products (never a fake "projects" block); articles live on
-// their own pages and are not forced into a News block.
+// Homepage section types — the template understands 'products' and 'dynamic'
+// (dynamic sections carry their component name in `title`).
 const HOMEPAGE_TYPE = {
-    hero: 'hero', services: 'services', projects: 'projects', products: 'cta', news: 'news', articles: null,
-    about: 'about', contacts: 'contacts', dynamic: 'about', cta: 'cta',
+    hero: 'hero', services: 'services', projects: 'projects', products: 'products', news: 'news', articles: 'articles',
+    about: 'about', contacts: 'contacts', dynamic: 'dynamic', cta: 'cta',
 };
 export function planToContent(plan) {
     const id = plan.siteIdentity;
@@ -31,20 +32,7 @@ export function planToContent(plan) {
     const articles = plan.entities.filter((e) => e.type === 'article');
     const news = plan.entities.filter((e) => e.type === 'news');
     const vacancies = plan.entities.filter((e) => e.type === 'vacancy');
-    // Products: CMS has no Product entity — render as catalog pages.
     const pages = [];
-    if (products.length) {
-        pages.push({
-            title: 'Каталог', slug: 'products', sourceType: 'IMPORTED', isHomepage: false,
-            blocks: [
-                { type: 'text', heading: 'Каталог', content: '' },
-                ...products.slice(0, 60).map((p) => ({ type: 'text', heading: p.title, content: p.summary || Object.entries(p.attributes).map(([k, v]) => `${k}: ${v}`).join('; ') })),
-            ],
-        });
-        for (const p of products) {
-            pages.push({ title: p.title, slug: `products/${p.slug}`, sourceType: 'IMPORTED', isHomepage: false, sourceUrl: p.detailUrl, blocks: blocksOf(p) });
-        }
-    }
     if (articles.length) {
         pages.push({ title: 'Статьи', slug: 'articles', sourceType: 'IMPORTED', isHomepage: false, blocks: articles.slice(0, 30).map((a) => ({ type: 'text', heading: a.title, content: a.summary || '' })) });
         for (const a of articles)
@@ -56,6 +44,7 @@ export function planToContent(plan) {
             blocks: d.items.slice(0, 30).map((i) => ({ type: 'text', heading: i.title, content: i.text || '' })),
         });
     }
+    const exp = plan.experience;
     const reviews = plan.dynamicSections.find((d) => d.kind === 'REVIEWS');
     const faq = plan.dynamicSections.find((d) => d.kind === 'FAQ');
     const process = plan.dynamicSections.find((d) => d.kind === 'PROCESS');
@@ -70,16 +59,16 @@ export function planToContent(plan) {
         const t = HOMEPAGE_TYPE[s.type];
         if (!t)
             return null;
-        if (s.type === 'products')
-            return { type: 'cta', enabled: true, sortOrder: i, title: s.heading };
-        return { type: t, enabled: true, sortOrder: i, title: s.heading, limit: s.entityIds.length || undefined };
+        // dynamic: title carries the component kind the renderer should mount
+        const dyn = s.dynamicSectionId ? plan.dynamicSections.find((d) => d.id === s.dynamicSectionId) : undefined;
+        return { type: t, enabled: true, sortOrder: i, title: s.heading, sectionType: dyn ? dyn.kind.toLowerCase() : undefined, limit: s.entityIds.length || undefined };
     })
         .filter((s) => s !== null)
-        // dedupe same-type sections (e.g. several dynamic sections all map to 'about')
-        .filter((s, i, arr) => arr.findIndex((x) => x.type === s.type) === i);
+        // dedupe same section identity (kind for dynamic, type otherwise)
+        .filter((s, i, arr) => arr.findIndex((x) => x.type === s.type && x.sectionType === s.sectionType) === i);
     return {
         theme: { source: 'default', primaryColor: '#2f6b4f', textColor: '#1a1a1a', backgroundColor: '#ffffff' },
-        hero: { title: id.displayName, subtitle: id.description, imageId: plan.media.hero, buttonLabel: 'Связаться', buttonUrl: '/contacts' },
+        hero: { title: exp?.presentation.heroHeadline || id.displayName, subtitle: exp?.presentation.heroSubheadline || clean(id.description || '', 200), imageId: plan.media.hero, buttonLabel: exp?.presentation.heroCtaLabel || 'Связаться', buttonUrl: '/contacts', secondaryCtaLabel: exp?.presentation.heroCtaSecondary, secondaryCtaTarget: '' },
         company: {
             name: id.displayName, shortName: id.displayName, description: id.description,
             legalName: id.legalName, unp: id.unp, founded: id.founded, employees: id.employees,
@@ -94,8 +83,8 @@ export function planToContent(plan) {
         navigation,
         homepageSections,
         pages,
-        services: services.map((s) => ({ title: s.title, slug: s.slug, sourceType: 'IMPORTED', shortDescription: s.summary, blocks: blocksOf(s), sourceUrl: s.detailUrl, image: media(s.primaryImage, s.title) })),
-        projects: projects.map((p) => ({ title: p.title, slug: p.slug, sourceType: 'IMPORTED', excerpt: p.summary, blocks: blocksOf(p), sourceUrl: p.detailUrl, coverImage: media(p.primaryImage, p.title), gallery: p.media.slice(0, 8).map((s) => media(s, p.title)).filter(Boolean) })),
+        services: services.map((s) => ({ title: s.title, slug: s.slug, sourceType: 'IMPORTED', shortDescription: s.cardSummary || cleanCardSummary(s.summary, s.title), blocks: blocksOf(s), sourceUrl: s.detailUrl, image: media(s.primaryImage, s.title) })),
+        projects: projects.map((p) => ({ title: p.title, slug: p.slug, sourceType: 'IMPORTED', excerpt: p.cardSummary || cleanCardSummary(p.summary, p.title), blocks: blocksOf(p), sourceUrl: p.detailUrl, coverImage: media(p.primaryImage, p.title), gallery: p.media.slice(0, 8).map((s) => media(s, p.title)).filter(Boolean) })),
         news: news.map((n) => ({ title: n.title, slug: n.slug, sourceType: 'IMPORTED', excerpt: n.summary, blocks: blocksOf(n), sourceUrl: n.detailUrl, coverImage: media(n.primaryImage, n.title) })),
         vacancies: vacancies.map((v) => ({ title: v.title, slug: v.slug, sourceType: 'IMPORTED', description: v.summary, sourceUrl: v.detailUrl })),
         reviews: (reviews?.items || []).slice(0, 12).map((i) => ({ author: i.meta?.author || i.title, text: i.text || i.title || '' })),
@@ -106,7 +95,17 @@ export function planToContent(plan) {
             workingHours: plan.contacts.workingHours,
             socialLinks: plan.contacts.socialLinks,
         },
+        products: products.map((p) => ({
+            title: p.title, slug: p.slug, sourceType: 'IMPORTED',
+            summary: p.cardSummary || cleanCardSummary(p.summary, p.title) || clean(p.summary || '', 140), attributes: p.attributes,
+            blocks: blocksOf(p), sourceUrl: p.detailUrl,
+            coverImage: media(p.primaryImage, p.title),
+            gallery: p.media.slice(0, 8).map((u) => media(u, p.title)).filter(Boolean),
+        })),
+        dynamicSections: plan.dynamicSections
+            .filter((d) => d.kind !== 'IGNORED' && d.items.length)
+            .map((d) => ({ kind: d.kind, heading: d.heading, items: d.items.slice(0, 30).map((i) => ({ title: i.title, text: i.text, meta: i.meta })) })),
         media: plan.media.images.map((m) => media(m.src)),
-        cta: faq ? { title: 'Часто задаваемые вопросы', description: faq.items.slice(0, 5).map((i) => i.title || i.text).filter(Boolean).join('\n'), buttonLabel: 'Связаться', buttonUrl: '/contacts' } : {},
+        cta: { title: exp?.presentation.heroCtaSecondary && plan.experience?.archetype === 'CATALOG' ? 'Подберите дом в каталоге' : 'Обсудить ваш проект', description: clean(plan.contacts?.addresses?.[0]?.value || '', 120), buttonLabel: 'Связаться', buttonUrl: '/contacts' },
     };
 }
