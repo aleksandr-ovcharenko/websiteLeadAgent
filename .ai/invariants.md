@@ -623,3 +623,37 @@ become business facts — UNKNOWN is better than WRONG.
 - Every rejection is recorded in graph.rejectedFacts with a typed reason.
 - Gemini classification is async, bounded (semaphore=2), batched per page,
   cached by input+model+prompt hash, and never writes to CMS (shadow mode).
+
+
+# GENERATION V2 — COVERAGE & EVALUATION INVARIANTS (Phase 2A.4)
+
+### MISSING EVIDENCE IS NOT A SEMANTIC ERROR
+
+A semantic classifier cannot be blamed for a page or collection that the
+crawler/source layer never provided. Coverage and semantic accuracy are
+measured separately: page coverage, then structure coverage conditioned on
+the parent page being covered.
+
+### CRAWLER PRIORITY IS STRUCTURAL, NOT SEMANTIC
+
+The crawler may prioritize navigation prominence, sitemap, hub ancestors,
+and short path depth. It must never encode customer-, language-, or
+domain-specific classifications — the crawler decides WHICH URL to fetch,
+the semantic layer decides WHAT it means.
+
+### A/B INPUTS MUST BE FROZEN
+
+Rule and AI semantic providers are compared against byte-identical
+SourceDocuments. Never recrawl between providers. The frozen corpus is
+pinned by semantic-corpus-manifest.json (paths + SHA256 + commit).
+
+### HOMEPAGE IS RESOLVED, NOT INFERRED
+
+A page is HOME only when its URL canonically equals the resolved site root.
+A failed root yields homepageStatus UNKNOWN — an internal page is never
+promoted to HOME to fill the gap.
+
+### INCOMPLETE AI RUNS ARE NOT A/B RESULTS
+
+When quota/circuit-breaker limits a hybrid run, report HYBRID QUALITY NOT
+MEASURED. Fallback-equal-to-rule output is not a semantic comparison.
