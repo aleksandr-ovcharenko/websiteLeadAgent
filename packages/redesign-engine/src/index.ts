@@ -7,6 +7,8 @@ export { generateSite, runCrawl } from './pipeline/index.js';
 export { getPipelineStageLabel } from './pipeline/labels.js';
 export { buildSourceContentGraph, writeSourceContentGraph, loadSourceDocuments } from './semantic/graph.js';
 export { createSemanticProvider } from './semantic/provider.js';
+export { buildSiteContentPlan, computePlanHash, verifyPlanHash } from './plan/siteContentPlan.js';
+export { buildPlanReport } from './plan/planReport.js';
 export { HybridGeminiProvider, GeminiClient, LocalSemanticCache, InMemorySemanticCache, LocalAiDecisionObserver, InMemoryAiDecisionObserver } from './semantic/geminiSemanticProvider.js';
 export type { SemanticDecisionCache, AiDecisionObserver } from './semantic/geminiSemanticProvider.js';
 export type { SourceContentGraph, SemanticPage, PageClassification, CollectionClassification, SectionClassification, ImageCandidate, Evidence, CompanyEntity, ContactsEntity, ServiceEntity, ProjectEntity, NewsEntity, VacancyEntity, ProductEntity, FactEntity, Relationship } from './semantic/schema.js';

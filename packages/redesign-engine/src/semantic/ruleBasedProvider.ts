@@ -224,8 +224,10 @@ function titleFromDescription(description: string): string | undefined {
 function isConcreteProjectEvidence(item: SourceDocumentCollection['items'][number], resolvedUrl: string | undefined, title: string): boolean {
   if (OBJECT_REF_RE.test(title) || PROJECTS_RE.test(title)) return true;
   if (resolvedUrl) {
-    const path = norm(new URL(resolvedUrl).pathname);
-    if (OBJECT_REF_RE.test(path) || PROJECTS_RE.test(path)) return true;
+    try {
+      const path = norm(new URL(resolvedUrl).pathname);
+      if (OBJECT_REF_RE.test(path) || PROJECTS_RE.test(path)) return true;
+    } catch {}
   }
   if (item.description && (OBJECT_REF_RE.test(item.description) || PROJECTS_RE.test(item.description))) return true;
   if (item.image && title && /[\d№«""“”]/u.test(title) && OBJECT_REF_RE.test(title)) return true;

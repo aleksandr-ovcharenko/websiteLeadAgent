@@ -184,7 +184,13 @@ async function fetchSitemap(baseUrl) {
         return '';
     } })();
     for (const candidate of candidates) {
-        const sitemapUrl = /^https?:/i.test(candidate) ? candidate : new URL(candidate, baseUrl).toString();
+        let sitemapUrl;
+        try {
+            sitemapUrl = /^https?:/i.test(candidate) ? new URL(candidate).toString() : new URL(candidate, baseUrl).toString();
+        }
+        catch {
+            continue;
+        }
         let urls = await fetchSitemapUrls(sitemapUrl);
         // One level of nested sitemap indexes (WP-style post-sitemap.xml etc.).
         const nested = urls.filter((u) => /\.xml$/i.test(u));
