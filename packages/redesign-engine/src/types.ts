@@ -20,6 +20,10 @@ export interface CrawledThemeColors {
 
 export interface CrawledPage {
   url: string;
+  /** URL the crawl was pointed at (before redirects). */
+  requestedUrl?: string;
+  /** Final URL after redirects (page.url() / response url). */
+  finalUrl?: string;
   title: string;
   metaDescription: string;
   h1: string;
@@ -55,6 +59,63 @@ export interface CrawlOptions {
   allowedKeywords?: string[];
   timeoutMs?: number;
   maxDepth?: number;
+  /** Bounded, separately configurable timeout for root/homepage discovery. */
+  rootTimeoutMs?: number;
+  /** Bounded retries for root/homepage discovery variants. */
+  rootRetries?: number;
+}
+
+export type HomepageStatus =
+  | 'FOUND'
+  | 'UNREACHABLE'
+  | 'TIMEOUT'
+  | 'HTTP_ERROR'
+  | 'REDIRECT_FAILED'
+  | 'UNKNOWN';
+
+export interface RootResolution {
+  requestedUrl: string;
+  /** Every URL visited in the redirect chain, in order. */
+  redirectChain: string[];
+  finalUrl?: string;
+  canonicalUrl?: string;
+  /** HTTP status of the final response. */
+  status?: number;
+  durationMs: number;
+  homepageStatus: HomepageStatus;
+  failureReason?: string;
+}
+
+export type CrawlCandidateSource =
+  | 'root'
+  | 'nav'
+  | 'sitemap'
+  | 'collection'
+  | 'body'
+  | 'footer';
+
+export type CrawlCandidateResult =
+  | 'CRAWLED'
+  | 'REDIRECTED_TO_CANONICAL'
+  | 'TIMEOUT'
+  | 'HTTP_ERROR'
+  | 'BLOCKED'
+  | 'BUDGET_EXHAUSTED'
+  | 'NOT_ATTEMPTED'
+  | 'FAILED';
+
+export interface CrawlPlanEntry {
+  url: string;
+  source: CrawlCandidateSource;
+  depth: number;
+  priority: number;
+  attempted: boolean;
+  result?: CrawlCandidateResult;
+  status?: number;
+  finalUrl?: string;
+  failureReason?: string;
+  /** SourceDocument/ crawled-page URL this candidate resolved to. */
+  documentUrl?: string;
 }
 
 export interface HomepageCandidate {
@@ -62,12 +123,17 @@ export interface HomepageCandidate {
   confidence: number;
   reason: string;
   pageIndex: number;
+  /** Explicit resolution status — UNKNOWN is better than a wrong homepage. */
+  status?: HomepageStatus;
 }
 
 export interface CrawlResult {
   pages: CrawledPage[];
   navigation: NavigationNode[];
   homepage: HomepageCandidate;
+  rootResolution?: RootResolution;
+  /** Observable plan: why every candidate was or was not fetched. */
+  crawlPlan?: CrawlPlanEntry[];
   warnings: string[];
   skipped: { url: string; reason: string }[];
 }

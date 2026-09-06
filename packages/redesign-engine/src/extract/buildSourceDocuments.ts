@@ -659,7 +659,18 @@ function extractEvidence($: any, jsonld: any[], pageTitle: string, baseUrl: stri
   return { dates, companyNameCandidates, addressCandidates: [...new Set(addresses)] };
 }
 
-function buildSourceDocument(crawledPage: CrawledPage, index: number, baseUrl: string): SourceDocument {
+function homepageKeyOf(url: string): string {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    const path = u.pathname.replace(/\/index\.html?$/i, '').replace(/\/+$/, '') || '/';
+    return `${host}${path}`;
+  } catch {
+    return url.toLowerCase();
+  }
+}
+
+function buildSourceDocument(crawledPage: CrawledPage, index: number, baseUrl: string, homepageResolved: boolean): SourceDocument {
   const $ = load(crawledPage.html || '<html></html>');
   removeNoise($);
 
@@ -672,7 +683,9 @@ function buildSourceDocument(crawledPage: CrawledPage, index: number, baseUrl: s
   const h1 = cleanText($('h1').first().text()) || crawledPage.h1 || '';
   const canonicalUrl = $('link[rel="canonical"]').attr('href') || crawledPage.canonicalUrl;
   const language = $('html').attr('lang') || undefined;
-  const isHomepage = crawledPage.path === 'index' || normalizeUrl(baseUrl, pageUrl) === normalizeUrl(baseUrl, baseUrl);
+  // Homepage identity is structural: the page's final URL must canonically
+  // equal the resolved site root. When root resolution failed no page is HOME.
+  const isHomepage = homepageResolved && homepageKeyOf(crawledPage.finalUrl || pageUrl) === homepageKeyOf(baseUrl);
   const favicon = $('link[rel="icon"], link[rel="shortcut icon"]').first().attr('href') || crawledPage.favicon;
 
   const structuredData = extractStructuredData($);
@@ -848,7 +861,9 @@ function buildSourceDocument(crawledPage: CrawledPage, index: number, baseUrl: s
 
 export function buildSourceDocuments(crawlResult: CrawlResult): SourceDocument[] {
   const baseUrl = crawlResult.homepage?.url || crawlResult.pages[0]?.url || '';
-  return crawlResult.pages.map((page, index) => buildSourceDocument(page, index, baseUrl));
+  // Legacy callers without an explicit status are treated as resolved.
+  const homepageResolved = !crawlResult.homepage?.status || crawlResult.homepage.status === 'FOUND';
+  return crawlResult.pages.map((page, index) => buildSourceDocument(page, index, baseUrl, homepageResolved));
 }
 
 export function sourceDocumentToCrawledPage(doc: SourceDocument): CrawledPage {

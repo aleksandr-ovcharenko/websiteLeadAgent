@@ -1,5 +1,6 @@
 import { chromium } from 'playwright';
-import { discoverHomepage } from './homepageDiscovery.js';
+import { resolveSiteRoot, resolvedHomepageUrl, canonicalKey } from './rootResolution.js';
+import { CrawlFrontier } from './frontier.js';
 function normalizeUrl(base, href) {
     try {
         const u = new URL(href, base);
@@ -151,24 +152,54 @@ function mergeHeaderAndFooter(header, footer) {
     }
     return all;
 }
+async function fetchSitemapUrls(sitemapUrl) {
+    try {
+        const res = await fetch(sitemapUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (!res.ok)
+            return [];
+        const text = await res.text();
+        return [...text.matchAll(/<loc>([^<]+)<\/loc>/gi)].map((m) => m[1]).filter(Boolean);
+    }
+    catch {
+        return [];
+    }
+}
 async function fetchSitemap(baseUrl) {
     const candidates = ['/sitemap.xml', '/sitemap_index.xml'];
-    const nodes = [];
-    for (const path of candidates) {
-        try {
-            const res = await fetch(new URL(path, baseUrl).toString(), { headers: { 'User-Agent': 'Mozilla/5.0' } });
-            if (!res.ok)
-                continue;
+    // robots.txt may reference additional sitemap locations.
+    try {
+        const res = await fetch(new URL('/robots.txt', baseUrl).toString(), { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        if (res.ok) {
             const text = await res.text();
-            const urls = [...text.matchAll(/<loc>([^<]+)<\/loc>/gi)].map((m) => m[1]).filter(Boolean);
-            for (const u of urls) {
-                const nu = normalizeUrl(baseUrl, u);
-                if (nu)
-                    nodes.push({ label: 'Sitemap', url: nu, source: 'sitemap', children: [] });
-            }
-            break;
+            for (const m of text.matchAll(/^sitemap:\s*(\S+)/gim))
+                candidates.push(m[1]);
         }
-        catch { }
+    }
+    catch { }
+    const nodes = [];
+    const baseHost = (() => { try {
+        return new URL(baseUrl).hostname.replace(/^www\./i, '');
+    }
+    catch {
+        return '';
+    } })();
+    for (const candidate of candidates) {
+        const sitemapUrl = /^https?:/i.test(candidate) ? candidate : new URL(candidate, baseUrl).toString();
+        const urls = await fetchSitemapUrls(sitemapUrl);
+        for (const u of urls) {
+            // Same-site check tolerates www/non-www relative to the sitemap host.
+            try {
+                if (new URL(u).hostname.replace(/^www\./i, '') !== baseHost)
+                    continue;
+            }
+            catch {
+                continue;
+            }
+            const nu = normalizeUrl(baseUrl, u) || u;
+            nodes.push({ label: 'Sitemap', url: nu, source: 'sitemap', children: [] });
+        }
+        if (nodes.length)
+            break;
     }
     return nodes;
 }
@@ -176,90 +207,174 @@ export async function crawlSite(options) {
     const maxPages = options.maxPages ?? 30;
     const maxDepth = options.maxDepth ?? 4;
     const timeoutMs = options.timeoutMs ?? 30000;
+    const rootTimeoutMs = options.rootTimeoutMs ?? Math.max(timeoutMs * 2, 60000);
+    const rootRetries = options.rootRetries ?? 1;
     const baseUrl = normalizeUrl(options.baseUrl, options.baseUrl) ?? options.baseUrl;
     const browser = await chromium.launch({
         headless: true,
         executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
         args: ['--ignore-certificate-errors', '--ignore-certificate-errors-spki-list', '--no-sandbox', '--disable-gpu']
     });
-    const seen = new Set();
-    const buckets = Array.from({ length: maxDepth + 1 }, () => []);
     const pages = [];
     const allHeaderLinks = [];
     const allFooterLinks = [];
     const warnings = [];
     const skipped = [];
-    function enqueue(nu, depth, priority, _source) {
-        if (seen.has(nu))
-            return;
+    const frontier = new CrawlFrontier(maxDepth);
+    const fetchedFinalKeys = new Set();
+    // ---------------------------------------------------------------------
+    // 1. Explicit root resolution. The homepage is the resolved canonical root
+    //    or nothing — never a heuristic pick from whatever pages happened to load.
+    // ---------------------------------------------------------------------
+    const rootFetch = async (url, t) => {
+        const context = await browser.newContext({ userAgent: 'Mozilla/5.0' });
+        const page = await context.newPage();
+        const started = Date.now();
+        try {
+            const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: t });
+            if (!resp)
+                throw new Error('no response');
+            // Redirect chain from the Playwright request graph.
+            const chain = [];
+            let req = resp.request().redirectedFrom();
+            while (req) {
+                chain.unshift(req.url());
+                req = req.redirectedFrom();
+            }
+            const canonical = await page
+                .evaluate(() => document.querySelector('link[rel="canonical"]')?.href)
+                .catch(() => undefined);
+            return {
+                finalUrl: page.url() || url,
+                redirectChain: chain,
+                status: resp.status(),
+                durationMs: Date.now() - started,
+                canonicalUrl: canonical || undefined,
+            };
+        }
+        catch (err) {
+            if (/timeout/i.test(String(err?.message))) {
+                const { RootFetchTimeout } = await import('./rootResolution.js');
+                throw new RootFetchTimeout(String(err.message));
+            }
+            throw err;
+        }
+        finally {
+            await page.close().catch(() => { });
+            await context.close().catch(() => { });
+        }
+    };
+    const rootResolution = await resolveSiteRoot(options.baseUrl, { timeoutMs: rootTimeoutMs, retries: rootRetries }, rootFetch);
+    if (rootResolution.homepageStatus !== 'FOUND') {
+        warnings.push(`Homepage not resolved (${rootResolution.homepageStatus}): ${rootResolution.failureReason || ''}`.trim());
+    }
+    // Canonical origin for same-site rules: the resolved final origin when FOUND,
+    // otherwise the requested origin. www/non-www collapse through canonicalKey.
+    const canonicalBase = rootResolution.finalUrl || baseUrl;
+    let canonicalOrigin;
+    try {
+        canonicalOrigin = new URL(canonicalBase).origin;
+    }
+    catch {
+        canonicalOrigin = new URL(baseUrl).origin;
+    }
+    const canonicalHost = new URL(canonicalOrigin).hostname;
+    // Same-site check that tolerates www/non-www against the canonical host.
+    function sameSite(url) {
+        try {
+            const h = new URL(url).hostname.toLowerCase().replace(/^www\./, '');
+            return h === canonicalHost.toLowerCase().replace(/^www\./, '');
+        }
+        catch {
+            return false;
+        }
+    }
+    function enqueue(nu, depth, source, extra = 0) {
         if (depth > maxDepth) {
             skipped.push({ url: nu, reason: `depth ${depth} > maxDepth ${maxDepth}` });
             return;
         }
-        if (!shouldCrawlUrl(nu)) {
-            skipped.push({ url: nu, reason: 'blocked_by_rules' });
+        if (!sameSite(nu)) {
+            skipped.push({ url: nu, reason: 'off_site' });
             return;
         }
-        seen.add(nu);
-        buckets[depth].push({ url: nu, depth, priority });
-    }
-    // Seed base URL at depth 0 and origin root with the highest priority for homepage discovery.
-    enqueue(baseUrl, 0, 0, 'body');
-    try {
-        const origin = new URL(baseUrl).origin + '/';
-        const originRoot = normalizeUrl(baseUrl, origin);
-        if (originRoot && originRoot !== baseUrl) {
-            enqueue(originRoot, 0, -100, 'body');
+        if (!shouldCrawlUrl(nu)) {
+            skipped.push({ url: nu, reason: 'blocked_by_rules' });
+            frontier.plan.set(canonicalKey(nu), { url: nu, source, depth, priority: 0, attempted: false, result: 'BLOCKED' });
+            return;
         }
+        frontier.add(nu, depth, source, extra);
     }
-    catch {
-        warnings.push('Could not derive origin root from baseUrl');
-    }
+    // Seed the resolved canonical root (FOUND) or the requested URL (otherwise).
+    const seedUrl = rootResolution.homepageStatus === 'FOUND' && rootResolution.finalUrl
+        ? rootResolution.finalUrl
+        : baseUrl;
+    frontier.add(seedUrl, 0, 'root');
+    // If the requested URL differs from the resolved root, keep it as a candidate too.
+    if (canonicalKey(baseUrl) !== canonicalKey(seedUrl))
+        frontier.add(baseUrl, 0, 'root', 5);
     // Seed from sitemap up front.
     let sitemap = [];
     try {
-        sitemap = await fetchSitemap(baseUrl);
+        sitemap = await fetchSitemap(canonicalOrigin + '/');
         for (const n of sitemap) {
             if (n.url)
-                enqueue(n.url, 0, -10, 'header');
+                enqueue(n.url, 0, 'sitemap');
         }
     }
     catch { }
     try {
         while (pages.length < maxPages) {
-            let next;
-            for (let d = 0; d <= maxDepth; d++) {
-                const bucket = buckets[d];
-                if (!bucket.length)
-                    continue;
-                bucket.sort((a, b) => a.priority - b.priority);
-                next = bucket.shift();
-                break;
-            }
+            const next = frontier.next();
             if (!next)
                 break;
             const { url, depth } = next;
+            const planKey = canonicalKey(url);
+            frontier.mark(url, { attempted: true });
             const context = await browser.newContext({ userAgent: 'Mozilla/5.0' });
             const page = await context.newPage();
             try {
                 await page.addInitScript({ content: 'window.__name = function __name(x){ return x; }; globalThis.__name = window.__name;' });
-                const resp = await page.goto(url, { waitUntil: 'networkidle', timeout: timeoutMs }).catch(() => null);
-                if (resp && (resp.status() >= 400)) {
-                    console.warn('crawl non-2xx', url, resp.status());
+                const resp = await page.goto(url, { waitUntil: 'networkidle', timeout: timeoutMs }).catch((e) => {
+                    if (/timeout/i.test(String(e?.message)))
+                        return 'TIMEOUT';
+                    return null;
+                });
+                if (resp === 'TIMEOUT' || resp === null) {
+                    const reason = resp === 'TIMEOUT' ? `timeout ${timeoutMs}ms` : 'navigation failed';
+                    skipped.push({ url, reason });
+                    frontier.mark(url, { result: 'TIMEOUT', failureReason: reason });
                     continue;
                 }
+                if (resp.status() >= 400) {
+                    console.warn('crawl non-2xx', url, resp.status());
+                    skipped.push({ url, reason: `HTTP ${resp.status()}` });
+                    frontier.mark(url, { result: 'HTTP_ERROR', status: resp.status() });
+                    continue;
+                }
+                // Redirect dedup: if the final URL canonicalizes to an already-fetched
+                // document, record the alias instead of storing a duplicate document.
+                const finalKey = canonicalKey(page.url() || url);
+                if (finalKey !== planKey && fetchedFinalKeys.has(finalKey)) {
+                    frontier.mark(url, { result: 'REDIRECTED_TO_CANONICAL', finalUrl: page.url(), documentUrl: page.url() });
+                    continue;
+                }
+                fetchedFinalKeys.add(finalKey);
                 await handleCookieConsent(page);
                 await page.waitForTimeout(200);
-                const baseOrigin = new URL(baseUrl).origin;
+                const baseOrigin = canonicalOrigin;
                 const data = await page.evaluate(({ baseHref, baseOrigin: baseOriginStr }) => {
                     function cleanLabel(text) {
                         return text.replace(/\s+/g, ' ').trim().slice(0, 60);
+                    }
+                    function sameSiteHost(a, b) {
+                        return a.toLowerCase().replace(/^www\./, '') === b.toLowerCase().replace(/^www\./, '');
                     }
                     function normalizeUrl(base, href) {
                         try {
                             const u = new URL(href, base);
                             const b = new URL(base);
-                            if (u.hostname !== b.hostname)
+                            if (!sameSiteHost(u.hostname, b.hostname))
                                 return null;
                             u.hash = '';
                             const keep = new Set(['page', 'p', 'category', 'tag']);
@@ -281,7 +396,7 @@ export async function crawlSite(options) {
                     }
                     function isInternal(base, href) {
                         try {
-                            return new URL(href, base).hostname === new URL(base).hostname;
+                            return sameSiteHost(new URL(href, base).hostname, new URL(base).hostname);
                         }
                         catch {
                             return false;
@@ -645,9 +760,12 @@ export async function crawlSite(options) {
                         headerNav,
                         footerNav
                     };
-                }, { baseHref: baseUrl, baseOrigin });
+                }, { baseHref: canonicalBase, baseOrigin });
+                const pageFinalUrl = page.url() || url;
                 pages.push({
-                    url,
+                    url: normalizeUrl(canonicalBase, pageFinalUrl) || pageFinalUrl,
+                    requestedUrl: url,
+                    finalUrl: pageFinalUrl,
                     title: data.title,
                     metaDescription: data.meta,
                     h1: data.h1,
@@ -663,40 +781,41 @@ export async function crawlSite(options) {
                     themeColors: data.themeColors,
                     headerNav: data.headerNav,
                     footerNav: data.footerNav,
-                    path: slugFromUrl(url),
+                    path: slugFromUrl(pageFinalUrl),
                     depth,
                     priority: depth,
                     navItem: false
                 });
+                frontier.mark(url, { result: 'CRAWLED', status: resp.status(), finalUrl: pageFinalUrl, documentUrl: pageFinalUrl });
                 const isNavItem = (href) => {
-                    const nu = normalizeUrl(baseUrl, href);
+                    const nu = normalizeUrl(canonicalBase, href);
                     if (!nu)
                         return false;
-                    return [...allHeaderLinks, ...allFooterLinks].some((l) => normalizeUrl(baseUrl, l.href) === nu);
+                    return [...allHeaderLinks, ...allFooterLinks].some((l) => normalizeUrl(canonicalBase, l.href) === nu);
                 };
                 if (depth < maxDepth) {
                     for (const link of data.links) {
-                        const nu = normalizeUrl(baseUrl, link.href);
+                        const nu = normalizeUrl(canonicalBase, link.href);
                         if (!nu)
                             continue;
-                        let priority = depth * 10;
                         if (link.source === 'header') {
-                            priority -= 20;
                             allHeaderLinks.push({ ...link });
+                            enqueue(nu, depth + 1, 'nav', isNavItem(link.href) ? -30 : 0);
                         }
                         else if (link.source === 'footer') {
-                            priority -= 15;
                             allFooterLinks.push({ ...link });
+                            enqueue(nu, depth + 1, 'footer', isNavItem(link.href) ? -30 : 0);
                         }
-                        if (isNavItem(link.href))
-                            priority -= 30;
-                        enqueue(nu, depth + 1, priority, link.source);
+                        else {
+                            enqueue(nu, depth + 1, 'body');
+                        }
                     }
                 }
             }
             catch (err) {
                 console.warn('crawl page failed', url, err);
                 skipped.push({ url, reason: err?.message || 'page_crawl_failed' });
+                frontier.mark(url, { result: 'FAILED', failureReason: err?.message || 'page_crawl_failed' });
             }
             finally {
                 await page.close().catch(() => { });
@@ -719,14 +838,32 @@ export async function crawlSite(options) {
         firstPageFooterNav = buildNavTree(allFooterLinks, baseUrl);
     }
     const navigation = mergeHeaderAndFooter(firstPageHeaderNav, firstPageFooterNav);
-    const originRoot = (() => {
-        try {
-            return new URL(baseUrl).origin + '/';
-        }
-        catch {
-            return baseUrl;
-        }
-    })();
-    const homepage = discoverHomepage(pages, baseUrl, navigation, originRoot, warnings);
-    return { pages, navigation, homepage, warnings, skipped };
+    // Homepage identity comes ONLY from root resolution. When the root could
+    // not be fetched the homepage stays UNKNOWN — an internal page must never
+    // be promoted to HOME just because it was the first/best page crawled.
+    const resolvedHome = resolvedHomepageUrl(rootResolution);
+    let homepage;
+    if (resolvedHome) {
+        const homeKey = canonicalKey(resolvedHome);
+        const pageIndex = pages.findIndex((p) => canonicalKey(p.finalUrl || p.url) === homeKey);
+        homepage = {
+            url: resolvedHome,
+            confidence: pageIndex >= 0 ? 1 : 0.8,
+            reason: pageIndex >= 0 ? 'root resolved and crawled' : 'root resolved; canonical root not in crawled set',
+            pageIndex,
+            status: 'FOUND',
+        };
+    }
+    else {
+        homepage = {
+            url: canonicalOrigin + '/',
+            confidence: 0,
+            reason: `root not resolved: ${rootResolution.homepageStatus} ${rootResolution.failureReason || ''}`.trim(),
+            pageIndex: -1,
+            status: rootResolution.homepageStatus,
+        };
+    }
+    // Every candidate that was never attempted is budget-exhausted.
+    const crawlPlan = frontier.finalizePlan('BUDGET_EXHAUSTED');
+    return { pages, navigation, homepage, rootResolution, crawlPlan, warnings, skipped };
 }

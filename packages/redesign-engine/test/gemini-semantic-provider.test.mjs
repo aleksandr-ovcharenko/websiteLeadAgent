@@ -336,6 +336,19 @@ describe('HybridGeminiProvider', () => {
     assert.ok(maxInFlight <= 2, `max in-flight ${maxInFlight} exceeded concurrency 2`);
   });
 
+  it('opens the quota circuit after consecutive 429s and stops calling the API', async () => {
+    const provider = new HybridGeminiProvider({ geminiApiKey: 'fake', geminiCachePath: makeCacheDir() });
+    let calls = 0;
+    provider.setGeminiResponseOverride(() => { calls++; throw new Error('Gemini HTTP 429: quota exceeded'); });
+
+    const docs = Array.from({ length: 5 }, (_, i) =>
+      makeSourceDocument({ id: `q${i}`, url: `https://example.com/q${i}`, path: `q${i}`, title: `Q ${i}`, isHomepage: false }));
+    for (const doc of docs) {
+      await provider.classifyPage({ sourceDocument: doc, allDocuments: docs, baseUrl: 'https://example.com/' });
+    }
+    assert.ok(calls <= 3, `circuit breaker should stop the hammering — got ${calls} calls`);
+  });
+
   it('retries 429 then succeeds, without infinite retry', async () => {
     const { GeminiClient } = await import('../dist/semantic/geminiSemanticProvider.js');
     let calls = 0;

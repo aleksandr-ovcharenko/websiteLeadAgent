@@ -231,6 +231,10 @@ export class HybridGeminiProvider {
     semaphore = { count: 0, queue: [] };
     enabled;
     geminiResponseOverride;
+    // Circuit breaker: after this many consecutive quota/429 failures, stop
+    // calling the API for the rest of the run — deterministic fallback instead.
+    consecutiveQuotaFailures = 0;
+    static QUOTA_CIRCUIT_LIMIT = 3;
     constructor(options) {
         this.apiKey = options?.geminiApiKey || process.env.GEMINI_API_KEY || '';
         this.model = options?.geminiModel || process.env.GEMINI_MODEL || 'gemini-1.5-flash';
@@ -650,19 +654,37 @@ Return ONLY a valid JSON object with no markdown, no commentary. It must contain
 }`;
         return { text: prompt, validIds, input };
     }
+    isQuotaError(err) {
+        const msg = String(err?.message || err);
+        return /429|quota|resource_exhausted|rate.?limit/i.test(msg);
+    }
     async callGemini(promptText, callType, inputHash) {
+        if (this.consecutiveQuotaFailures >= HybridGeminiProvider.QUOTA_CIRCUIT_LIMIT) {
+            throw new Error(`Gemini quota circuit open after ${this.consecutiveQuotaFailures} consecutive quota failures; using deterministic fallback`);
+        }
         // The concurrency bound applies to every adjudication call — including
         // the test override — so the cap is real, not just a client detail.
         await this.acquireSemaphore();
         try {
+            let text;
             if (this.geminiResponseOverride) {
-                return String(await this.geminiResponseOverride(promptText, callType, inputHash));
+                text = String(await this.geminiResponseOverride(promptText, callType, inputHash));
             }
-            if (!this.client)
-                throw new Error('Gemini client not configured');
-            const responseSchema = callType === 'page' ? pageResponseSchema() : collectionBatchResponseSchema();
-            const { text } = await this.client.generate(promptText, responseSchema, 1200);
+            else {
+                if (!this.client)
+                    throw new Error('Gemini client not configured');
+                const responseSchema = callType === 'page' ? pageResponseSchema() : collectionBatchResponseSchema();
+                text = (await this.client.generate(promptText, responseSchema, 1200)).text;
+            }
+            this.consecutiveQuotaFailures = 0;
             return text;
+        }
+        catch (err) {
+            if (this.isQuotaError(err))
+                this.consecutiveQuotaFailures++;
+            else
+                this.consecutiveQuotaFailures = 0;
+            throw err;
         }
         finally {
             this.releaseSemaphore();

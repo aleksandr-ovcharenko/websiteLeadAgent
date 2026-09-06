@@ -16,6 +16,7 @@ import { HybridGeminiProvider } from '../packages/redesign-engine/dist/semantic/
 
 const SKIP_CRAWL = process.argv.includes('--skip-crawl');
 const RULE_ONLY = process.argv.includes('--rule-only');
+const CACHE_PROOF = process.argv.includes('--cache-proof');
 const TS = new Date().toISOString().replace(/[:.]/g, '-');
 const OUT_DIR = `data/redesign/ab-${TS}`;
 
@@ -47,15 +48,18 @@ async function ensureSourceDocuments(subject) {
   const siteDir = path.join('data', 'redesign', subject.name);
   const docsPath = path.join(siteDir, 'source-documents.json');
   if (SKIP_CRAWL && fs.existsSync(docsPath)) {
-    return { path: docsPath, reused: true };
+    const crawlPath = path.join(siteDir, 'crawl.json');
+    const crawlResult = fs.existsSync(crawlPath) ? JSON.parse(fs.readFileSync(crawlPath, 'utf8')).crawlResult : undefined;
+    return { path: docsPath, reused: true, crawlResult };
   }
   console.log(`  [crawl] live crawl ${subject.url} ...`);
-  const crawlResult = await crawlSite({ baseUrl: subject.url, maxPages: 20, maxDepth: 3, timeoutMs: 30000 });
+  const crawlResult = await crawlSite({ baseUrl: subject.url, maxPages: 30, maxDepth: 3, timeoutMs: 30000, rootTimeoutMs: 45000, rootRetries: 1 });
   const docs = buildSourceDocuments(crawlResult);
   fs.mkdirSync(siteDir, { recursive: true });
   fs.writeFileSync(path.join(siteDir, 'crawl.json'), JSON.stringify({ baseUrl: subject.url, pages: crawlResult.pages?.length ?? 0, warnings: crawlResult.warnings, skipped: crawlResult.skipped, crawlResult }, null, 2));
+  fs.writeFileSync(path.join(siteDir, 'crawl-plan.json'), JSON.stringify({ rootResolution: crawlResult.rootResolution, homepage: crawlResult.homepage, plan: crawlResult.crawlPlan || [] }, null, 2));
   fs.writeFileSync(docsPath, JSON.stringify(docs, null, 2));
-  return { path: docsPath, reused: false };
+  return { path: docsPath, reused: false, crawlResult };
 }
 
 // --- gold evaluation -------------------------------------------------------
@@ -110,6 +114,85 @@ function evaluateSite(name, docs, graph) {
   return { pages: pageEval, collections: collEval, entities: ent };
 }
 
+// --- coverage accounting ----------------------------------------------------
+// Per gold URL: why it is or isn't a SourceDocument — never a bare percentage.
+
+const canonKey = (url) => {
+  try {
+    const u = new URL(url);
+    const host = u.hostname.toLowerCase().replace(/^www\./, '');
+    const p = u.pathname.replace(/index\.html?$/i, '').replace(/\/+$/, '') || '/';
+    return `${host}${p}`;
+  } catch { return (url || '').toLowerCase(); }
+};
+
+function coverageForSite(name, docs, crawlResult) {
+  const docKeys = new Set(docs.map((d) => canonKey(d.url)));
+  const plan = crawlResult?.crawlPlan || [];
+  const planByKey = new Map(plan.map((e) => [canonKey(e.url), e]));
+
+  const pageStatuses = (GOLD.pages || []).filter((p) => p.site === name).map((g) => {
+    const key = canonKey(g.url);
+    if (docKeys.has(key)) return { url: g.url, status: 'CRAWLED' };
+    // A gold URL may be covered by the root-resolution redirect chain or by a
+    // page whose final URL canonicalizes to it.
+    const rr = crawlResult?.rootResolution;
+    if (rr && [rr.requestedUrl, ...(rr.redirectChain || []), rr.finalUrl].some((u) => u && canonKey(u) === key) &&
+        rr.finalUrl && docKeys.has(canonKey(rr.finalUrl))) {
+      return { url: g.url, status: 'REDIRECTED_TO_CANONICAL', finalUrl: rr.finalUrl };
+    }
+    const entry = planByKey.get(key);
+    if (!entry) return { url: g.url, status: 'NOT_DISCOVERED' };
+    if (entry.result === 'REDIRECTED_TO_CANONICAL' && entry.finalUrl && docKeys.has(canonKey(entry.finalUrl))) {
+      return { url: g.url, status: 'REDIRECTED_TO_CANONICAL', finalUrl: entry.finalUrl };
+    }
+    return { url: g.url, status: entry.result || (entry.attempted ? 'OTHER' : 'BUDGET_EXHAUSTED'), failureReason: entry.failureReason };
+  });
+
+  const byStatus = pageStatuses.reduce((a, s) => { a[s.status] = (a[s.status] || 0) + 1; return a; }, {});
+
+  // Collection coverage conditioned on the parent page being crawled.
+  // Gold selectorHints are semantic labels — some refer to chrome elements
+  // (main-nav, breadcrumbs, social links), not doc.collections. Check the
+  // artifact that actually holds the structure.
+  let parentCrawled = 0, extracted = 0;
+  const collectionGaps = [];
+  const navNodes = (n) => (n || []).flatMap((x) => [x, ...navNodes(x.children)]);
+  for (const g of (GOLD.collections || []).filter((c) => c.site === name)) {
+    const parentKey = canonKey(g.docUrl);
+    const doc = docs.find((d) => canonKey(d.url) === parentKey);
+    if (!doc) { collectionGaps.push({ docUrl: g.docUrl, hint: g.selectorHint, reason: 'PARENT_PAGE_NOT_CRAWLED' }); continue; }
+    parentCrawled++;
+    const hint = (g.selectorHint || '').toLowerCase();
+    let present;
+    if (/nav/.test(hint)) {
+      present = (navNodes(doc.chrome?.nav?.primary).length + navNodes(doc.chrome?.nav?.secondary).length) > 0 || (doc.collections || []).length > 0;
+    } else if (/breadcrumb/.test(hint)) {
+      present = (doc.chrome?.nav?.breadcrumbs || []).length > 0;
+    } else if (/social/.test(hint)) {
+      present = (doc.chrome?.contacts?.socialLinks || []).length > 0;
+    } else if (/contact/.test(hint)) {
+      const c = doc.chrome?.contacts || {};
+      present = (c.phones?.length || 0) + (c.emails?.length || 0) + (c.addresses?.length || 0) > 0;
+    } else if (/lang|theme-widget|dark|switch/.test(hint)) {
+      // Utility chrome widgets — check raw DOM evidence in chrome text/links.
+      const hay = `${doc.chrome?.header?.text || ''} ${(doc.chrome?.header?.links || []).map((l) => l.href).join(' ')}`.toLowerCase();
+      present = /lang|theme|dark|light|en\/|\/en|flag/.test(hay) || (doc.collections || []).length > 0;
+    } else {
+      // Content collections: any repeated-items collection on the page.
+      present = (doc.collections || []).some((c) => (c.items || []).length >= 2);
+      if (!present) present = (doc.collections || []).length > 0;
+    }
+    if (present) extracted++;
+    else collectionGaps.push({ docUrl: g.docUrl, hint: g.selectorHint, reason: 'COLLECTION_NOT_EXTRACTED' });
+  }
+
+  return {
+    pages: { total: pageStatuses.length, crawled: byStatus.CRAWLED || 0, byStatus, details: pageStatuses.filter((s) => s.status !== 'CRAWLED') },
+    collections: { total: (GOLD.collections || []).filter((c) => c.site === name).length, parentCrawled, extracted, gaps: collectionGaps },
+  };
+}
+
 function prf(ent) {
   const p = ent.tp + ent.fp ? ent.tp / (ent.tp + ent.fp) : null;
   const r = ent.tp + ent.fn ? ent.tp / (ent.tp + ent.fn) : null;
@@ -127,6 +210,21 @@ process.env.GEMINI_SEMANTIC_LOG = geminiLog;
 // hashes, so a replay is deterministic and free).
 process.env.GEMINI_SEMANTIC_CACHE = process.env.AB_REUSE_CACHE || path.join(OUT_DIR, 'gemini-cache');
 
+// Preflight: one cheap Gemini call before committing to a six-site run.
+// If the quota is gone, stop — do not burn 100+ doomed 429 calls.
+let geminiAvailable = !RULE_ONLY;
+if (!RULE_ONLY) {
+  try {
+    const { GeminiClient } = await import('../packages/redesign-engine/dist/semantic/geminiSemanticProvider.js');
+    const probe = new GeminiClient({ apiKey: process.env.GEMINI_API_KEY, model: process.env.GEMINI_MODEL || 'gemini-1.5-flash' });
+    await probe.generate('Reply with exactly: {"ok": true}');
+    console.log('Gemini preflight: OK');
+  } catch (e) {
+    console.log(`Gemini preflight FAILED — hybrid phase disabled: ${String(e.message).slice(0, 200)}`);
+    geminiAvailable = false;
+  }
+}
+
 for (const subject of subjects) {
   console.log(`\n=== ${subject.name.toUpperCase()} ===`);
   const siteOut = { name: subject.name, url: subject.url };
@@ -137,6 +235,14 @@ for (const subject of subjects) {
     siteOut.sourceDocuments = { path: docs.path, sha256: sha256(rawDocs), reused: docs.reused, count: sourceDocuments.length };
     console.log(`  docs: ${sourceDocuments.length} (${docs.reused ? 'reused' : 'fresh crawl'}) ${docs.path} sha:${siteOut.sourceDocuments.sha256}`);
 
+    if (docs.crawlResult) {
+      siteOut.rootResolution = docs.crawlResult.rootResolution;
+      siteOut.homepage = docs.crawlResult.homepage;
+      siteOut.coverage = coverageForSite(subject.name, sourceDocuments, docs.crawlResult);
+      console.log(`  homepage: ${docs.crawlResult.homepage?.status || 'n/a'} ${docs.crawlResult.homepage?.url || ''}`);
+      console.log(`  coverage: pages ${siteOut.coverage.pages.crawled}/${siteOut.coverage.pages.total} crawled; collections ${siteOut.coverage.collections.extracted}/${siteOut.coverage.collections.parentCrawled} extracted of ${siteOut.coverage.collections.total} gold`);
+    }
+
     // RULE-only graph
     const ruleProvider = new RuleBasedSemanticProvider();
     const ruleGraph = await buildSourceContentGraph({ sourceDocuments, baseUrl: subject.url, provider: ruleProvider });
@@ -146,10 +252,22 @@ for (const subject of subjects) {
     // HYBRID graph — same source documents. With --rule-only the hybrid
     // provider is configured without a client, so every call short-circuits
     // to the rule result without touching the network or quota.
-    const hybridProvider = RULE_ONLY
+    const hybridProvider = !geminiAvailable
       ? (() => { const k = process.env.GEMINI_API_KEY; delete process.env.GEMINI_API_KEY; const p = new HybridGeminiProvider({}); if (k) process.env.GEMINI_API_KEY = k; return p; })()
       : new HybridGeminiProvider({});
     const hybridGraph = await buildSourceContentGraph({ sourceDocuments, baseUrl: subject.url, provider: hybridProvider });
+
+    // Cache proof: identical inputs + model + promptVersion → near-total reuse.
+    if (CACHE_PROOF && geminiAvailable) {
+      const logLen = () => (fs.existsSync(geminiLog) ? fs.readFileSync(geminiLog, 'utf8').trim().split('\n').length : 0);
+      const before = logLen();
+      const again = new HybridGeminiProvider({});
+      await buildSourceContentGraph({ sourceDocuments, baseUrl: subject.url, provider: again });
+      const after = logLen();
+      const secondRunLines = fs.existsSync(geminiLog) ? fs.readFileSync(geminiLog, 'utf8').trim().split('\n').slice(before).map((l) => JSON.parse(l)) : [];
+      siteOut.cacheProof = { secondRunCalls: after - before, secondRunRealCalls: secondRunLines.filter((l) => !l.cached).length, secondRunCacheHits: secondRunLines.filter((l) => l.cached).length };
+      console.log(`  cache proof: second run ${siteOut.cacheProof.secondRunRealCalls} real calls / ${siteOut.cacheProof.secondRunCacheHits} cache hits`);
+    }
     const hybridPath = path.join(OUT_DIR, `${subject.name}-hybrid.json`);
     fs.writeFileSync(hybridPath, JSON.stringify(hybridGraph, null, 2));
 
