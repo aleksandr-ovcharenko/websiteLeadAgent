@@ -37,7 +37,7 @@ function Status({ label, status }: { label: string; status: string }) {
   );
 }
 
-export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect }: { lead: Lead; onClose: () => void; onStart: (op: string, input: any) => void; onReview: (status: string, note?: string) => Promise<void> | void; onSelect: (selected: boolean) => Promise<void> | void }) {
+export default function LeadDetail({ lead, inCurrentView = true, onClose, onStart, onReview, onSelect }: { lead: Lead; inCurrentView?: boolean; onClose: () => void; onStart: (op: string, input: any) => void; onReview: (status: string, note?: string) => Promise<void> | void; onSelect: (selected: boolean) => Promise<void> | void }) {
   const [tab, setTab] = useState<'desktop' | 'mobile'>('desktop');
   const [note, setNote] = useState(lead.manualReviewNote || '');
   const [review, setReview] = useState(lead.manualReviewStatus || 'UNREVIEWED');
@@ -165,6 +165,9 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
     if (!hasWebsite) return null;
     const anyRunning = stages.some(s => s.status === 'RUNNING');
     if (anyRunning) return { label: 'Qualifying…', disabled: true };
+    // A human BAD decision is authoritative — do not offer to spend more
+    // compute on qualification for a rejected lead.
+    if (review === 'BAD' && !readyForReview) return null;
     if (firstBlocking) {
       const failed = ['FAILED', 'NOT_FOUND'].includes(firstBlocking.status);
       const label = failed ? `Retry ${firstBlocking.label}` : 'Run qualification';
@@ -174,6 +177,9 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
     if (lead.site || ['DEMO_GENERATED', 'DEMO_APPROVED', 'READY_TO_CONTACT'].includes(lead.redesignStage || '')) {
       return { label: 'Open site', action: () => { if (lead.site) window.open(`/showcase/${lead.site.previewToken}`, '_blank'); } };
     }
+    // Early human review never bypasses automated gates: generation and
+    // selection actions only become available once qualification is complete.
+    if (!readyForReview) return null;
     if (review === 'GOOD' && lead.redesignStage === 'NOT_SELECTED') {
       return { label: selecting ? 'Selecting…' : 'Select for redesign', action: handleSelect, disabled: selecting };
     }
@@ -199,12 +205,19 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
   return (
     <div
       data-testid="lead-detail"
-      className="fixed top-0 right-0 w-[420px] bg-white border-l border-[#e5e3df] flex flex-col z-40 shadow-[-4px_0_24px_rgba(28,25,23,0.07)]"
-      style={{ bottom: 'var(--console-height, 0px)' }}>
+      className="w-[420px] shrink-0 self-start sticky top-0 bg-white border-l border-[#e5e3df] flex flex-col overflow-hidden"
+      style={{ height: 'calc(100vh - 48px - var(--console-height, 0px))' }}>
       <div className="flex items-center justify-between px-4 py-3 border-b border-[#f0ede8] shrink-0">
         <span className="text-[11px] font-mono text-[#a8a29e]">Lead detail</span>
         <button onClick={onClose} className="text-[#a8a29e] hover:text-[#1c1917]">×</button>
       </div>
+      {/* A background state change may remove this lead from the current
+          filtered view — selection stays; only a subtle notice is shown. */}
+      {!inCurrentView && (
+        <div data-testid="lead-not-in-view" className="px-4 py-2 border-b border-[#f0ede8] bg-stone-50 text-[11px] font-mono text-stone-500 shrink-0">
+          This lead is no longer in the current view.
+        </div>
+      )}
 
       <div className="flex-1 overflow-y-auto">
         <div className="relative bg-[#f0ede8]">
@@ -326,26 +339,28 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
             <div className={`rounded border px-2.5 py-2 ${readyForReview ? 'border-emerald-200 bg-emerald-50' : 'border-stone-200 bg-stone-50'}`}>
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <span className={`text-[12px] font-mono w-4 ${readyForReview ? 'text-emerald-600' : 'text-stone-500'}`}>{readyForReview ? '✓' : '🔒'}</span>
+                  <span className={`text-[12px] font-mono w-4 ${readyForReview ? 'text-emerald-600' : 'text-stone-500'}`}>{readyForReview ? '✓' : '○'}</span>
                   <span className="text-[12px] font-medium text-[#44403c]">Review</span>
                 </div>
                 <span className={`text-[10px] font-mono font-medium px-1.5 py-0.5 rounded border ${readyForReview ? 'text-emerald-700 bg-emerald-50 border-emerald-200' : 'text-stone-600 bg-stone-100 border-stone-200'}`}>
-                  {readyForReview ? (lead.manualReviewStatus || 'UNREVIEWED') : 'LOCKED'}
+                  {lead.manualReviewStatus && lead.manualReviewStatus !== 'UNREVIEWED'
+                    ? lead.manualReviewStatus
+                    : readyForReview ? 'UNREVIEWED' : 'EARLY REVIEW'}
                 </span>
               </div>
               {!readyForReview && firstBlocking && (
                 <div className="mt-1.5 text-[11px] text-stone-600 font-mono pl-6">
-                  Review is unavailable because {firstBlocking.label.toLowerCase()} {['FAILED', 'NOT_FOUND'].includes(firstBlocking.status) ? 'failed' : 'is not complete'}.
+                  Qualification incomplete ({firstBlocking.label.toLowerCase()} {['FAILED', 'NOT_FOUND'].includes(firstBlocking.status) ? 'failed' : 'is not complete'}) — early review is available below.
                 </div>
               )}
             </div>
           </div>
           {!readyForReview && firstBlocking && (
-            <div className="mt-3 p-2.5 bg-red-50 border border-red-200 rounded text-[11px] text-red-800 font-mono">
-              <p className="font-medium">Qualification is not ready for review.</p>
-              <p className="mt-1">Blocking step: {firstBlocking.label} {firstBlocking.status}.</p>
+            <div className={`mt-3 p-2.5 rounded text-[11px] font-mono ${['FAILED', 'NOT_FOUND'].includes(firstBlocking.status) ? 'bg-red-50 border border-red-200 text-red-800' : 'bg-stone-50 border border-stone-200 text-stone-600'}`}>
+              <p className="font-medium">{['FAILED', 'NOT_FOUND'].includes(firstBlocking.status) ? 'Qualification is blocked by a failure.' : 'Qualification is still in progress.'}</p>
+              <p className="mt-1">Current step: {firstBlocking.label} {firstBlocking.status}.</p>
               {stages.slice(firstBlockingIndex + 1).some(s => !['SUCCESS', 'SKIPPED', 'FOUND'].includes(s.status)) && (
-                <p className="mt-1">Because {firstBlocking.label} did not complete, the following stages are blocked:</p>
+                <p className="mt-1">Waiting stages:</p>
               )}
               <ul className="mt-1 ml-4 list-disc">
                 {stages.slice(firstBlockingIndex + 1).filter(s => !['SUCCESS', 'SKIPPED', 'FOUND'].includes(s.status)).map(s => <li key={s.id}>{s.label}</li>)}
@@ -422,39 +437,50 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
       </div>
 
       <div className="shrink-0 border-t border-[#e5e3df] p-4 space-y-3">
-        <div className="text-[10px] font-mono text-[#a8a29e] uppercase tracking-wider">Decision</div>
-        {readyForReview ? (
-          <div data-testid="lead-decision-buttons" className="flex rounded overflow-hidden border border-[#ddd9d4] divide-x">
-            {(['BAD', 'UNSURE', 'GOOD'] as const).map((s) => {
-              const active = review === s;
-              return (
-                <button key={s} onClick={() => handleReview(s)}
-                  className={`flex-1 py-2 text-[12px] font-mono font-medium ${active ? 'text-white' : 'text-[#78716c] hover:bg-[#f5f4f2]'}`}
-                  style={{ background: active ? (s === 'GOOD' ? '#276749' : s === 'BAD' ? '#9b1c1c' : '#92600a') : 'transparent' }}>
-                  {s === 'GOOD' ? 'Approve' : s === 'BAD' ? 'Reject' : 'Maybe'}
-                </button>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-[11px] text-stone-600 font-mono p-2 bg-stone-50 border border-stone-200 rounded">
-            {firstBlocking ? (
-              <>
-                <p className="font-medium">Review is unavailable because qualification is incomplete.</p>
-                <p className="mt-1">Blocking step: {firstBlocking.label} {['FAILED', 'NOT_FOUND'].includes(firstBlocking.status) ? 'failed' : 'is not complete'}.</p>
-              </>
-            ) : (
-              <p>Review disabled until qualification is complete.</p>
-            )}
-          </div>
+        <div className="flex items-center justify-between">
+          <div className="text-[10px] font-mono text-[#a8a29e] uppercase tracking-wider">Decision</div>
+          {!readyForReview && (
+            <span data-testid="early-review-badge" className="text-[10px] font-mono text-stone-500 bg-stone-100 border border-stone-200 px-1.5 py-0.5 rounded">
+              Early review
+            </span>
+          )}
+        </div>
+        {/* Human judgment does not wait for automation: the same controls are
+            always available. Before qualification completes they render muted
+            (lower emphasis) but remain fully clickable. */}
+        <div data-testid="lead-decision-buttons"
+          title={readyForReview ? undefined : 'Qualification is still running — you can make an early manual decision.'}
+          className={`flex rounded overflow-hidden border divide-x ${readyForReview ? 'border-[#ddd9d4]' : 'border-[#e5e3df]'}`}>
+          {(['BAD', 'UNSURE', 'GOOD'] as const).map((s) => {
+            const active = review === s;
+            const activeBg = s === 'GOOD' ? '#276749' : s === 'BAD' ? '#9b1c1c' : '#92600a';
+            return (
+              <button key={s} onClick={() => handleReview(s)}
+                data-status={s}
+                className={`flex-1 py-2 text-[12px] font-mono font-medium cursor-pointer transition-colors duration-150 ${
+                  active
+                    ? readyForReview ? 'text-white' : 'text-white opacity-75'
+                    : readyForReview ? 'text-[#78716c] hover:bg-[#f5f4f2]' : 'text-[#a8a29e] hover:bg-[#f5f4f2] hover:text-[#57534e]'
+                }`}
+                style={{ background: active ? activeBg : 'transparent' }}>
+                {s === 'GOOD' ? 'Approve' : s === 'BAD' ? 'Reject' : 'Maybe'}
+              </button>
+            );
+          })}
+        </div>
+        {!readyForReview && (
+          <p className="text-[10px] text-stone-500 font-mono leading-snug">
+            {review === 'BAD'
+              ? 'Rejected — further qualification for this lead is stopped where possible.'
+              : 'Qualification is still running. Your early decision is saved and can be revised.'}
+          </p>
         )}
         <textarea
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          onBlur={() => { if (readyForReview && note !== (lead.manualReviewNote || '')) Promise.resolve(onReview(review, note)).catch(() => {}); }}
-          disabled={!readyForReview}
-          placeholder={readyForReview ? 'Review note (optional)' : 'Notes disabled until ready'}
-          className={`w-full h-16 p-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] font-mono resize-none ${!readyForReview ? 'opacity-50' : ''}`}
+          onBlur={() => { if (note !== (lead.manualReviewNote || '')) Promise.resolve(onReview(review, note)).catch(() => {}); }}
+          placeholder="Review note (optional)"
+          className="w-full h-16 p-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] font-mono resize-none"
         />
         <div className="flex gap-2 flex-wrap">
           {action && (
@@ -462,10 +488,10 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
               {action.label}
             </Button>
           )}
-          {hasWebsite && !['SUCCESS'].includes(auditStatus) && !stages.some(s => s.status === 'RUNNING') && (
+          {review !== 'BAD' && hasWebsite && !['SUCCESS'].includes(auditStatus) && !stages.some(s => s.status === 'RUNNING') && (
             <Button size="sm" variant="secondary" onClick={() => handleRetryStage('audit')}>Audit</Button>
           )}
-          {auditStatus === 'SUCCESS' && !stages.some(s => s.status === 'RUNNING') && (
+          {review !== 'BAD' && auditStatus === 'SUCCESS' && !stages.some(s => s.status === 'RUNNING') && (
             <Button size="sm" variant="secondary" onClick={() => handleRunFullQualification(true)}>Re-qualify</Button>
           )}
           {crawlRuns[0] && (

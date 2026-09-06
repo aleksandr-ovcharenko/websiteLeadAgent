@@ -47,6 +47,7 @@ export class QualificationOrchestrator {
         auditStatus: true,
         scoreStatus: true,
       enrichmentStatus: true,
+        manualReviewStatus: true,
         lighthouseReport: { select: { id: true } },
         visualAnalysis: { select: { status: true } },
       },
@@ -56,8 +57,14 @@ export class QualificationOrchestrator {
       return { ok: false, started: null, reason: 'lead_not_found' };
     }
 
+    // A human BAD decision is authoritative: never spend further compute on
+    // qualification stages for a rejected lead.
+    if (lead.manualReviewStatus === 'BAD') {
+      return { ok: false, started: null, reason: 'manually_rejected' };
+    }
+
     const active = await this.prisma.operationRun.findMany({
-      where: { leadId, status: { in: ['PENDING', 'RUNNING'] } },
+      where: { leadId, status: { in: ['PENDING', 'RUNNING', 'CANCEL_REQUESTED'] } },
       select: { id: true, operationId: true, status: true },
     });
     const activeByOp = new Map(active.map((r: any) => [r.operationId, r]));

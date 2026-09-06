@@ -36,3 +36,4 @@ packages/redesign-engine/data/
 /design-reference/extracted
 apps/platform/dist/
 docs/screenshots/product-qa/
+apps/platform/e2e/artifacts/

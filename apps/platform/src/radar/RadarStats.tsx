@@ -20,13 +20,11 @@ export interface RadarStatsData {
   failed: number;
 }
 
-export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qualifying }: { discoveryRunId: string; onRunChange: (id: string) => void; onQualify?: () => void; qualifying?: boolean }) {
+export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qualifying, onStats }: { discoveryRunId: string; onRunChange: (id: string) => void; onQualify?: () => void; qualifying?: boolean; onStats?: (s: RadarStatsData) => void }) {
   const [stats, setStats] = useState<RadarStatsData | null>(null);
   const [runs, setRuns] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
 
   const load = () => {
-    setLoading(true);
     Promise.all([
       api.getLeadStats(discoveryRunId || undefined),
       api.getDiscoveryRuns()
@@ -34,9 +32,9 @@ export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qua
       .then(([s, r]) => {
         setStats(s);
         setRuns(r.items || []);
+        onStats?.(s);
       })
-      .catch((e) => console.error('Radar stats failed', e))
-      .finally(() => setLoading(false));
+      .catch((e) => console.error('Radar stats failed', e));
   };
 
   useEffect(() => {
@@ -59,7 +57,7 @@ export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qua
   ];
 
   return (
-    <div className="bg-white border border-[#e5e3df] rounded-md p-4 mb-4">
+    <div data-testid="radar-stats" className="bg-white border border-[#e5e3df] rounded-md p-4 mb-4">
       <div className="flex items-center gap-3 mb-3">
         <label className="text-[11px] font-mono text-[#57534e]">Discovery</label>
         <select
@@ -84,9 +82,12 @@ export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qua
           </button>
         )}
       </div>
-      {loading ? (
+      {/* Stale-while-revalidate: once stats exist, the same cards stay
+          rendered during every background poll — only values update.
+          The loading state exists only before the first successful load. */}
+      {!stats ? (
         <div className="text-[12px] text-[#a8a29e] font-mono">Loading stats…</div>
-      ) : stats ? (
+      ) : (
         <div className="grid grid-cols-10 gap-2">
           {cards.map(({ label, value, positive, warn }) => (
             <div key={label} className="bg-[#fafaf9] border border-[#e5e3df] rounded p-2 text-center">
@@ -97,7 +98,7 @@ export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qua
             </div>
           ))}
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

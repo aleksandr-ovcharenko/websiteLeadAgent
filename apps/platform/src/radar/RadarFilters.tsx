@@ -83,7 +83,7 @@ export default function RadarFilters({
   };
 
   return (
-    <div className="space-y-2 mb-4">
+    <div data-testid="radar-filters" className="space-y-2 mb-4">
       {/* ── Primary business views ── */}
       <div className="flex items-center gap-2">
         {tabs.map((t) => {

@@ -7,7 +7,7 @@ import type { DiscoveryService } from '../discovery/service.js';
 import { ActivityService } from '../activity/ActivityService.js';
 import { QualificationOrchestrator } from '../qualification/QualificationOrchestrator.js';
 
-export type OperationStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'INTERRUPTED';
+export type OperationStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'INTERRUPTED' | 'CANCEL_REQUESTED';
 
 export interface RunContext {
   runId: string;
@@ -188,7 +188,7 @@ export class OperationService {
         operationId,
         leadId: leadId ?? null,
         entityId: entityId ?? null,
-        status: { in: ['PENDING', 'RUNNING'] },
+        status: { in: ['PENDING', 'RUNNING', 'CANCEL_REQUESTED'] },
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -240,6 +240,15 @@ export class OperationService {
     const sem = this.getSemaphore(def);
     await sem.acquire();
     try {
+      // Cancellation requested while queued on the semaphore: skip work entirely.
+      if (this.cancellations.has(runId)) {
+        await this.prisma.operationRun.update({
+          where: { id: runId },
+          data: { status: 'CANCELLED', finishedAt: new Date() },
+        }).catch(() => {});
+        return;
+      }
+
       const run = await this.prisma.operationRun.update({
         where: { id: runId },
         data: { status: 'RUNNING', startedAt: new Date() },
@@ -313,12 +322,52 @@ export class OperationService {
     });
   }
 
+  /**
+   * Request cancellation without faking it.
+   * - PENDING/queued runs are marked CANCELLED and skipped when their
+   *   semaphore slot arrives (see start()).
+   * - RUNNING runs are flagged CANCEL_REQUESTED: the handler can poll
+   *   ctx.cancelled() to abort early, and start() marks the run CANCELLED
+   *   once it actually exits. The run never reports CANCELLED while work is
+   *   still in flight.
+   */
   async cancel(runId: string) {
+    const run = await this.prisma.operationRun.findUnique({
+      where: { id: runId },
+      select: { id: true, status: true },
+    });
+    if (!run) return null;
+    if (run.status !== 'PENDING' && run.status !== 'RUNNING') return run;
+
     this.cancellations.add(runId);
+    if (run.status === 'PENDING') {
+      return this.prisma.operationRun.update({
+        where: { id: runId },
+        data: { status: 'CANCELLED', finishedAt: new Date() },
+      });
+    }
     return this.prisma.operationRun.update({
       where: { id: runId },
-      data: { status: 'CANCELLED', finishedAt: new Date() },
+      data: { status: 'CANCEL_REQUESTED' },
     });
+  }
+
+  /**
+   * Cancel every cancellable operation for a lead. Returns the affected run ids.
+   * Used when a human rejects a lead early so later Audit/Lighthouse/AI/Scoring
+   * stages are never started and queued work is dropped.
+   */
+  async cancelForLead(leadId: string) {
+    const active = await this.prisma.operationRun.findMany({
+      where: { leadId, status: { in: ['PENDING', 'RUNNING'] } },
+      select: { id: true },
+    });
+    const ids: string[] = [];
+    for (const run of active) {
+      await this.cancel(run.id);
+      ids.push(run.id);
+    }
+    return ids;
   }
 
   subscribe(runId: string, listener: (event: any) => void) {

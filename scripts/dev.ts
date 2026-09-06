@@ -1,9 +1,10 @@
 import 'dotenv/config';
 import { spawn, type ChildProcess } from 'node:child_process';
-import { setTimeout } from 'node:timers/promises';
+import { setTimeout as delay } from 'node:timers/promises';
 import { existsSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 
 const DEFAULTS: Record<string, string> = {
@@ -98,6 +99,9 @@ function run(label: string, cmd: string, args: string[], opts?: { cwd?: string; 
       ...(opts?.env ?? {}),
       PATH: `${NODE_BIN}:${process.env.PATH}`
     },
+    // Own process group so killAll can signal the whole tree (npx -> tsx
+    // -> child workers) instead of orphaning grandchildren.
+    detached: process.platform !== 'win32',
     stdio: ['ignore', 'pipe', 'pipe']
   });
   pids.add(cp.pid!);
@@ -113,25 +117,58 @@ function run(label: string, cmd: string, args: string[], opts?: { cwd?: string; 
   return cp;
 }
 
-function killAll() {
-  for (const { cp, label } of processes) {
-    console.log(`[dev] stopping ${label}...`);
-    cp.kill('SIGTERM');
-    setTimeout(() => { if (!cp.killed) cp.kill('SIGKILL'); }, 3000);
+// Signal a child process group when possible so nested children (npx, tsx,
+// vite, esbuild) are not orphaned. Falls back to the direct child.
+function signalTree(cp: ChildProcess, signal: NodeJS.Signals) {
+  if (cp.exitCode !== null || cp.signalCode !== null) return;
+  try {
+    if (process.platform !== 'win32' && cp.pid) {
+      process.kill(-cp.pid, signal);
+      return;
+    }
+    cp.kill(signal);
+  } catch {
+    try { cp.kill(signal); } catch { /* already gone */ }
   }
 }
 
-process.on('SIGINT', () => {
-  console.log('\n[dev] Ctrl+C received, shutting down...');
+let killing = false;
+export function killAll(list: { label: string; cp: ChildProcess }[] = processes) {
+  if (killing) return;
+  killing = true;
+  for (const { cp, label } of list) {
+    if (cp.exitCode === null && cp.signalCode === null) {
+      console.log(`[dev] stopping ${label}...`);
+    }
+    signalTree(cp, 'SIGTERM');
+    // Escalate to SIGKILL if the tree is still alive after 3s. unref() so
+    // this timer never keeps a shutting-down process alive.
+    globalThis.setTimeout(() => {
+      try {
+        if (cp.exitCode === null && cp.signalCode === null) signalTree(cp, 'SIGKILL');
+      } catch { /* already gone */ }
+    }, 3000).unref();
+  }
+}
+
+let exiting = false;
+function shutdown(signal: string) {
+  if (exiting) return;
+  exiting = true;
+  console.log(`\n[dev] ${signal} received, shutting down...`);
   killAll();
-  setTimeout(() => process.exit(0), 3000);
-});
+  globalThis.setTimeout(() => process.exit(0), 3000).unref();
+}
+
+process.on('SIGINT', () => shutdown('SIGINT'));
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('exit', () => killAll());
 
 async function waitForExit(cp: ChildProcess, timeout = 120000) {
   const start = Date.now();
   while (Date.now() - start < timeout) {
     if (cp.exitCode !== null) return cp.exitCode;
-    await setTimeout(100);
+    await delay(100);
   }
   cp.kill('SIGTERM');
   return -1;
@@ -146,7 +183,7 @@ async function waitForHealth(port: number, path: string, label: string, timeout 
     } catch {
       // not ready yet
     }
-    await setTimeout(400);
+    await delay(400);
   }
   throw new Error(`${label} did not become ready on port ${port}`);
 }
@@ -215,13 +252,13 @@ async function startInfra() {
     const check = spawn('docker', ['compose','exec','-T','db','pg_isready','-U','postgres'], { stdio: 'pipe' });
     const code = await new Promise<number>((resolve) => {
       check.on('exit', (code) => resolve(code ?? 1));
-      setTimeout(() => { check.kill(); resolve(1); }, 3000);
+      globalThis.setTimeout(() => { check.kill(); resolve(1); }, 3000);
     });
     if (code === 0) {
       console.log('[db] ready');
       return;
     }
-    await setTimeout(500);
+    await delay(500);
   }
   throw new Error('PostgreSQL did not become healthy');
 }
@@ -309,8 +346,20 @@ async function main() {
   await new Promise(() => {});
 }
 
-main().catch((err) => {
-  console.error('[dev] fatal:', err?.message || err);
-  killAll();
-  process.exit(1);
-});
+// Only run the launcher when executed directly (e.g. `tsx scripts/dev.ts`);
+// importing this module (e.g. from tests) must not start the stack.
+const invokedDirectly = (() => {
+  try {
+    return process.argv[1] && fileURLToPath(import.meta.url) === path.resolve(process.argv[1]);
+  } catch {
+    return false;
+  }
+})();
+
+if (invokedDirectly) {
+  main().catch((err) => {
+    console.error('[dev] fatal:', err?.message || err);
+    killAll();
+    process.exit(1);
+  });
+}

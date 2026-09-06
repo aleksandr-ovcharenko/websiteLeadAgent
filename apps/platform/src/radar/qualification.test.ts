@@ -68,7 +68,7 @@ describe('computeQualification', () => {
   it('CASE C: Everything complete → ready for review', () => {
     const lead = makeLead({
       auditStatus: 'SUCCESS',
-      lighthouseReport: { performance: 80, accessibility: 90, seo: 85, bestPractices: 95 },
+      lighthouseReport: { status: 'SUCCESS', performance: 80, accessibility: 90, seo: 85, bestPractices: 95 },
       visualAnalysis: { status: 'SUCCESS', errorMessage: null },
       scoreStatus: 'SUCCESS',
       scoreDetailsV2: { parts: {} },
@@ -84,7 +84,7 @@ describe('computeQualification', () => {
   it('CASE D: Scoring failed → review locked, scoring failure shown', () => {
     const lead = makeLead({
       auditStatus: 'SUCCESS',
-      lighthouseReport: { performance: 80, accessibility: 90, seo: 85, bestPractices: 95 },
+      lighthouseReport: { status: 'SUCCESS', performance: 80, accessibility: 90, seo: 85, bestPractices: 95 },
       visualAnalysis: { status: 'SUCCESS', errorMessage: null },
       scoreStatus: 'FAILED',
       scoreDetailsV2: { error: 'Visual analysis trust score out of range' },

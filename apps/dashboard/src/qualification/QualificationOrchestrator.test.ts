@@ -29,6 +29,7 @@ const baseLead = {
   auditStatus: 'PENDING',
   scoreStatus: 'PENDING',
   enrichmentStatus: 'PENDING',
+  manualReviewStatus: 'UNREVIEWED',
   lighthouseReport: null,
   visualAnalysis: null,
 };
@@ -99,6 +100,31 @@ describe('QualificationOrchestrator', () => {
 
     const result = await orchestrator.advance('lead-1');
     expect(result.started?.operationId).toBe('RECALCULATE_SCORE');
+  });
+
+  it('never advances any stage when the lead is manually marked BAD', async () => {
+    const lead = { ...baseLead, manualReviewStatus: 'BAD' };
+    const prisma = makePrisma(lead);
+    const ops = makeOperations();
+    const orchestrator = new QualificationOrchestrator({ operations: ops, prisma, logger: makeLogger(), activity: makeActivity() });
+
+    const result = await orchestrator.advance('lead-1');
+    expect(result.ok).toBe(false);
+    expect(result.reason).toBe('manually_rejected');
+    expect(result.started).toBeNull();
+    expect(ops.execute).not.toHaveBeenCalled();
+  });
+
+  it('still advances when the lead has an early GOOD/UNSURE review', async () => {
+    for (const manualReviewStatus of ['GOOD', 'UNSURE']) {
+      const lead = { ...baseLead, manualReviewStatus };
+      const prisma = makePrisma(lead);
+      const ops = makeOperations();
+      const orchestrator = new QualificationOrchestrator({ operations: ops, prisma, logger: makeLogger(), activity: makeActivity() });
+
+      const result = await orchestrator.advance('lead-1');
+      expect(result.started?.operationId).toBe('AUDIT_WEBSITE');
+    }
   });
 
   it('stops progression on failed audit', async () => {

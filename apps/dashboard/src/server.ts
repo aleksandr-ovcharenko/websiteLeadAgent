@@ -207,7 +207,8 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
     }
   }
 
-  const leads = await prisma.lead.findMany({
+  const [leads, total] = await Promise.all([
+    prisma.lead.findMany({
     where,
     orderBy: orderBy as any,
     skip: offset,
@@ -280,12 +281,14 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
         }
       }
     } as any
-  });
+    }),
+    prisma.lead.count({ where }),
+  ]);
 
   const activeOperations = await prisma.operationRun.findMany({
     where: {
       leadId: { in: leads.map((l: any) => l.id) },
-      status: { in: ['PENDING', 'RUNNING'] },
+      status: { in: ['PENDING', 'RUNNING', 'CANCEL_REQUESTED'] },
     },
     select: { id: true, operationId: true, leadId: true, status: true, createdAt: true },
   });
@@ -307,7 +310,7 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
       l.scoreStatus === 'SUCCESS'
     ),
   }));
-  res.json({ items: withReadiness, meta: { limit, offset, q, sort, discoveryRunId, websiteStatus, enrichmentStatus, qualificationStatus } });
+  res.json({ items: withReadiness, meta: { limit, offset, total, q, sort, discoveryRunId, websiteStatus, enrichmentStatus, qualificationStatus } });
 });
 
 app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => {
@@ -398,6 +401,38 @@ app.post('/api/leads/:leadId/redesign', requireAuth, async (req: Request, res: R
     return;
   }
 
+  // Early human review never bypasses automated gates: moving a lead into
+  // the generation pipeline requires both a GOOD review and completed
+  // automated qualification. Deselecting (NOT_SELECTED) stays unrestricted.
+  if (stage !== 'NOT_SELECTED') {
+    const lead = await prisma.lead.findUnique({
+      where: { id: leadId },
+      select: {
+        manualReviewStatus: true,
+        websiteStatus: true,
+        auditStatus: true,
+        scoreStatus: true,
+        lighthouseReport: { select: { status: true } },
+        visualAnalysis: { select: { status: true } },
+      }
+    });
+    const ready = !!(
+      lead?.websiteStatus === 'FOUND' &&
+      lead?.auditStatus === 'SUCCESS' &&
+      lead?.lighthouseReport?.status === 'SUCCESS' &&
+      lead?.visualAnalysis?.status === 'SUCCESS' &&
+      lead?.scoreStatus === 'SUCCESS'
+    );
+    if (lead?.manualReviewStatus !== 'GOOD') {
+      res.status(400).json({ error: 'requires_good_review' });
+      return;
+    }
+    if (!ready) {
+      res.status(400).json({ error: 'qualification_incomplete' });
+      return;
+    }
+  }
+
   const updated = await prisma.lead.update({
     where: { id: leadId },
     data: { redesignStage: stage as any },
@@ -434,24 +469,27 @@ app.post('/api/leads/:leadId/review', requireAuth, async (req: Request, res: Res
   const lead = await prisma.lead.findUnique({
     where: { id: leadId },
     select: {
+      id: true,
       websiteStatus: true,
       auditStatus: true,
       scoreStatus: true,
+      manualReviewStatus: true,
       lighthouseReport: { select: { id: true, status: true, error: true, attempts: true, durationMs: true } },
       visualAnalysis: { select: { status: true } },
     }
   });
-  const isReadyForReview = !!(
-    lead?.websiteStatus === 'FOUND' &&
-    lead?.auditStatus === 'SUCCESS' &&
-    lead?.lighthouseReport?.status === 'SUCCESS' &&
-    lead?.visualAnalysis?.status === 'SUCCESS' &&
-    lead?.scoreStatus === 'SUCCESS'
-  );
-  if (!isReadyForReview) {
-    res.status(400).json({ error: 'not_ready_for_review' });
+  if (!lead) {
+    res.status(404).json({ error: 'lead_not_found' });
     return;
   }
+
+  const isReadyForReview = !!(
+    lead.websiteStatus === 'FOUND' &&
+    lead.auditStatus === 'SUCCESS' &&
+    lead.lighthouseReport?.status === 'SUCCESS' &&
+    lead.visualAnalysis?.status === 'SUCCESS' &&
+    lead.scoreStatus === 'SUCCESS'
+  );
 
   const updated = await prisma.lead.update({
     where: { id: leadId },
@@ -468,7 +506,28 @@ app.post('/api/leads/:leadId/review', requireAuth, async (req: Request, res: Res
     }
   });
 
-  res.json({ ok: true, lead: updated });
+  // Early human rejection saves compute: BAD stops all further qualification
+  // work for this lead. Queued runs are cancelled before they start; running
+  // runs get a cooperative cancellation flag and are marked CANCELLED when
+  // they exit — no shared browser/worker infrastructure is killed.
+  let cancelledRunIds: string[] = [];
+  if (status === 'BAD') {
+    cancelledRunIds = await operations.cancelForLead(leadId);
+  }
+  // A review decision is Radar-visible lead state — always emit so live UIs
+  // reconcile promptly, not just when operations were cancelled.
+  await activity.log({
+    level: 'INFO',
+    module: 'RADAR',
+    eventType: cancelledRunIds.length > 0 ? 'lead_review_stopped_qualification' : 'lead_reviewed',
+    message: cancelledRunIds.length > 0
+      ? `Manual BAD review stopped ${cancelledRunIds.length} active qualification operation(s)`
+      : `Lead reviewed: ${status}`,
+    leadId,
+    details: { status, cancelledRunIds, early: !isReadyForReview },
+  }).catch(() => {});
+
+  res.json({ ok: true, lead: updated, early: !isReadyForReview, cancelledRunIds });
 });
 
 const ALLOWED_AUDIT_FILES = new Set([

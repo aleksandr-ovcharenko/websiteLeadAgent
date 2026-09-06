@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, useMemo } from 'react';
 import { api } from '../cms/api';
 import { Button } from '../cms/ui';
 
-type OpStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED';
+type OpStatus = 'PENDING' | 'RUNNING' | 'SUCCESS' | 'FAILED' | 'CANCELLED' | 'CANCEL_REQUESTED' | 'INTERRUPTED';
 
 interface OperationEvent {
   id: string;
@@ -52,6 +52,8 @@ function statusColor(status: OpStatus) {
     case 'SUCCESS': return 'text-emerald-700 bg-emerald-50 border-emerald-200';
     case 'FAILED': return 'text-red-700 bg-red-50 border-red-200';
     case 'CANCELLED': return 'text-gray-600 bg-gray-100 border-gray-200';
+    case 'CANCEL_REQUESTED': return 'text-amber-700 bg-amber-50 border-amber-200';
+    case 'INTERRUPTED': return 'text-gray-600 bg-gray-100 border-gray-200';
     case 'RUNNING': return 'text-emerald-700 bg-emerald-50 border-emerald-200';
     default: return 'text-amber-700 bg-amber-50 border-amber-200';
   }
@@ -71,7 +73,7 @@ export function OperationConsole({ runId, title, onClose }: { runId: string; tit
   const scrollRef = useRef<HTMLDivElement>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const active = useMemo(() => run?.status === 'PENDING' || run?.status === 'RUNNING', [run]);
+  const active = useMemo(() => run?.status === 'PENDING' || run?.status === 'RUNNING' || run?.status === 'CANCEL_REQUESTED', [run]);
 
   useEffect(() => {
     let mounted = true;
