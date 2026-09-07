@@ -120,3 +120,20 @@ Reject a generated catalogue site if:
 - Gemini quota failure is treated as a permanent blocker instead of proceeding
   to human review (AI_VISUAL_QA = QUOTA_UNAVAILABLE);
 - mobile is merely desktop stacking without visual verification at 390×844.
+
+### CMS/LINK CONTRACT REVIEW RULES
+
+Reject a generation if:
+- multiple Product/Project/Service detail routes exist but CMS exposes no
+  separate editable records for them;
+- generated detail content cannot be independently edited in Studio;
+- "Смотреть проекты" (or any nav/CTA label) links to Contacts or any unrelated
+  destination — a link returning HTTP 200 to the wrong page is a FAIL;
+- the renderer guesses a missing target through a generic fallback instead of
+  omitting the optional CTA;
+- a homepage-section anchor (#projects) and the collection route (/projects)
+  are conflated without an explicit semantic target;
+- a link audit checks status codes only and ignores semantic correctness;
+- a contact label renders with an empty value (e.g. "EMAIL" with no address);
+- the Hub shows a screenshot whose variant/hash doesn't match the current
+  preferred generation (unversioned preview URL).

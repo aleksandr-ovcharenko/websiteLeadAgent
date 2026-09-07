@@ -72,17 +72,18 @@ app.get('/api/cms/sites/:siteId', requireSiteAccess('siteId'), async (req: Reque
   const { siteId } = req.params;
   const site = await (prisma as any).site.findUnique({ where: { id: siteId }, include: { siteSettings: true } });
   if (!site) { res.status(404).json({ error: 'not_found' }); return; }
-  const [pages, services, projects, news, menu, media, vacancies, users] = await Promise.all([
+  const [pages, services, projects, products, news, menu, media, vacancies, users] = await Promise.all([
     (prisma as any).page.findMany({ where: { siteId } }),
     (prisma as any).service.findMany({ where: { siteId } }),
     (prisma as any).project.findMany({ where: { siteId }, include: { projectMedia: { include: { media: true } } } }),
+    (prisma as any).product.findMany({ where: { siteId }, include: { productMedia: { include: { media: true } } }, orderBy: { sortOrder: 'asc' } }),
     (prisma as any).newsPost.findMany({ where: { siteId } }),
     (prisma as any).menuItem.findMany({ where: { siteId }, include: { page: { select: { slug: true, title: true } } }, orderBy: { sortOrder: 'asc' } }),
     (prisma as any).media.findMany({ where: { siteId } }),
     (prisma as any).vacancy.findMany({ where: { siteId } }),
     (prisma as any).siteUser.findMany({ where: { siteId }, include: { user: { select: { id: true, email: true, createdAt: true } } } })
   ]);
-  res.json({ site, pages, services, projects, news, menu, media, vacancies, users });
+  res.json({ site, pages, services, projects, products, news, menu, media, vacancies, users });
 });
 
 app.post('/api/cms/sites/:siteId/settings', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
@@ -234,6 +235,35 @@ app.put('/api/cms/sites/:siteId/services/:serviceId', requireSiteAccess('siteId'
 app.delete('/api/cms/sites/:siteId/services/:serviceId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
   const { siteId, serviceId } = req.params;
   await (prisma as any).service.delete({ where: { id: serviceId, siteId } });
+  res.json({ ok: true });
+});
+
+// Products — catalogue entities are first-class, independently editable
+app.post('/api/cms/sites/:siteId/products', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+  const { siteId } = req.params;
+  const { title, slug, summary, attributes, blocks, coverImageId, category, price, status, sortOrder, seoTitle, seoDescription } = req.body;
+  const s = slug || createSlug(title);
+  const product = await (prisma as any).product.create({
+    data: { siteId, title, slug: s, summary, attributes: attributes ?? {}, blocks: blocks ?? [], coverImageId: coverImageId || null, category, price, sortOrder: sortOrder ?? 0, status: status ?? 'DRAFT', seoTitle, seoDescription, sourceType: 'MANUAL', publishedAt: status === 'PUBLISHED' ? new Date() : null }
+  });
+  res.json({ ok: true, product });
+});
+
+app.put('/api/cms/sites/:siteId/products/:productId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+  const { siteId, productId } = req.params;
+  const { title, slug, summary, attributes, blocks, coverImageId, category, price, status, sortOrder, seoTitle, seoDescription } = req.body;
+  const data: any = { manualModifiedAt: new Date() };
+  for (const [k, v] of Object.entries({ title, slug, summary, attributes, blocks, coverImageId, category, price, sortOrder, seoTitle, seoDescription })) {
+    if (v !== undefined) data[k] = v;
+  }
+  if (status !== undefined) { data.status = status; if (status === 'PUBLISHED') data.publishedAt = new Date(); }
+  const product = await (prisma as any).product.update({ where: { id: productId, siteId }, data });
+  res.json({ ok: true, product });
+});
+
+app.delete('/api/cms/sites/:siteId/products/:productId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+  const { siteId, productId } = req.params;
+  await (prisma as any).product.delete({ where: { id: productId, siteId } });
   res.json({ ok: true });
 });
 

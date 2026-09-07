@@ -493,8 +493,9 @@ function Hero() {
           ) : null}
 
           <div className="flex flex-wrap items-center gap-5">
+            {HERO.buttonUrl ? (
             <a
-              href={HERO.buttonUrl || sectionHref('CONTACTS')}
+              href={HERO.buttonUrl}
               className="inline-flex items-center px-7 py-3.5 text-[11px] uppercase font-bold tracking-[0.18em] transition-all"
               style={{ background: 'var(--brass)', color: 'var(--dark)' }}
               onMouseEnter={e => {
@@ -510,9 +511,10 @@ function Hero() {
             >
               {HERO.buttonLabel || 'Связаться'}
             </a>
-            {HERO.secondaryCtaLabel ? (
+            ) : null}
+            {HERO.secondaryCtaLabel && HERO.secondaryCtaUrl ? (
               <a
-                href={HERO.secondaryCtaUrl || sectionHref('PROJECTS')}
+                href={HERO.secondaryCtaUrl || collectionHref('PROJECTS')}
                 className="group inline-flex items-center gap-2 text-sm font-medium pb-0.5 transition-colors"
                 style={{ color: 'rgba(242,244,245,0.7)', borderBottom: '1px solid rgba(242,244,245,0.25)' }}
                 onMouseEnter={e => {
@@ -1218,7 +1220,7 @@ function ProductCard({ p, i }: { p: any; i: number }) {
   const attrs = Object.entries(p.attributes || {}).filter(([, v]) => v).slice(0, 4)
   return (
     <article className="border" style={{ borderColor: 'var(--border)', background: 'var(--card-bg)' }}>
-      <a href={productHref(p.slug, 'home')} className="block group">
+      <a href={productHref(p.slug)} className="block group">
         <div className="overflow-hidden" style={{ aspectRatio: '4/3', background: 'var(--bg)' }}>
           {p.img ? (
             <img src={p.img} alt={p.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
@@ -1294,7 +1296,7 @@ function ProductDetail({ slug }: { slug: string }) {
   return (
     <section id="products" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[1100px] mx-auto px-6 md:px-10">
-        <a href={backHref('PRODUCTS', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к каталогу</a>
+        <a href={backHref('PRODUCTS', returnTo || 'collection')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к каталогу</a>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mt-8 items-start">
           <div>
             {p.img ? <img src={p.img} alt={p.title} className="w-full object-cover" style={{ aspectRatio: '4/3', background: 'var(--card-bg)' }} /> : null}
@@ -1413,6 +1415,11 @@ function DynSection({ kind }: { kind: string }) {
             </div>
           ))}
         </div>
+        {sec.cta?.url ? (
+          <a href={sec.cta.url} target="_blank" rel="noopener" className="inline-flex items-center gap-2 mt-8 px-7 py-3.5 text-[11px] uppercase font-bold tracking-[0.18em] transition-all" style={{ background: 'var(--brass)', color: 'var(--dark)' }}>
+            {sec.cta.label} <span>→</span>
+          </a>
+        ) : null}
       </div>
     </section>
   )
@@ -1424,7 +1431,7 @@ function DynSection({ kind }: { kind: string }) {
           {items.slice(0, 4).map((it: any, i: number) => (
             <div key={i}>
               <p className="text-3xl md:text-4xl font-black mb-2" style={{ ...GEO, color: 'var(--brass)' }}>{it.title || it.text}</p>
-              {it.text && it.title ? <p className="text-xs uppercase tracking-widest" style={{ color: 'rgba(242,244,245,0.45)' }}>{clampCopy(it.text, 80)}</p> : null}
+              {it.text && it.title ? <p className="text-xs uppercase tracking-widest" style={{ color: 'rgba(242,244,245,0.62)' }}>{clampCopy(it.text, 80)}</p> : null}
             </div>
           ))}
         </div>
@@ -1934,10 +1941,10 @@ function CallToAction() {
         }}
       />
 
-      <div className="max-w-[1280px] mx-auto px-6 md:px-10 py-24 md:py-36 relative">
+      <div className="max-w-[1280px] mx-auto px-6 md:px-10 py-16 md:py-20 relative">
 
         {/* ── Section header ── */}
-        <div className="flex items-center gap-3.5 mb-10">
+        <div className="flex items-center gap-3.5 mb-8">
           <BrandMark size={44} dark />
           <div>
             <p className="text-[10px] uppercase tracking-[0.28em] font-medium" style={{ color: 'rgba(242,244,245,0.4)' }}>
@@ -1951,8 +1958,8 @@ function CallToAction() {
           {/* ── Left: heading + address + hours ── */}
           <div>
             <h2
-              className="font-bold leading-[1.0] mb-6"
-              style={{ ...GEO, color: 'white', fontSize: 'clamp(2.5rem, 5vw, 4rem)' }}
+              className="font-bold leading-[1.05] mb-5"
+              style={{ ...GEO, color: 'white', fontSize: 'clamp(1.9rem, 3.6vw, 3rem)' }}
             >
               {CTA.title}
             </h2>
@@ -2057,7 +2064,7 @@ function CallToAction() {
             </div>
             ) : null}
 
-            {/* Email + CTA */}
+            {/* Email — only when the business actually has one */}
             {COMPANY.contacts.email ? (
               <div className="border-t pt-8" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
                 <p className="text-[10px] uppercase tracking-[0.3em] mb-3" style={{ color: 'rgba(242,244,245,0.35)' }}>
@@ -2072,8 +2079,13 @@ function CallToAction() {
                 >
                   {COMPANY.contacts.email}
                 </a>
+              </div>
+            ) : null}
+
+            {/* Primary CTA — independent of email presence */}
+            <div className="mt-10">
                 <a
-                  href={CTA.buttonUrl || `mailto:${COMPANY.contacts.email || '#'}`}
+                  href={CTA.buttonUrl || ''}
                   className="inline-flex items-center gap-3 px-8 py-4 border text-[12px] uppercase tracking-[0.18em] font-semibold transition-all"
                   style={{ borderColor: 'var(--brass)', color: 'var(--brass)' }}
                   onMouseEnter={e => {
@@ -2089,8 +2101,16 @@ function CallToAction() {
                 >
                   {CTA.buttonLabel || 'Связаться с нами'} →
                 </a>
+                {PRODUCTS.length ? (
+                  <a
+                    href={collectionHref('PRODUCTS')}
+                    className="inline-flex items-center gap-3 ml-5 px-8 py-4 border text-[12px] uppercase tracking-[0.18em] font-semibold transition-all"
+                    style={{ borderColor: 'rgba(255,255,255,0.25)', color: 'rgba(242,244,245,0.75)' }}
+                  >
+                    Смотреть каталог →
+                  </a>
+                ) : null}
               </div>
-            ) : null}
 
           </div>
         </div>
@@ -2179,6 +2199,8 @@ function Footer() {
                 </a>
               ) : null}
             </div>
+            {(COMPANY.contacts.email || COMPANY.email) ? (
+            <>
             <FooterHeading>Email</FooterHeading>
             <a
               href={`mailto:${COMPANY.contacts.email || COMPANY.email || ''}`}
@@ -2189,6 +2211,8 @@ function Footer() {
             >
               {COMPANY.contacts.email}
             </a>
+            </>
+            ) : null}
           </div>
 
           {/* Contacts — procurement */}
@@ -2325,7 +2349,9 @@ function Home({ activeSection }: { activeSection?: string }) {
       {homeSections.map((s: any, i: number) => (
         <SectionResolver key={`${s.type}-${i}`} item={s} />
       ))}
-      <Process />
+      {/* Legacy process mount — skipped when the plan already ships a
+          dynamic 'process' section (otherwise identical content renders twice) */}
+      {!homeSections.some((s: any) => s.type === 'dynamic' && (s.sectionType || s.title || '').toLowerCase() === 'process') ? <Process /> : null}
     </>
   )
 }

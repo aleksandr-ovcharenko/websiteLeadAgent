@@ -146,6 +146,15 @@ export const api = {
   }) as Promise<{ service: any }>,
   deleteService: (siteId: string, id: string) => request(`/api/cms/sites/${siteId}/services/${id}`, { method: 'DELETE' }) as Promise<any>,
 
+  // Products
+  createProduct: (siteId: string, data: any) => request(`/api/cms/sites/${siteId}/products`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+  }) as Promise<{ product: any }>,
+  updateProduct: (siteId: string, id: string, data: any) => request(`/api/cms/sites/${siteId}/products/${id}`, {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)
+  }) as Promise<{ product: any }>,
+  deleteProduct: (siteId: string, id: string) => request(`/api/cms/sites/${siteId}/products/${id}`, { method: 'DELETE' }) as Promise<any>,
+
   // Vacancies
   createVacancy: (siteId: string, data: any) => request(`/api/cms/sites/${siteId}/vacancies`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)

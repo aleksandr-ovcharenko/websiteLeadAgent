@@ -697,3 +697,37 @@ when an exterior render exists.
 Do not force arbitrary word-per-line layouts. Headline composition adapts to
 actual copy length and viewport (≤3 lines desktop, ≤4 mobile, balanced wraps).
 A hero may not claim prices/discounts the page cannot show.
+
+### VISIBLE ENTITY MUST EXIST IN CMS
+
+Every generated Service, Project, Product, News item or other independently
+addressable content entity must be independently editable in CMS (list +
+edit UI + API). Renderer-only entities are forbidden: if the Showcase shows a
+detail route or card, the CMS must expose that record. The generated site's
+visible content model and the CMS editing model must match 1:1.
+
+### LINKS ARE SEMANTIC CONTRACTS
+
+Link labels never determine routing. Every generated link carries an explicit
+semantic target (HOME / HOME_SECTION / COLLECTION / CONTENT_DETAIL / PAGE /
+EXTERNAL_URL), resolved by one central resolver to a canonical route. An
+unresolvable target returns empty — the CTA is omitted, never silently
+rerouted to an unrelated valid page (e.g. Contacts).
+
+### COLLECTION != HOME SECTION
+
+A homepage preview section and a collection page are separate valid targets:
+HOME_SECTION(PROJECTS) → #projects; COLLECTION(PROJECTS) → /projects. Header
+nav may scroll to a section; "Все проекты / Смотреть проекты" CTAs resolve to
+the collection route. They are never interchangeable.
+
+### EMPTY CONTACT FIELDS ARE OMITTED
+
+A missing email/phone/address/secondary channel must not render its label or
+an empty row — the entire label+value row is omitted.
+
+### HUB PREVIEW IS VERSIONED
+
+The Hub/Forge thumbnail URL must encode the preferred variant + capture time
+(?v=variantId-timestamp) and the screenshot endpoint must be no-cache.
+A regenerated preferred variant can never display a stale screenshot.

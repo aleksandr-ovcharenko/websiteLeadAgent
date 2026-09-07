@@ -20,6 +20,7 @@ const NAV: NavGroup[] = [
       { label: 'News', screen: 'news', icon: <IconNewspaper size={14} /> },
       { label: 'Projects', screen: 'projects', icon: <IconBuilding size={14} /> },
       { label: 'Services', screen: 'services', icon: <IconLayers size={14} /> },
+      { label: 'Products', screen: 'products', icon: <IconLayers size={14} /> },
       { label: 'Vacancies', screen: 'vacancies', icon: <IconBriefcase size={14} /> },
     ],
   },
@@ -45,12 +46,13 @@ const NAV: NavGroup[] = [
   },
 ]
 
-const EDITOR_SCREENS: Screen[] = ['page-editor', 'project-editor', 'news-editor', 'service-editor', 'vacancy-editor']
+const EDITOR_SCREENS: Screen[] = ['page-editor', 'project-editor', 'news-editor', 'service-editor', 'product-editor', 'vacancy-editor']
 const PARENT: Partial<Record<Screen, Screen>> = {
   'page-editor': 'pages',
   'project-editor': 'projects',
   'news-editor': 'news',
   'service-editor': 'services',
+  'product-editor': 'products',
   'vacancy-editor': 'vacancies',
 }
 

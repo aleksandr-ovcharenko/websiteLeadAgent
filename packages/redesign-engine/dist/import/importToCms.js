@@ -387,6 +387,12 @@ export async function importToCms(options, prisma = new PrismaClient()) {
         });
         if (existing && existing.sourceType === 'MANUAL')
             return undefined;
+        // Human-edited records are authoritative — never overwrite or duplicate
+        // them; keep the CMS record and mark it kept.
+        if (existing && existing.manualModifiedAt) {
+            keptProductIds.add(existing.id);
+            return existing;
+        }
         const cover = mediaFromSourceUrl(p.coverImage?.sourceUrl);
         const data = {
             siteId,
@@ -406,7 +412,7 @@ export async function importToCms(options, prisma = new PrismaClient()) {
             publishedAt: new Date(),
             ...ownership
         };
-        const record = existing && !existing.manualModifiedAt ? await prisma.product.update({ where: { id: existing.id }, data }) : await prisma.product.create({ data });
+        const record = existing ? await prisma.product.update({ where: { id: existing.id }, data }) : await prisma.product.create({ data });
         keptProductIds.add(record.id);
         const newMediaIds = [...new Set((p.gallery || []).map((img) => mediaFromSourceUrl(img.sourceUrl)?.id).filter(Boolean))];
         await prisma.productMedia.deleteMany({ where: { productId: record.id, mediaId: { notIn: newMediaIds } } });

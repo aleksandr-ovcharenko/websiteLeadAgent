@@ -18,6 +18,15 @@ export function getScreenshotUrl(siteId: string, baseUrl?: string): string {
   return `${baseUrl ?? gateway}/site-screenshots/${siteId}/preview.png`;
 }
 
+/** Hub/Forge preview URL: versioned so a new preferred variant/run always
+ * produces a different URL — the Hub can never display a stale generation. */
+export function previewImageUrl(screenshot: { url?: string | null; siteUpdatedAt?: Date | string | null; updatedAt?: Date | string | null; capturedAt?: Date | string | null }, variantId?: string | null): string {
+  const base = screenshot.url || '';
+  const stamp = new Date(screenshot.siteUpdatedAt || screenshot.updatedAt || screenshot.capturedAt || 0).getTime() || 0;
+  const v = `${variantId || 'site'}-${stamp}`;
+  return `${base}${base.includes('?') ? '&' : '?'}v=${v}`;
+}
+
 export async function captureSitePreview(site: SiteLike, prisma: any): Promise<{ path: string; url: string }> {
   const storagePath = getScreenshotStoragePath(site.id);
   await mkdir(path.dirname(storagePath), { recursive: true });

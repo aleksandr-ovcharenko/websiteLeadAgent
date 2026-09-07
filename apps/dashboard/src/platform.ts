@@ -2,7 +2,7 @@ import express, { type Request, type Response } from 'express';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { prisma, requireSuperAdmin } from './auth.js';
-import { captureSitePreview, getScreenshotStoragePath, getScreenshotUrl } from '../../../packages/screenshot/src/index.js';
+import { captureSitePreview, getScreenshotStoragePath, getScreenshotUrl, previewImageUrl } from '../../../packages/screenshot/src/index.js';
 import { getPipelineStageLabel, generateSite } from '@minsk/redesign-engine';
 
 const router = express.Router();
@@ -51,9 +51,9 @@ async function toPlatformSite(site: any): Promise<any> {
   const status = uiStatus(site);
   const stageLabel = getPipelineStageLabel(site.lead?.redesignStage);
   const { attention, attentionAction } = computeAttention(site, screenshot);
-  const image = screenshot ? screenshot.url : 'https://via.placeholder.com/800x500?text=No+preview';
   const variants = site.demoVariants ?? [];
   const preferred = variants.find((v: any) => v.isPreferred) ?? variants[0];
+  const image = screenshot ? previewImageUrl(screenshot, preferred?.id) : 'https://via.placeholder.com/800x500?text=No+preview';
 
   return {
     id: site.id,
@@ -193,6 +193,9 @@ router.get('/site-screenshots/:siteId/preview.png', async (req: Request, res: Re
   const p = getScreenshotStoragePath(String(req.params.siteId));
   try {
     await import('node:fs/promises').then((fs) => fs.access(p));
+    // Versioned by ?v= (variant id + capture time) — never heuristic-cache the
+    // bare URL, so a regenerated preferred variant can never display stale.
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
     res.sendFile(p);
   } catch {
     res.status(404).send();

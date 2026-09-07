@@ -11,6 +11,7 @@ export interface StudioData {
   news: any[];
   projects: any[];
   services: any[];
+  products: any[];
   media: any[];
   menu: any[];
   vacancies: any[];
@@ -62,6 +63,7 @@ export function StudioProvider({ siteId, user, children }: { siteId: string; use
   const [news, setNews] = useState<any[]>([]);
   const [projects, setProjects] = useState<any[]>([]);
   const [services, setServices] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
   const [media, setMedia] = useState<any[]>([]);
   const [menu, setMenu] = useState<any[]>([]);
   const [vacancies, setVacancies] = useState<any[]>([]);
@@ -78,6 +80,7 @@ export function StudioProvider({ siteId, user, children }: { siteId: string; use
       setNews(data.news || []);
       setProjects(data.projects || []);
       setServices(data.services || []);
+      setProducts(data.products || []);
       setMedia(data.media || []);
       setMenu(data.menu || []);
       setVacancies(data.vacancies || []);
@@ -94,7 +97,7 @@ export function StudioProvider({ siteId, user, children }: { siteId: string; use
   const role = siteRole(user, users);
 
   const value: StudioData = {
-    siteId, site, settings, pages, news, projects, services, media, menu, vacancies, users,
+    siteId, site, settings, pages, news, projects, services, products, media, menu, vacancies, users,
     user, role, loading, error, refresh: load
   };
 

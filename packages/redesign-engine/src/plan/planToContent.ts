@@ -62,7 +62,7 @@ export function planToContent(plan: SiteContentPlanV2): ExtractedContent {
   const aboutContent = [
     descCleaned,
     aboutDyn?.items?.length ? aboutDyn.items.map((i) => i.title || i.text).filter(Boolean).join('\n') : '',
-    process?.items?.length ? process.items.map((i) => `${i.title ? i.title + ': ' : ''}${i.text || ''}`).join('\n') : '',
+    '',
   ].filter(Boolean).join('\n\n');
 
   const homepageSections = plan.homepage.plannedSections
@@ -79,7 +79,7 @@ export function planToContent(plan: SiteContentPlanV2): ExtractedContent {
 
   return {
     theme: { source: 'default', primaryColor: '#2f6b4f', textColor: '#1a1a1a', backgroundColor: '#ffffff' },
-    hero: { title: exp?.presentation.heroHeadline || id.displayName, subtitle: exp?.presentation.heroSubheadline || clean(id.description || '', 200), imageId: plan.media.hero, buttonLabel: exp?.presentation.heroCtaLabel || 'Связаться', buttonUrl: '/contacts', secondaryCtaLabel: exp?.presentation.heroCtaSecondary, secondaryCtaTarget: '' },
+    hero: { title: exp?.presentation.heroHeadline || id.displayName, subtitle: exp?.presentation.heroSubheadline || clean(id.description || '', 200), imageId: plan.media.hero, buttonLabel: exp?.presentation.heroCtaLabel || 'Связаться', buttonUrl: 'HOME_SECTION:CONTACTS', secondaryCtaLabel: exp?.presentation.heroCtaSecondary, secondaryCtaTarget: plan.experience?.archetype === 'CATALOG' ? 'COLLECTION:PRODUCTS' : plan.experience?.archetype === 'CREATIVE_PORTFOLIO' ? 'COLLECTION:PROJECTS' : 'COLLECTION:SERVICES' },
     company: {
       name: id.displayName, shortName: id.displayName, description: id.description,
       legalName: id.legalName, unp: id.unp, founded: id.founded, employees: id.employees,
@@ -115,8 +115,8 @@ export function planToContent(plan: SiteContentPlanV2): ExtractedContent {
     })),
     dynamicSections: plan.dynamicSections
       .filter((d) => d.kind !== 'IGNORED' && d.items.length)
-      .map((d) => ({ kind: d.kind, heading: d.heading, items: d.items.slice(0, 30).map((i) => ({ title: i.title, text: i.text, meta: i.meta })) })),
+      .map((d) => ({ kind: d.kind, heading: d.heading, cta: (d as any).cta, items: d.items.slice(0, 30).map((i) => ({ title: i.title, text: i.text, meta: i.meta })) })),
     media: plan.media.images.map((m) => media(m.src)!),
-    cta: { title: exp?.presentation.heroCtaSecondary && plan.experience?.archetype === 'CATALOG' ? 'Подберите дом в каталоге' : 'Обсудить ваш проект', description: clean(plan.contacts?.addresses?.[0]?.value || '', 120), buttonLabel: 'Связаться', buttonUrl: '/contacts' },
+    cta: { title: exp?.presentation.heroCtaSecondary && plan.experience?.archetype === 'CATALOG' ? 'Подберите дом в каталоге' : 'Обсудить ваш проект', description: '', buttonLabel: 'Связаться', buttonUrl: 'HOME_SECTION:CONTACTS' },
   };
 }

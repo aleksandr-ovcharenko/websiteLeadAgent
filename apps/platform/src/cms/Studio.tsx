@@ -8,6 +8,7 @@ import { PagesList, PageEditor } from './Pages'
 import { ProjectsList, ProjectEditor } from './Projects'
 import { NewsList, NewsEditor } from './News'
 import { ServicesList, ServiceEditor } from './Services'
+import { ProductsList, ProductEditor } from './Products'
 import { VacanciesList, VacancyEditor } from './Vacancies'
 import Media from './Media'
 import NavEditor from './NavEditor'
@@ -85,6 +86,8 @@ export default function Studio({ siteId, user }: { siteId: string; user?: any })
             {screen === 'news-editor' && <NewsEditor newsId={editingId} onNavigate={navigate} />}
 
             {screen === 'services' && <ServicesList onNavigate={navigate} />}
+            {screen === 'products' && <ProductsList onNavigate={navigate} />}
+            {screen === 'product-editor' && <ProductEditor productId={editingId} onNavigate={navigate} />}
             {screen === 'service-editor' && <ServiceEditor serviceId={editingId} onNavigate={navigate} />}
 
             {screen === 'vacancies' && <VacanciesList onNavigate={navigate} />}

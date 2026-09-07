@@ -8,6 +8,8 @@ export type Screen =
   | 'news-editor'
   | 'services'
   | 'service-editor'
+  | 'products'
+  | 'product-editor'
   | 'vacancies'
   | 'vacancy-editor'
   | 'media'

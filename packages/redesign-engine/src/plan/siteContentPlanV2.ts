@@ -41,6 +41,8 @@ export interface PlannedDynamicSection {
   items: { title?: string; text?: string; meta?: Record<string, string> }[];
   sourcePages: string[];
   ignoredReason?: string;
+  /** Optional grounded CTA — e.g. "Открыть конструктор" → source configurator page. */
+  cta?: { label: string; url: string };
 }
 
 export type SiteArchetype = 'SERVICE_PORTFOLIO' | 'CATALOG' | 'CREATIVE_PORTFOLIO';
@@ -631,6 +633,34 @@ export function buildSiteContentPlanV2(opts: {
       };
     })
     .filter((d) => d.items.length >= (d.kind === 'REVIEWS' ? 1 : 2) || d.kind === 'IGNORED');
+
+  // --- grounded configurator section ------------------------------------------
+  // When the source exposes a configurator page and the identity copy promises
+  // configurable design ("…меняйте планировку, фасад, крышу, дизайн"), surface
+  // the customization steps — every step is taken verbatim from source text or
+  // grounded entity data. Nothing is invented.
+  {
+    const cfgDoc = docs.find((d) => /конструктор|konstruktor|configurat/i.test(`${d.path || ''} ${d.url}`));
+    const desc = graph.company?.description || homeDoc?.metaDescription || '';
+    const clause = desc.match(/меняйте\s+([^.]+)/i);
+    if (cfgDoc && clause && !dynamicSections.some((d) => d.kind === 'PROCESS')) {
+      const items: { title: string; text: string }[] = [];
+      const prodCount = entities.filter((e) => e.type === 'product').length;
+      if (prodCount) items.push({ title: 'Выберите модель', text: `${prodCount} моделей в каталоге` });
+      for (const c of clause[1].split(/,|\s+и\s+/i).map((x) => x.trim()).filter((x) => x.length >= 3 && x.length <= 40)) {
+        items.push({ title: `Меняйте ${c}`, text: '' });
+      }
+      const kits = [...new Set(entities.flatMap((e) => String(e.attributes?.['Комплектация'] || '').split(' · ')).filter(Boolean))];
+      if (kits.length) items.push({ title: 'Выберите комплектацию', text: kits.join(' · ') });
+      if (items.length >= 2) {
+        dynamicSections.push({
+          id: 'dyn-configurator', kind: 'PROCESS', heading: 'Конструктор дома',
+          items, sourcePages: [cfgDoc.url],
+          cta: { label: 'Открыть конструктор', url: cfgDoc.url },
+        });
+      }
+    }
+  }
 
   // --- pages ---------------------------------------------------------------------
   const L = language.startsWith('ru') ? {

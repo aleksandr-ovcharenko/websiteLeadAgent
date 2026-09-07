@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { resolveShowcaseTarget as _resolveShowcaseTarget } from './linkResolver.js';
 import type { RenderContext } from '../types.js';
 import { constructionModernV1Manifest } from './manifest.js';
 import { isPresetId, presetCSS } from './stylePresets.js';
@@ -139,6 +140,7 @@ export function constructionModernV1(ctx: RenderContext): string {
       about: { label: s.title || 'О компании', targetType: 'HOME_SECTION', target: 'ABOUT', showInHeader: true, showInFooter: true, showOnHomepage: true },
       services: { label: s.title || 'Услуги', targetType: 'COLLECTION', target: 'SERVICES', showInHeader: true, showInFooter: true, showOnHomepage: true },
       projects: { label: s.title || 'Объекты', targetType: 'COLLECTION', target: 'PROJECTS', showInHeader: true, showInFooter: true, showOnHomepage: true },
+      products: { label: s.title || 'Каталог', targetType: 'COLLECTION', target: 'PRODUCTS', showInHeader: true, showInFooter: true, showOnHomepage: true },
       news: { label: s.title || 'Новости', targetType: 'COLLECTION', target: 'NEWS', showInHeader: true, showInFooter: true, showOnHomepage: true },
       vacancies: { label: s.title || 'Вакансии', targetType: 'COLLECTION', target: 'VACANCIES', showInHeader: false, showInFooter: true, showOnHomepage: true },
       contacts: { label: s.title || 'Контакты', targetType: 'HOME_SECTION', target: 'CONTACTS', showInHeader: true, showInFooter: true, showOnHomepage: true },
@@ -343,13 +345,7 @@ export function constructionModernV1(ctx: RenderContext): string {
   --overlay: ${hexToRgba(darkColor, 0.55)};
 }</style>`;
 
-  function resolveHeroCta(raw?: string): string {
-    if (!raw) return `${base}/contacts`;
-    if (/^https?:\/\//.test(raw)) return raw;
-    const target = raw.replace(/^\/+/, '').toUpperCase();
-    const isCollection = ['SERVICES', 'PROJECTS', 'NEWS', 'VACANCIES'].includes(target);
-    return resolveNavHref({ targetType: isCollection ? 'COLLECTION' : 'HOME_SECTION', target, showOnHomepage: true });
-  }
+  const resolveShowcaseTarget = (raw?: string) => _resolveShowcaseTarget(base, raw);
 
   const logoUrl = mediaUrl(ctx, ctx.logo?.id);
   const faviconUrl = mediaUrl(ctx, ctx.favicon?.id);
@@ -373,9 +369,9 @@ export function constructionModernV1(ctx: RenderContext): string {
       subtitle: ctx.hero?.subtitle || '',
       image: heroImageUrl,
       buttonLabel: ctx.hero?.buttonLabel || 'Связаться',
-      buttonUrl: resolveHeroCta(ctx.hero?.buttonUrl),
+      buttonUrl: resolveShowcaseTarget(ctx.hero?.buttonUrl),
       secondaryCtaLabel: ctx.hero?.secondaryCtaLabel,
-      secondaryCtaUrl: resolveHeroCta(ctx.hero?.secondaryCtaTarget),
+      secondaryCtaUrl: resolveShowcaseTarget(ctx.hero?.secondaryCtaTarget),
       location: ctx.hero?.location || '',
       industry: ctx.hero?.industry || 'Компания'
     },
@@ -388,7 +384,7 @@ export function constructionModernV1(ctx: RenderContext): string {
       title: ctx.cta?.title || 'Обсудим ваш проект',
       description: ctx.cta?.description || '',
       buttonLabel: ctx.cta?.buttonLabel || 'Связаться',
-      buttonUrl: ctx.cta?.buttonUrl || `${base}/contacts`
+      buttonUrl: ctx.cta?.buttonUrl ? resolveShowcaseTarget(ctx.cta.buttonUrl) : `${base}/#contacts`
     },
     HOME_SECTIONS: homepageSections,
     NAV: nav,
