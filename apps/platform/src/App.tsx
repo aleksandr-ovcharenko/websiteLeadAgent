@@ -692,29 +692,6 @@ function ForgeView() {
         />
       )}
 
-      {/* Topbar */}
-      <header className="bg-surface border-b border-border px-6 h-12 flex items-center justify-between sticky top-0 z-30">
-        <div className="flex items-center gap-2">
-          <div className="w-5 h-5 bg-success rounded-sm flex items-center justify-center">
-            <svg width="11" height="11" viewBox="0 0 11 11" fill="white">
-              <rect x="1" y="1" width="4" height="4" rx="0.5" />
-              <rect x="6" y="1" width="4" height="4" rx="0.5" />
-              <rect x="1" y="6" width="4" height="4" rx="0.5" />
-              <rect x="6" y="6" width="4" height="4" rx="0.5" />
-            </svg>
-          </div>
-          <span className="text-sm font-semibold text-text tracking-tight">WebsiteLeadAgent</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono bg-warning-subtle text-warning ring-1 ring-inset ring-warning-subtle px-2 py-0.5 rounded">
-            SUPER_ADMIN
-          </span>
-          <div className="w-7 h-7 rounded-full bg-surface-hover flex items-center justify-center text-[11px] font-medium text-text-muted">
-            A
-          </div>
-        </div>
-      </header>
-
       <div className="max-w-[1320px] mx-auto px-6 py-6">
         {/* Page heading */}
         <div className="flex items-start justify-between mb-6">

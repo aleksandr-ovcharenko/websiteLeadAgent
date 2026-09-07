@@ -1672,6 +1672,66 @@ function ProjectDetail({ slug }: { slug: string }) {
       </section>
     )
   }
+  const hasMedia = !!p.img || (p.gallery && p.gallery.length > 0)
+  // Pipeline placeholders are not customer-facing facts — omit them.
+  const PIPELINE_STATUS = /^(draft|in[-_ ]?progress|not[-_ ]?started|unknown|—|-)$/i
+  const meta = [p.category, p.location, PIPELINE_STATUS.test(String(p.status || '')) ? '' : p.status].filter(Boolean)
+  const related = PROJECTS.filter((x) => x.slug !== p.slug).slice(0, 3)
+
+  if (!hasMedia) {
+    // Text-led project detail — deliberately designed for content without
+    // photography; never fake media or reserve gallery space.
+    return (
+      <section id="projects" className="py-16 md:py-24 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
+        <div className="max-w-[900px] mx-auto px-6 md:px-10">
+          <a href={backHref('PROJECTS', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к объектам</a>
+          <article className="mt-10">
+            <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--brass)' }}>Объект</p>
+            <h1 className="text-3xl md:text-5xl font-bold leading-tight mb-5" style={{ ...GEO, color: 'var(--fg)' }}>{p.title}</h1>
+            {meta.length ? (
+              <p className="text-[12px] uppercase tracking-[0.14em] mb-8" style={{ color: 'var(--muted)' }}>{meta.join(' · ')}</p>
+            ) : null}
+            {p.excerpt ? <p className="text-lg md:text-xl leading-relaxed mb-6" style={{ color: 'var(--fg)' }}>{p.excerpt}</p> : null}
+            {p.content ? (
+              <div className="text-base leading-relaxed" style={{ color: 'var(--muted)', whiteSpace: 'pre-wrap' }}>{p.content}</div>
+            ) : null}
+            <div className="mt-10 pt-8 flex flex-wrap items-center gap-5" style={{ borderTop: '1px solid var(--border)' }}>
+              <a href={sectionHref('CONTACTS')} className="inline-flex items-center px-7 py-3.5 text-[11px] uppercase font-bold tracking-[0.18em]"
+                style={{ background: 'var(--brass)', color: 'var(--dark)' }}>
+                Обсудить ваш проект
+              </a>
+              <a href={collectionHref('PROJECTS')} className="text-sm font-medium group" style={{ color: 'var(--fg)' }}>
+                Все объекты <span className="transition-transform duration-200 group-hover:translate-x-1 inline-block">→</span>
+              </a>
+            </div>
+          </article>
+          {related.length ? (
+            <div className="mt-14 pt-10" style={{ borderTop: '1px solid var(--border)' }}>
+              <p className="text-[11px] uppercase tracking-[0.22em] mb-6" style={{ color: 'var(--muted)' }}>Другие проекты</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                {related.map((x, i) => (
+                  <a key={x.slug || x.id} href={projectHref(x.slug)} className="group block border" style={{ borderColor: 'var(--border)', background: 'var(--card-bg)' }}>
+                    <div className="overflow-hidden" style={{ aspectRatio: '4/3', background: 'var(--bg)' }}>
+                      {x.img ? (
+                        <img src={x.img} alt={x.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" />
+                      ) : (
+                        <NoImageTile title={x.title} num={String(i + 1).padStart(2, '0')} />
+                      )}
+                    </div>
+                    <div className="p-4">
+                      <span className="text-sm font-bold" style={{ ...GEO, color: 'var(--fg)' }}>{x.title}</span>
+                      <span className="block text-[10px] uppercase tracking-[0.16em] mt-1 group-hover:underline" style={{ color: 'var(--brass)' }}>Смотреть объект →</span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          ) : null}
+        </div>
+      </section>
+    )
+  }
+
   return (
     <section id="projects" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[900px] mx-auto px-6 md:px-10">
