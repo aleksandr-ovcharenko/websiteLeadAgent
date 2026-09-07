@@ -47,6 +47,7 @@ interface Site {
   stageLabel: string;
   previewToken: string;
   previewCaptured: string;
+  originalWebsiteUrl?: string | null;
   previewOutdated?: boolean;
   image: string;
   demoVariants: DemoVariant[];
@@ -394,13 +395,15 @@ function DetailPanel({
           >
             Open CMS
           </button>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={onOpenWebsite}
-              className="h-8 border border-border text-text text-xs rounded hover:bg-surface-raised transition-colors"
-            >
-              Open website
-            </button>
+          <div className={`grid gap-2 ${site.originalWebsiteUrl ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            {site.originalWebsiteUrl ? (
+              <button
+                onClick={onOpenWebsite}
+                className="h-8 border border-border text-text text-xs rounded hover:bg-surface-raised transition-colors"
+              >
+                Open website
+              </button>
+            ) : null}
             <button
               onClick={onOpenPreview}
               className="h-8 border border-border text-text text-xs rounded hover:bg-surface-raised transition-colors"
@@ -632,6 +635,12 @@ function ForgeView() {
     window.open(`/showcase/${site.previewToken}`, '_blank');
   }
 
+  // Canonical original website — comes from the lead's resolved URL via the
+  // platform API, never guessed from display text.
+  function openOriginal(site: Site) {
+    if (site.originalWebsiteUrl) window.open(site.originalWebsiteUrl, '_blank', 'noopener,noreferrer');
+  }
+
   async function deleteSite(id: string) {
     if (!confirm('Delete this site? This cannot be undone.')) return;
     const r = await fetch(`/api/platform/sites/${id}`, { method: 'DELETE', credentials: 'include' });
@@ -678,7 +687,7 @@ function ForgeView() {
           onClose={() => setDetailSite(null)}
           onOpenCMS={() => openCMS(detailSite)}
           onOpenPreview={() => openPreview(detailSite)}
-          onOpenWebsite={() => detailSite.domain && window.open(`https://${detailSite.domain}`, '_blank')}
+          onOpenWebsite={() => detailSite.originalWebsiteUrl && window.open(detailSite.originalWebsiteUrl, '_blank', 'noopener,noreferrer')}
           onDelete={() => deleteSite(detailSite.id)}
         />
       )}
@@ -996,6 +1005,17 @@ function ForgeView() {
                           >
                             Open CMS
                           </button>
+                          {site.originalWebsiteUrl ? (
+                            <a
+                              href={site.originalWebsiteUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              title="Original website"
+                              className="h-7 px-2.5 text-xs inline-flex items-center gap-1 border border-border text-text-muted rounded hover:bg-surface-raised transition-colors"
+                            >
+                              Original ↗
+                            </a>
+                          ) : null}
                           <button
                             onClick={() => openPreview(site)}
                             className="h-7 px-2.5 text-xs border border-border text-text-muted rounded hover:bg-surface-raised transition-colors"
@@ -1128,6 +1148,17 @@ function ForgeView() {
                         >
                           Open CMS
                         </button>
+                        {site.originalWebsiteUrl ? (
+                          <a
+                            href={site.originalWebsiteUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            title={`Original site — ${site.originalWebsiteUrl}`}
+                            className="h-7 px-2 text-xs inline-flex items-center gap-0.5 border border-border text-text-muted rounded hover:bg-surface-raised transition-colors"
+                          >
+                            Original ↗
+                          </a>
+                        ) : null}
                         <button
                           onClick={() => openPreview(site)}
                           className="h-7 px-2.5 text-xs border border-border text-text-muted rounded hover:bg-surface-raised transition-colors"

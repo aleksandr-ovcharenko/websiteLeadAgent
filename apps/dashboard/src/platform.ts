@@ -78,6 +78,7 @@ async function toPlatformSite(site: any): Promise<any> {
     attention,
     attentionAction,
     previewToken: preferred?.previewToken ?? site.previewToken,
+    originalWebsiteUrl: site.lead?.website || null,
     reviewStatus: (site.settings as any)?.reviewStatus || null,
     demoVariants: variants.map((v: any) => ({ id: v.id, name: v.name, templateId: v.templateId, previewToken: v.previewToken, isPreferred: v.isPreferred })),
     stageLabel
@@ -106,7 +107,7 @@ router.get('/api/hub/stats', requireSuperAdmin, async (_req: Request, res: Respo
 router.get('/api/platform/sites', async (_req: Request, res: Response) => {
   const sites = await prisma.site.findMany({
     include: {
-      lead: { select: { redesignStage: true } },
+      lead: { select: { redesignStage: true, website: true } },
       builds: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, createdAt: true } },
       demoVariants: true
     },

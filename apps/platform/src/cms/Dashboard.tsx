@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { Screen } from './types'
-import { IconExternal, IconPlus, IconChevronRight } from './icons'
+import { IconPlus, IconChevronRight } from './icons'
 import { Badge } from './ui'
 import { useStudio, formatDate } from './context'
 
@@ -60,11 +60,6 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
 
       <div className="bg-surface border border-border rounded flex items-center gap-0 mb-4 overflow-hidden divide-x divide-gray-100">
         <div className="flex items-center gap-2 px-4 py-2.5">
-          <span className="w-1.5 h-1.5 rounded-full bg-success flex-shrink-0" />
-          <span className="text-[12px] text-text-muted">Status</span>
-          <span className="text-[13px] font-semibold text-text">Active</span>
-        </div>
-        <div className="flex items-center gap-2 px-4 py-2.5">
           <span className="text-[12px] text-text-subtle">Template</span>
           <span className="text-[12px] font-medium text-text mono">{site?.templateId || '—'}</span>
         </div>
@@ -76,16 +71,7 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
           <span className="text-[12px] text-text-subtle">Last deploy</span>
           <span className="text-[12px] font-medium text-text">{site?.updatedAt ? formatDate(site.updatedAt) : '—'}</span>
         </div>
-        <div className="flex-1" />
-        <a
-          href={previewUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="flex items-center gap-1.5 px-4 py-2.5 text-[12px] text-accent hover:bg-success-subtle transition-colors font-medium"
-        >
-          <IconExternal size={12} />
-          Open preview
-        </a>
+                <div className="flex-1" />
       </div>
 
       <div className="grid grid-cols-[1fr_220px] gap-4">

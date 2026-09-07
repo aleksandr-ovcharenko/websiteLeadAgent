@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import type { Screen } from './types'
 import { StudioProvider, useStudio, type StudioUser } from './context'
 import Sidebar from './Sidebar'
-import TopBar from './TopBar'
 import Dashboard from './Dashboard'
 import { PagesList, PageEditor } from './Pages'
 import { ProjectsList, ProjectEditor } from './Projects'
@@ -70,8 +69,6 @@ export default function Studio({ siteId, user }: { siteId: string; user?: any })
         <Sidebar current={screen} onNavigate={navigate} />
 
         <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          <TopBar onNavigate={navigate} />
-
           <main
             id="cms-main"
             className={`flex-1 ${isFullHeight ? 'overflow-hidden flex flex-col' : 'overflow-y-auto'}`}
