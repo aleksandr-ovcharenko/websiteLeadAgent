@@ -237,6 +237,27 @@ Background events never change `selectedLeadId`.
 - A transient refetch/loading state is never grounds for changing selection.
 - Selection is stored as a stable `selectedLeadId`, never as a row index or
   transient object reference.
+- There is exactly ONE selection identity: `LeadSelectionStore.selectedId`
+  (`apps/platform/src/radar/selection.ts`). The rendered lead derives from
+  `currentLead(rows)` = fresh row by id, else the preserved snapshot. No
+  parallel `selectedLead` object state may be mutated independently.
+- Selection writes require an explicit user-intent source
+  (`USER_ROW_CLICK`, `USER_NAVIGATION`, `USER_CLEAR`, `INITIAL_DEEP_LINK`).
+  `LeadSelectionStore.select` throws on any other source — background code
+  calling it is a bug that fails loudly.
+
+## EVENT TARGET IS NOT UI SELECTION
+
+A background event or poll payload containing `leadId = B` means "update B's
+data". It never means "show B". `applyLeadData(items)` is the ONLY permitted
+background path: it patches the selected lead's snapshot when present and
+can never change `selectedId`.
+
+## NEVER FALL BACK TO FIRST ROW AFTER USER SELECTION
+
+List membership, pagination, or an incomplete refresh payload must never
+select `items[0]` or any other row. Absence from one list response does not
+mean the user chose another lead — keep `selectedId` and the snapshot.
 
 
 ## USER ACTION != BACKGROUND ACTION

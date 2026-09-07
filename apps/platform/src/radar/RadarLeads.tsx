@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../cms/api';
 import { Button } from '../cms/ui';
 import { OperationConsole } from './OperationConsole';
@@ -6,6 +6,8 @@ import RadarStats from './RadarStats';
 import RadarFilters, { Filters, PrimaryView, defaultFilters } from './RadarFilters';
 import LeadDetail from './LeadDetail';
 import { LeadScoreRing } from './RadarScoreRing';
+import { LeadSelectionStore } from './selection';
+import { mergeLeadsPreserveOrder } from './leadMerge';
 
 type Mode = 'all' | 'audit' | 'selected';
 
@@ -46,8 +48,18 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
   const [view, setView] = useState<PrimaryView>(initial.view);
   const [filters, setFilters] = useState<Filters>(initial.filters);
   const [stats, setStats] = useState<any>(null);
-  const [selectedLead, setSelectedLead] = useState<any | null>(null);
-  const [selectedLeadId, setSelectedLeadId] = useState<string | null>(null);
+  // ONE authoritative selection identity. Background data can only patch
+  // lead records — it can never change which lead the user is viewing.
+  const selectionRef = useRef<LeadSelectionStore | null>(null);
+  if (!selectionRef.current) selectionRef.current = new LeadSelectionStore();
+  const selection = selectionRef.current;
+  const [, setSelectionTick] = useState(0);
+  const selectLead = (lead: any | null, source: Parameters<LeadSelectionStore['select']>[1]) => {
+    selection.select(lead, source);
+    setSelectionTick((t) => t + 1);
+  };
+  const selectedLeadId = selection.selectedId;
+  const selectedLead = selection.currentLead(leads);
   const [activeRunId, setActiveRunId] = useState<string | null>(null);
   const [activeTitle, setActiveTitle] = useState('');
   const [qualifying, setQualifying] = useState(false);
@@ -72,12 +84,13 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
     try {
       const res = await api.getLeads(getParams());
       const items = res.items || [];
-      setLeads((prev) => (isBackground && prev.length > 0 && items.length === 0) ? prev : items);
+      // A transient empty background payload must not flash an empty table.
+      setLeads((prev) => (isBackground && prev.length > 0 && items.length === 0) ? prev
+        : isBackground ? mergeLeadsPreserveOrder(prev, items) : items);
       setError(null);
-      if (selectedLeadId) {
-        const updated = items.find((l: any) => l.id === selectedLeadId);
-        if (updated) setSelectedLead(updated);
-      }
+      // Data-only update: refreshes the selected lead's snapshot if present.
+      // Can never change selection identity.
+      selection.applyLeadData(items);
     } catch (e: any) {
       setError(e.message || 'Failed to load leads');
     } finally {
@@ -86,11 +99,14 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
     }
   };
 
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+
   useEffect(() => {
     let mounted = true;
-    const load = async () => { if (mounted) await refresh(false); };
+    const load = async () => { if (mounted) await refreshRef.current(false); };
     load();
-    const interval = setInterval(() => { if (mounted) refresh(true); }, 3000);
+    const interval = setInterval(() => { if (mounted) refreshRef.current(true); }, 3000);
     return () => { mounted = false; clearInterval(interval); };
   }, [view, discoveryRunId, filters.q, filters.websiteStatus, filters.qualificationStatus, filters.manual, filters.generationStatus, filters.sort]);
 
@@ -141,14 +157,14 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
   function reviewLead(status: string, note?: string) {
     if (!selectedLead) return Promise.reject(new Error('No lead selected'));
     return api.reviewLead(selectedLead.id, status, note)
-      .then(() => refresh(false))
+      .then(() => refreshRef.current(true))
       .catch((e) => { setError(e.message || 'Review failed'); throw e; });
   }
 
   function selectForRedesign(selected: boolean) {
     if (!selectedLead) return Promise.reject(new Error('No lead selected'));
     return api.setRedesignStage(selectedLead.id, selected ? 'SELECTED_FOR_REDESIGN' : 'NOT_SELECTED')
-      .then(() => refresh(false))
+      .then(() => refreshRef.current(true))
       .catch((e) => { setError(e.message || 'Select failed'); throw e; });
   }
 
@@ -195,7 +211,7 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
               </thead>
               <tbody className="divide-y divide-border">
                 {leads.map((lead) => (
-                  <tr data-testid="radar-lead-row" key={lead.id} className="hover:bg-surface-raised cursor-pointer" onClick={() => { setSelectedLead(lead); setSelectedLeadId(lead.id); }}>
+                  <tr data-testid="radar-lead-row" key={lead.id} className="hover:bg-surface-raised cursor-pointer" onClick={() => selectLead(lead, 'USER_ROW_CLICK')}>
                     <td className="px-3 py-2">
                       <div className="text-text font-medium truncate max-w-[180px]">{lead.companyName}</div>
                       <div className="text-[10px] text-text-subtle font-mono">{lead.categories?.[0] || '—'}</div>
@@ -243,7 +259,7 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
       {selectedLead && (
         <LeadDetail
           lead={selectedLead}
-          onClose={() => { setSelectedLead(null); setSelectedLeadId(null); }}
+          onClose={() => selectLead(null, 'USER_CLEAR')}
           onStart={(op, input) => startOperation(op, input, selectedLead)}
           onReview={reviewLead}
           onSelect={selectForRedesign}
