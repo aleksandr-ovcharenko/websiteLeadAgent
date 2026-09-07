@@ -33,7 +33,10 @@ interface Site {
   template: string;
   pages: number;
   projects: number;
+  products: number;
+  services: number;
   news: number;
+  reviewStatus?: string | null;
   lastUpdated: string;
   created: string;
   lastBuild: string;
@@ -60,6 +63,25 @@ const TEMPLATES = [
   "roofing-clean-v1",
   "residential-warm-v1",
 ];
+
+const REVIEW_META: Record<string, { label: string; cls: string }> = {
+  GENERATING: { label: "Generating", cls: "bg-stone-50 text-stone-500 ring-stone-200" },
+  VALIDATION: { label: "Validation", cls: "bg-blue-50 text-blue-600 ring-blue-100" },
+  AWAITING_HUMAN_REVIEW: { label: "Awaiting review", cls: "bg-amber-50 text-amber-700 ring-amber-200" },
+  DEMO_READY: { label: "Demo ready", cls: "bg-emerald-50 text-emerald-700 ring-emerald-100" },
+  NEEDS_ATTENTION: { label: "Needs attention", cls: "bg-red-50 text-red-600 ring-red-200" },
+};
+
+function ReviewBadge({ reviewStatus, sm }: { reviewStatus?: string | null; sm?: boolean }) {
+  if (!reviewStatus) return null;
+  const m = REVIEW_META[reviewStatus];
+  if (!m) return null;
+  return (
+    <span className={`inline-flex items-center rounded ring-1 ring-inset font-mono font-medium ${sm ? "px-1.5 py-0.5 text-[10px]" : "px-2 py-0.5 text-[11px]"} ${m.cls}`}>
+      {m.label}
+    </span>
+  );
+}
 
 const STATUS_META: Record<Status, { label: string; cls: string }> = {
   DRAFT: { label: "Draft", cls: "bg-stone-100 text-stone-500 ring-stone-200" },
@@ -423,6 +445,8 @@ function CreateSiteModal({
       status: "DRAFT",
       template: form.template,
       pages: 0,
+      products: 0,
+      services: 0,
       projects: 0,
       news: 0,
       lastUpdated: "Just now",
@@ -434,6 +458,7 @@ function CreateSiteModal({
       mediaCount: 0,
       previewCaptured: "—",
       image: IMG("1551038247-3d9af20df552"),
+      demoVariants: [],
     });
     onClose();
   }
@@ -616,6 +641,18 @@ function ForgeView() {
     }
     setSites((s) => s.filter((x) => x.id !== id));
     setDetailSite((current) => (current?.id === id ? null : current));
+  }
+
+  async function reviewSite(id: string, status: string) {
+    const r = await fetch(`/api/platform/sites/${id}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ status }),
+    });
+    if (!r.ok) return;
+    setSites((s) => s.map((x) => (x.id === id ? { ...x, reviewStatus: status } : x)));
+    setDetailSite((d) => (d?.id === id ? { ...d, reviewStatus: status } : d));
   }
 
   function archiveSite(id: string) {
@@ -936,13 +973,16 @@ function ForgeView() {
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-2.5"><StatusBadge status={site.status} label={site.stageLabel} /></td>
+                      <td className="px-4 py-2.5">
+                        <StatusBadge status={site.status} label={site.stageLabel} />
+                        <div className="mt-1"><ReviewBadge reviewStatus={site.reviewStatus} /></div>
+                      </td>
                       <td className="px-4 py-2.5">
                         <span className="font-mono text-xs text-stone-500">{site.template}</span>
                       </td>
                       <td className="px-4 py-2.5">
                         <span className="text-xs text-stone-500 tabular-nums font-mono whitespace-nowrap">
-                          Pg {site.pages} · Pr {site.projects} · N {site.news}
+                          Pg {site.pages} · Sv {site.services} · Pr {site.projects} · Pd {site.products} · N {site.news}
                         </span>
                       </td>
                       <td className="px-4 py-2.5">
@@ -962,6 +1002,22 @@ function ForgeView() {
                           >
                             Preview
                           </button>
+                          {site.reviewStatus === 'AWAITING_HUMAN_REVIEW' && (
+                            <>
+                              <button
+                                onClick={() => reviewSite(site.id, 'DEMO_READY')}
+                                className="h-7 px-2.5 text-xs bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors font-medium"
+                              >
+                                Approve
+                              </button>
+                              <button
+                                onClick={() => reviewSite(site.id, 'NEEDS_ATTENTION')}
+                                className="h-7 px-2.5 text-xs border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors"
+                              >
+                                Needs changes
+                              </button>
+                            </>
+                          )}
                           <MoreMenu
                             onSettings={() => setDetailSite(site)}
                             onRebuild={() => {}}
@@ -1033,9 +1089,29 @@ function ForgeView() {
 
                       <div className="flex items-center justify-between text-[11px] text-stone-400">
                         <span className="font-mono tabular-nums">
-                          Pg {site.pages} · Pr {site.projects} · N {site.news}
+                          Pg {site.pages} · Sv {site.services} · Pr {site.projects} · Pd {site.products} · N {site.news}
                         </span>
                         <span className="truncate ml-2">{site.lastUpdated}</span>
+                      </div>
+
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <ReviewBadge reviewStatus={site.reviewStatus} sm />
+                        {site.reviewStatus === 'AWAITING_HUMAN_REVIEW' && (
+                          <>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); reviewSite(site.id, 'DEMO_READY'); }}
+                              className="h-6 px-2 text-[10px] bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors font-medium"
+                            >
+                              Approve
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); reviewSite(site.id, 'NEEDS_ATTENTION'); }}
+                              className="h-6 px-2 text-[10px] border border-red-200 text-red-600 rounded hover:bg-red-50 transition-colors"
+                            >
+                              Needs changes
+                            </button>
+                          </>
+                        )}
                       </div>
 
                       {site.attention && (

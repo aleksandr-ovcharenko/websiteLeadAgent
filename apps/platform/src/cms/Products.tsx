@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { Screen } from './types'
-import { IconEdit, IconTrash, IconMore, IconChevronLeft, IconPlus, IconGrip, IconCheck, IconUpload, IconEye } from './icons'
+import { IconEdit, IconTrash, IconMore, IconChevronLeft, IconPlus, IconGrip, IconCheck, IconUpload, IconEye, IconX } from './icons'
 import { Badge, Button, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
 import { useStudio, formatDate } from './context'
 import { api, uiStatus, apiStatus } from './api'
@@ -86,8 +86,10 @@ interface ProductEditorProps {
   onNavigate: (s: Screen) => void
 }
 
+const mediaUrlOf = (siteId: string, m: any) => m ? `/site-media/${siteId}/${m.filename}` : ''
+
 export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
-  const { siteId, products, refresh, site } = useStudio()
+  const { siteId, products, refresh, site, media } = useStudio()
   const isNew = !productId || productId === 'new'
   const item = isNew ? null : products.find((p: any) => p.id === productId)
 
@@ -101,6 +103,7 @@ export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
   const [orderNum, setOrderNum] = useState('')
   const [content, setContent] = useState('')
   const [imageId, setImageId] = useState('')
+  const [galleryIds, setGalleryIds] = useState<string[]>([])
   const [seoTitle, setSeoTitle] = useState('')
   const [seoDesc, setSeoDesc] = useState('')
   const [saveState, setSaveState] = useState<SaveState>('saved')
@@ -113,8 +116,9 @@ export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
       setAttrs(attrsToText(item.attributes)); setStatus(uiStatus(item.status)); setOrderNum(String(item.sortOrder || 0))
       setContent((item.blocks || []).map((b: any) => b.content || '').join('\n\n'))
       setImageId(item.coverImageId || ''); setSeoTitle(item.seoTitle || ''); setSeoDesc(item.seoDescription || '')
+      setGalleryIds(((item.productMedia || []).map((pm: any) => pm.mediaId || pm.media?.id).filter(Boolean)))
     } else {
-      setTitle(''); setSlug(''); setSummary(''); setCategory(''); setPrice(''); setAttrs(''); setStatus('draft'); setOrderNum(''); setContent(''); setImageId(''); setSeoTitle(''); setSeoDesc('')
+      setTitle(''); setSlug(''); setSummary(''); setCategory(''); setPrice(''); setAttrs(''); setStatus('draft'); setOrderNum(''); setContent(''); setImageId(''); setGalleryIds([]); setSeoTitle(''); setSeoDesc('')
     }
     setSaveState('saved')
   }, [productId, item])
@@ -126,19 +130,27 @@ export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
   const handleSave = async (publish = false) => {
     setSaveState('saving')
     try {
-      const payload: any = { title, slug, summary, category, price, attributes: textToAttrs(attrs), blocks: blocksFromContent(content), coverImageId: imageId || null, sortOrder: Number(orderNum) || 0, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(status) }
+      const payload: any = { title, slug, summary, category, price, attributes: textToAttrs(attrs), blocks: blocksFromContent(content), coverImageId: imageId || null, gallery: galleryIds, sortOrder: Number(orderNum) || 0, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(status) }
       if (isNew) { await api.createProduct(siteId, payload); show(publish ? 'Product published' : 'Product saved') }
       else { await api.updateProduct(siteId, item!.id, payload); show(publish ? 'Product updated' : 'Product saved') }
       await refresh(); onNavigate('products')
     } catch (e: any) { show(e.message || 'Failed to save'); setSaveState('unsaved') }
   }
 
-  const upload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const upload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'cover' | 'gallery' = 'cover') => {
     const file = e.target.files?.[0]; if (!file) return
     setUploading(true)
-    try { const { media } = await api.uploadMedia(siteId, file); setImageId(media.id); markDirty(); show('Image uploaded') } catch (e: any) { show(e.message) }
+    try {
+      const { media: m } = await api.uploadMedia(siteId, file)
+      if (target === 'cover') setImageId(m.id)
+      else setGalleryIds(g => [...g, m.id])
+      markDirty(); show('Image uploaded')
+    } catch (e: any) { show(e.message) }
     setUploading(false)
   }
+
+  const coverMedia = (media || []).find((m: any) => m.id === imageId)
+  const galleryMedia = galleryIds.map((id) => (media || []).find((m: any) => m.id === id)).filter(Boolean)
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -171,10 +183,45 @@ export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
             <div>
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Cover image</p>
               <div className="bg-white border border-gray-200 rounded p-4">
-                {imageId && <p className="text-[12px] text-gray-600 mb-2 mono">{imageId} <button onClick={() => { setImageId(''); markDirty() }} className="ml-2 text-red-500">Remove</button></p>}
-                <label className="h-[120px] border border-dashed border-gray-300 rounded flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-gray-50 hover:border-[#16a34a] hover:text-[#16a34a] cursor-pointer transition-colors">
-                  <input type="file" accept="image/*" onChange={upload} className="hidden" />
-                  {uploading ? 'Uploading…' : <><IconUpload size={18} /><span className="text-[12px]">Click to upload or drag image here</span><span className="text-[11px] text-gray-300">JPG, PNG — recommended 800×600</span></>}
+                {coverMedia ? (
+                  <div className="mb-3">
+                    <img src={mediaUrlOf(siteId, coverMedia)} alt={coverMedia.alt || title} className="w-full max-h-[220px] object-cover rounded border border-gray-100" />
+                    <div className="flex items-center gap-3 mt-2">
+                      <label className="text-[12px] text-[#16a34a] font-medium cursor-pointer hover:underline">
+                        <input type="file" accept="image/*" onChange={(e) => upload(e, 'cover')} className="hidden" />Replace
+                      </label>
+                      <button onClick={() => { setImageId(''); markDirty() }} className="text-[12px] text-red-500 hover:underline">Remove</button>
+                    </div>
+                  </div>
+                ) : (
+                  <label className="h-[120px] border border-dashed border-gray-300 rounded flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-gray-50 hover:border-[#16a34a] hover:text-[#16a34a] cursor-pointer transition-colors">
+                    <input type="file" accept="image/*" onChange={(e) => upload(e, 'cover')} className="hidden" />
+                    {uploading ? 'Uploading…' : <><IconUpload size={18} /><span className="text-[12px]">Click to upload or drag image here</span><span className="text-[11px] text-gray-300">JPG, PNG — recommended 800×600</span></>}
+                  </label>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Gallery <span className="text-gray-300 normal-case">({galleryMedia.length})</span></p>
+              <div className="bg-white border border-gray-200 rounded p-4">
+                {galleryMedia.length ? (
+                  <div className="grid grid-cols-3 gap-2 mb-3">
+                    {galleryMedia.map((m: any, i: number) => (
+                      <div key={m.id} className="relative group/g">
+                        <img src={mediaUrlOf(siteId, m)} alt={m.alt || `${title} ${i + 1}`} className="w-full h-20 object-cover rounded border border-gray-100" />
+                        <button
+                          onClick={() => { setGalleryIds(g => g.filter((_, j) => j !== i)); markDirty() }}
+                          className="absolute top-1 right-1 w-5 h-5 bg-white/90 rounded-full text-gray-500 hover:text-red-500 opacity-0 group-hover/g:opacity-100 transition-opacity flex items-center justify-center"
+                          title="Remove from gallery"
+                        ><IconX size={11} /></button>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+                <label className="h-[64px] border border-dashed border-gray-300 rounded flex items-center justify-center gap-2 text-gray-400 hover:bg-gray-50 hover:border-[#16a34a] hover:text-[#16a34a] cursor-pointer transition-colors">
+                  <input type="file" accept="image/*" onChange={(e) => upload(e, 'gallery')} className="hidden" />
+                  {uploading ? 'Uploading…' : <><IconUpload size={14} /><span className="text-[12px]">{galleryMedia.length ? 'Add image' : 'Click to add gallery images'}</span></>}
                 </label>
               </div>
             </div>

@@ -16,7 +16,7 @@ import Contacts from './Contacts'
 import SiteSettings from './SiteSettings'
 import Users from './Users'
 
-const EDITOR_SCREENS: Screen[] = ['page-editor', 'project-editor', 'news-editor', 'service-editor', 'vacancy-editor']
+const EDITOR_SCREENS: Screen[] = ['page-editor', 'project-editor', 'news-editor', 'service-editor', 'product-editor', 'vacancy-editor']
 
 const SCREEN_LABELS: Record<Screen, string> = {
   dashboard: 'Dashboard',
@@ -28,6 +28,8 @@ const SCREEN_LABELS: Record<Screen, string> = {
   'news-editor': 'News Editor',
   services: 'Services',
   'service-editor': 'Service Editor',
+  products: 'Products',
+  'product-editor': 'Product Editor',
   vacancies: 'Vacancies',
   'vacancy-editor': 'Vacancy Editor',
   media: 'Media',

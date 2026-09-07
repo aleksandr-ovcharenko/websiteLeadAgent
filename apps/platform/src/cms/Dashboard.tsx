@@ -12,20 +12,22 @@ const QUICK_ACTIONS: { label: string; screen: Screen }[] = [
   { label: 'Новая страница', screen: 'page-editor' },
   { label: 'Новость', screen: 'news-editor' },
   { label: 'Новый объект', screen: 'project-editor' },
+  { label: 'Новый товар', screen: 'product-editor' },
   { label: 'Загрузить медиа', screen: 'media' },
 ]
 
 export default function Dashboard({ onNavigate }: DashboardProps) {
-  const { site, settings, pages, news, projects, services, media, vacancies, users, loading, error, refresh } = useStudio()
+  const { site, settings, pages, news, projects, services, products, media, vacancies, users, loading, error, refresh } = useStudio()
 
   const counts = useMemo(() => [
     { label: 'Pages', count: pages.length, screen: 'pages' as Screen },
     { label: 'Projects', count: projects.length, screen: 'projects' as Screen },
     { label: 'News', count: news.length, screen: 'news' as Screen },
     { label: 'Services', count: services.length, screen: 'services' as Screen },
+    { label: 'Products', count: products.length, screen: 'products' as Screen },
     { label: 'Vacancies', count: vacancies.length, screen: 'vacancies' as Screen },
     { label: 'Media files', count: media.length, screen: 'media' as Screen },
-  ], [pages, projects, news, services, vacancies, media])
+  ], [pages, projects, news, services, products, vacancies, media])
 
   const recent = useMemo(() => {
     const all = [
@@ -33,12 +35,13 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
       ...projects.map(p => ({ type: 'Project', content: p.title, status: p.status, updatedAt: p.updatedAt, user: 'Editor' })),
       ...news.map(n => ({ type: 'News', content: n.title, status: n.status, updatedAt: n.updatedAt, user: 'Editor' })),
       ...services.map(s => ({ type: 'Service', content: s.title, status: s.status, updatedAt: s.updatedAt, user: 'Editor' })),
+      ...products.map(p => ({ type: 'Product', content: p.title, status: p.status, updatedAt: p.updatedAt, user: 'Editor' })),
       ...vacancies.map(v => ({ type: 'Vacancy', content: v.title, status: v.status, updatedAt: v.updatedAt, user: 'Editor' })),
     ].filter(i => i.updatedAt)
       .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
       .slice(0, 10)
     return all
-  }, [pages, projects, news, services, vacancies])
+  }, [pages, projects, news, services, products, vacancies])
 
   const previewUrl = site?.previewToken ? `/showcase/${site.previewToken}` : '#'
 

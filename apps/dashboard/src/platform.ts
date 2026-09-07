@@ -38,11 +38,12 @@ function computeAttention(site: any, screenshot: any) {
 }
 
 async function toPlatformSite(site: any): Promise<any> {
-  const [pages, projects, news, services, media, screenshot, build] = await Promise.all([
+  const [pages, projects, news, services, products, media, screenshot, build] = await Promise.all([
     prisma.page.count({ where: { siteId: site.id } }),
     prisma.project.count({ where: { siteId: site.id } }),
     prisma.newsPost.count({ where: { siteId: site.id } }),
     prisma.service.count({ where: { siteId: site.id } }),
+    prisma.product.count({ where: { siteId: site.id } }),
     prisma.media.count({ where: { siteId: site.id } }),
     prisma.sitePreviewScreenshot.findUnique({ where: { siteId: site.id } }),
     prisma.siteBuild.findFirst({ where: { siteId: site.id }, orderBy: { createdAt: 'desc' } })
@@ -63,6 +64,7 @@ async function toPlatformSite(site: any): Promise<any> {
     template: site.templateId,
     pages,
     projects,
+    products,
     news,
     services,
     mediaCount: media,
@@ -76,6 +78,7 @@ async function toPlatformSite(site: any): Promise<any> {
     attention,
     attentionAction,
     previewToken: preferred?.previewToken ?? site.previewToken,
+    reviewStatus: (site.settings as any)?.reviewStatus || null,
     demoVariants: variants.map((v: any) => ({ id: v.id, name: v.name, templateId: v.templateId, previewToken: v.previewToken, isPreferred: v.isPreferred })),
     stageLabel
   };
@@ -187,6 +190,30 @@ router.post('/api/platform/sites/:siteId/screenshot', async (req: Request, res: 
   if (!site) { res.status(404).json({ error: 'not_found' }); return; }
   const { url } = await captureSitePreview(site as any, prisma);
   res.json({ ok: true, url });
+});
+
+// Human review transitions — the product workflow for generation approval.
+// SITE STATUS (ACTIVE/DRAFT) stays separate; this only moves reviewStatus.
+const REVIEW_TRANSITIONS: Record<string, string[]> = {
+  AWAITING_HUMAN_REVIEW: ['DEMO_READY', 'NEEDS_ATTENTION'],
+  NEEDS_ATTENTION: ['AWAITING_HUMAN_REVIEW'],
+  GENERATING: [],
+  VALIDATION: ['AWAITING_HUMAN_REVIEW'],
+  DEMO_READY: ['NEEDS_ATTENTION'],
+};
+router.post('/api/platform/sites/:siteId/review', requireSuperAdmin, async (req: Request, res: Response) => {
+  const site = await prisma.site.findUnique({ where: { id: String(req.params.siteId) } });
+  if (!site) { res.status(404).json({ error: 'not_found' }); return; }
+  const to = String(req.body?.status || '');
+  const current = (site.settings as any)?.reviewStatus || 'GENERATING';
+  const allowed = REVIEW_TRANSITIONS[current] || [];
+  if (!allowed.includes(to)) {
+    res.status(409).json({ error: 'invalid_transition', from: current, allowed });
+    return;
+  }
+  const settings = { ...(site.settings as any || {}), reviewStatus: to, reviewedAt: new Date().toISOString() };
+  await prisma.site.update({ where: { id: site.id }, data: { settings } });
+  res.json({ ok: true, reviewStatus: to });
 });
 
 router.get('/site-screenshots/:siteId/preview.png', async (req: Request, res: Response) => {

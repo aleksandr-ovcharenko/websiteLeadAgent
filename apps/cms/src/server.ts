@@ -241,23 +241,30 @@ app.delete('/api/cms/sites/:siteId/services/:serviceId', requireSiteAccess('site
 // Products — catalogue entities are first-class, independently editable
 app.post('/api/cms/sites/:siteId/products', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
   const { siteId } = req.params;
-  const { title, slug, summary, attributes, blocks, coverImageId, category, price, status, sortOrder, seoTitle, seoDescription } = req.body;
+  const { title, slug, summary, attributes, blocks, coverImageId, category, price, status, sortOrder, seoTitle, seoDescription, gallery } = req.body;
   const s = slug || createSlug(title);
   const product = await (prisma as any).product.create({
     data: { siteId, title, slug: s, summary, attributes: attributes ?? {}, blocks: blocks ?? [], coverImageId: coverImageId || null, category, price, sortOrder: sortOrder ?? 0, status: status ?? 'DRAFT', seoTitle, seoDescription, sourceType: 'MANUAL', publishedAt: status === 'PUBLISHED' ? new Date() : null }
   });
+  if (Array.isArray(gallery)) {
+    await (prisma as any).productMedia.createMany({ data: gallery.filter((m: string) => m).map((mediaId: string, i: number) => ({ productId: product.id, mediaId, sortOrder: i })) });
+  }
   res.json({ ok: true, product });
 });
 
 app.put('/api/cms/sites/:siteId/products/:productId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
   const { siteId, productId } = req.params;
-  const { title, slug, summary, attributes, blocks, coverImageId, category, price, status, sortOrder, seoTitle, seoDescription } = req.body;
+  const { title, slug, summary, attributes, blocks, coverImageId, category, price, status, sortOrder, seoTitle, seoDescription, gallery } = req.body;
   const data: any = { manualModifiedAt: new Date() };
   for (const [k, v] of Object.entries({ title, slug, summary, attributes, blocks, coverImageId, category, price, sortOrder, seoTitle, seoDescription })) {
     if (v !== undefined) data[k] = v;
   }
   if (status !== undefined) { data.status = status; if (status === 'PUBLISHED') data.publishedAt = new Date(); }
   const product = await (prisma as any).product.update({ where: { id: productId, siteId }, data });
+  if (Array.isArray(gallery)) {
+    await (prisma as any).productMedia.deleteMany({ where: { productId } });
+    await (prisma as any).productMedia.createMany({ data: gallery.filter((m: string) => m).map((mediaId: string, i: number) => ({ productId, mediaId, sortOrder: i })) });
+  }
   res.json({ ok: true, product });
 });
 

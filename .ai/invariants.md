@@ -731,3 +731,19 @@ an empty row — the entire label+value row is omitted.
 The Hub/Forge thumbnail URL must encode the preferred variant + capture time
 (?v=variantId-timestamp) and the screenshot endpoint must be no-cache.
 A regenerated preferred variant can never display a stale screenshot.
+
+### FIRST-CLASS CMS ENTITIES ARE FIRST-CLASS EVERYWHERE
+
+If an entity type is supported by the CMS, it must participate consistently
+in: listing, editing, dashboard counts, recent changes, Forge content summary,
+permissions, generation import, and Showcase rendering. Do not implement an
+entity type only on one screen.
+
+### HUMAN REVIEW IS A PRODUCT WORKFLOW
+
+AWAITING_HUMAN_REVIEW is not an internal script state. A human reviewer must
+be able to inspect and approve/reject the generation from the product UI
+(Forge: Awaiting review → Approve / Needs changes). Site status
+(Active/Draft) and generation review status (Generating/Validation/
+Awaiting human review/Demo ready/Needs attention) are separate concepts and
+are never conflated.

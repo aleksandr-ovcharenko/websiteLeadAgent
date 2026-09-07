@@ -295,7 +295,7 @@ export function constructionModernV1(ctx: RenderContext): string {
   }));
 
   const dynamicSections = ((ctx as any).dynamicSections || (ctx.theme as any)?.dynamicSections || []).map((d: any) => ({
-    kind: d.kind, heading: d.heading, items: d.items || []
+    kind: d.kind, heading: d.heading, cta: d.cta, items: d.items || []
   }));
 
   const news = (ctx.news || []).map((n) => ({
