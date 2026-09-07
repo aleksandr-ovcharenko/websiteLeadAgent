@@ -102,12 +102,12 @@ function TreeRow({ item, depth, onChange, onToggle, onDelete, onAddChild, onMove
 
   return (
     <div className="flex flex-col">
-      <div className="flex items-center gap-2 px-4 py-2 border-b border-gray-100 hover:bg-gray-50/60" style={{ paddingLeft: `${16 + depth * 24}px` }}>
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-border hover:bg-surface-raised/60" style={{ paddingLeft: `${16 + depth * 24}px` }}>
         {item.children.length > 0 ? (
-          <button onClick={() => setExpanded(!expanded)} className="text-gray-400 hover:text-gray-600">{expanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}</button>
+          <button onClick={() => setExpanded(!expanded)} className="text-text-subtle hover:text-text-muted">{expanded ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}</button>
         ) : <span className="w-4" />}
         <Input value={item.title} onChange={v => onChange(item.id, { title: v })} placeholder="Label" className="flex-1 min-w-0" />
-        <select value={item.targetType} onChange={e => onTypeChange(e.target.value as MenuTreeItem['targetType'])} className="h-8 px-2 border border-gray-300 rounded text-[12px] bg-white w-[120px]">
+        <select value={item.targetType} onChange={e => onTypeChange(e.target.value as MenuTreeItem['targetType'])} className="h-8 px-2 border border-border rounded text-[12px] bg-surface w-[120px]">
           <option value="HOME">Home</option>
           <option value="HOME_SECTION">Section</option>
           <option value="COLLECTION">Collection</option>
@@ -117,11 +117,11 @@ function TreeRow({ item, depth, onChange, onToggle, onDelete, onAddChild, onMove
           <option value="EXTERNAL_URL">External</option>
         </select>
         {item.targetType === 'HOME_SECTION' || item.targetType === 'COLLECTION' ? (
-          <select value={item.target} onChange={e => onChange(item.id, { target: e.target.value })} className="h-8 px-2 border border-gray-300 rounded text-[12px] bg-white w-[120px]">
+          <select value={item.target} onChange={e => onChange(item.id, { target: e.target.value })} className="h-8 px-2 border border-border rounded text-[12px] bg-surface w-[120px]">
             {SECTION_KEYS.map(k => <option key={k} value={k}>{k}</option>)}
           </select>
         ) : item.targetType === 'PAGE' ? (
-          <select value={item.pageId} onChange={e => onPageChange(e.target.value)} className="h-8 px-2 border border-gray-300 rounded text-[12px] bg-white w-[120px]">
+          <select value={item.pageId} onChange={e => onPageChange(e.target.value)} className="h-8 px-2 border border-border rounded text-[12px] bg-surface w-[120px]">
             {pages.map((p: any) => <option key={p.id} value={p.id}>{p.title}</option>)}
           </select>
         ) : item.targetType === 'CUSTOM_URL' || item.targetType === 'EXTERNAL_URL' ? (
@@ -131,18 +131,18 @@ function TreeRow({ item, depth, onChange, onToggle, onDelete, onAddChild, onMove
         ) : (
           <span className="w-40" />
         )}
-        <div className="flex items-center gap-1 text-[10px] text-gray-500">
+        <div className="flex items-center gap-1 text-[10px] text-text-muted">
           <label className="cursor-pointer" title="Header"><input type="checkbox" checked={item.showInHeader} onChange={e => onChange(item.id, { showInHeader: e.target.checked })} className="mr-0.5" />H</label>
           <label className="cursor-pointer" title="Footer"><input type="checkbox" checked={item.showInFooter} onChange={e => onChange(item.id, { showInFooter: e.target.checked })} className="mr-0.5" />F</label>
           <label className="cursor-pointer" title="Homepage"><input type="checkbox" checked={item.showOnHomepage} onChange={e => onChange(item.id, { showOnHomepage: e.target.checked })} className="mr-0.5" />HP</label>
         </div>
-        <button onClick={() => onToggle(item.id)} className="text-gray-400 hover:text-gray-700">{item.isVisible ? <IconEye size={14} /> : <IconEyeOff size={14} />}</button>
-        <button onClick={() => onMove(item.id, 'up')} className="text-gray-400 hover:text-gray-700 text-[10px]">▲</button>
-        <button onClick={() => onMove(item.id, 'down')} className="text-gray-400 hover:text-gray-700 text-[10px]">▼</button>
-        <button onClick={() => onMove(item.id, 'left')} className="text-gray-400 hover:text-gray-700 text-[10px]">←</button>
-        <button onClick={() => onMove(item.id, 'right')} className="text-gray-400 hover:text-gray-700 text-[10px]">→</button>
-        <button onClick={() => onAddChild(item.id)} className="text-gray-400 hover:text-[#16a34a]"><IconPlus size={14} /></button>
-        <button onClick={() => onDelete(item.id)} className="text-gray-400 hover:text-red-500"><IconTrash size={14} /></button>
+        <button onClick={() => onToggle(item.id)} className="text-text-subtle hover:text-text">{item.isVisible ? <IconEye size={14} /> : <IconEyeOff size={14} />}</button>
+        <button onClick={() => onMove(item.id, 'up')} className="text-text-subtle hover:text-text text-[10px]">▲</button>
+        <button onClick={() => onMove(item.id, 'down')} className="text-text-subtle hover:text-text text-[10px]">▼</button>
+        <button onClick={() => onMove(item.id, 'left')} className="text-text-subtle hover:text-text text-[10px]">←</button>
+        <button onClick={() => onMove(item.id, 'right')} className="text-text-subtle hover:text-text text-[10px]">→</button>
+        <button onClick={() => onAddChild(item.id)} className="text-text-subtle hover:text-accent"><IconPlus size={14} /></button>
+        <button onClick={() => onDelete(item.id)} className="text-text-subtle hover:text-danger"><IconTrash size={14} /></button>
       </div>
       {expanded && item.children.map(child => (
         <TreeRow key={child.id} item={child} depth={depth + 1} onChange={onChange} onToggle={onToggle} onDelete={onDelete} onAddChild={onAddChild} onMove={onMove} />
@@ -228,8 +228,8 @@ export default function NavEditor({ onNavigate }: NavEditorProps) {
     <div className="p-5 max-w-[900px]">
       <div className="flex items-center justify-between mb-4">
         <div>
-          <h1 className="text-[15px] font-semibold text-gray-900">Navigation</h1>
-          <p className="text-[12px] text-gray-400 mt-0.5">Manage site menu and submenus</p>
+          <h1 className="text-[15px] font-semibold text-text">Navigation</h1>
+          <p className="text-[12px] text-text-subtle mt-0.5">Manage site menu and submenus</p>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" onClick={handleAddRoot}><IconPlus size={12} />Add menu item</Button>
@@ -237,8 +237,8 @@ export default function NavEditor({ onNavigate }: NavEditorProps) {
         </div>
       </div>
 
-      <div className="bg-white border border-gray-200 rounded overflow-hidden">
-        <div className="grid grid-cols-[1fr_120px_120px_100px_120px] gap-2 px-4 py-2 bg-gray-50 text-[11px] font-semibold text-gray-400 uppercase tracking-wider border-b border-gray-200">
+      <div className="bg-surface border border-border rounded overflow-hidden">
+        <div className="grid grid-cols-[1fr_120px_120px_100px_120px] gap-2 px-4 py-2 bg-surface-raised text-[11px] font-semibold text-text-subtle uppercase tracking-wider border-b border-border">
           <span>Label</span>
           <span>Type</span>
           <span>Target / URL</span>
@@ -246,7 +246,7 @@ export default function NavEditor({ onNavigate }: NavEditorProps) {
           <span className="text-right">Actions</span>
         </div>
         {items.length === 0 ? (
-          <div className="p-8 text-center text-[13px] text-gray-400">No menu items yet. <button onClick={handleAddRoot} className="text-[#16a34a] underline">Add first item</button></div>
+          <div className="p-8 text-center text-[13px] text-text-subtle">No menu items yet. <button onClick={handleAddRoot} className="text-accent underline">Add first item</button></div>
         ) : (
           items.map(item => <TreeRow key={item.id} item={item} depth={0} onChange={handleChange} onToggle={handleToggle} onDelete={handleDelete} onAddChild={handleAddChild} onMove={handleMove} />)
         )}

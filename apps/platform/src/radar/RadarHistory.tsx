@@ -69,21 +69,21 @@ export default function RadarHistory({ onNewDiscovery, onDuplicate }: RadarHisto
 
   function statusClass(status: string) {
     const map: Record<string, string> = {
-      PENDING: 'bg-gray-100 text-gray-500',
-      RUNNING: 'bg-amber-50 text-amber-700',
-      DISCOVERING: 'bg-amber-50 text-amber-700',
-      ENRICHING: 'bg-blue-50 text-blue-700',
-      QUALIFYING: 'bg-purple-50 text-purple-700',
-      COMPLETED: 'bg-emerald-50 text-emerald-700',
-      FAILED: 'bg-red-50 text-red-700',
+      PENDING: 'bg-surface-hover text-text-muted',
+      RUNNING: 'bg-warning-subtle text-warning',
+      DISCOVERING: 'bg-warning-subtle text-warning',
+      ENRICHING: 'bg-info-subtle text-info',
+      QUALIFYING: 'bg-info-subtle text-info',
+      COMPLETED: 'bg-success-subtle text-success',
+      FAILED: 'bg-danger-subtle text-danger',
     };
-    return map[status] || 'bg-gray-100 text-gray-500';
+    return map[status] || 'bg-surface-hover text-text-muted';
   }
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-      <div className="bg-white border-b border-[#e5e3df] px-6 h-[52px] flex items-center justify-between shrink-0">
-        <h1 className="text-[14px] font-semibold text-[#1c1917]">Discovery history</h1>
+      <div className="bg-surface border-b border-border px-6 h-[52px] flex items-center justify-between shrink-0">
+        <h1 className="text-[14px] font-semibold text-text">Discovery history</h1>
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={() => onNewDiscovery(undefined)}>+ New discovery</Button>
           <Button variant="secondary" size="sm" onClick={refresh}>Refresh</Button>
@@ -91,38 +91,38 @@ export default function RadarHistory({ onNewDiscovery, onDuplicate }: RadarHisto
       </div>
 
       <div className="p-6">
-        {error && <div className="mb-4 text-[12px] text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
-        {loading && <div className="text-[13px] text-[#a8a29e]">Loading runs…</div>}
-        {!loading && runs.length === 0 && <div className="text-[13px] text-[#a8a29e]">No discovery runs yet</div>}
+        {error && <div className="mb-4 text-[12px] text-danger bg-danger-subtle border border-danger-subtle rounded px-3 py-2">{error}</div>}
+        {loading && <div className="text-[13px] text-text-subtle">Loading runs…</div>}
+        {!loading && runs.length === 0 && <div className="text-[13px] text-text-subtle">No discovery runs yet</div>}
 
         {!loading && runs.length > 0 && (
-          <div className="bg-white border border-[#e5e3df] rounded-md overflow-hidden">
+          <div className="bg-surface border border-border rounded-md overflow-hidden">
             <table className="w-full">
-              <thead className="bg-[#fafaf8] border-b border-[#e5e3df]">
+              <thead className="bg-surface-raised border-b border-border">
                 <tr>
-                  <th className="py-2.5 px-3 text-left text-[10px] font-mono font-medium text-[#a8a29e] uppercase tracking-wider">Provider</th>
-                  <th className="py-2.5 px-3 text-left text-[10px] font-mono font-medium text-[#a8a29e] uppercase tracking-wider">Query</th>
-                  <th className="py-2.5 px-3 text-left text-[10px] font-mono font-medium text-[#a8a29e] uppercase tracking-wider">Status</th>
-                  <th className="py-2.5 px-3 text-left text-[10px] font-mono font-medium text-[#a8a29e] uppercase tracking-wider">Leads</th>
-                  <th className="py-2.5 px-3 text-left text-[10px] font-mono font-medium text-[#a8a29e] uppercase tracking-wider">When</th>
-                  <th className="py-2.5 px-3 text-left text-[10px] font-mono font-medium text-[#a8a29e] uppercase tracking-wider">Actions</th>
+                  <th className="py-2.5 px-3 text-left text-[10px] font-mono font-medium text-text-subtle uppercase tracking-wider">Provider</th>
+                  <th className="py-2.5 px-3 text-left text-[10px] font-mono font-medium text-text-subtle uppercase tracking-wider">Query</th>
+                  <th className="py-2.5 px-3 text-left text-[10px] font-mono font-medium text-text-subtle uppercase tracking-wider">Status</th>
+                  <th className="py-2.5 px-3 text-left text-[10px] font-mono font-medium text-text-subtle uppercase tracking-wider">Leads</th>
+                  <th className="py-2.5 px-3 text-left text-[10px] font-mono font-medium text-text-subtle uppercase tracking-wider">When</th>
+                  <th className="py-2.5 px-3 text-left text-[10px] font-mono font-medium text-text-subtle uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {runs.map((run) => (
-                  <tr key={run.id} className="border-b border-[#f0ede8] last:border-0">
-                    <td className="py-2.5 px-3 text-[13px] font-medium text-[#1c1917]">{run.provider}</td>
-                    <td className="py-2.5 px-3 text-[12px] text-[#57534e]">
+                  <tr key={run.id} className="border-b border-border last:border-0">
+                    <td className="py-2.5 px-3 text-[13px] font-medium text-text">{run.provider}</td>
+                    <td className="py-2.5 px-3 text-[12px] text-text">
                       <div className="truncate max-w-[200px]">{run.query}</div>
-                      {run.location && <div className="text-[#a8a29e]">{run.location}</div>}
+                      {run.location && <div className="text-text-subtle">{run.location}</div>}
                     </td>
                     <td className="py-2.5 px-3">
                       <span className={`text-[10px] px-1.5 py-0.5 rounded ${statusClass(run.status)}`}>{run.status}</span>
                     </td>
-                    <td className="py-2.5 px-3 text-[12px] text-[#57534e]">
+                    <td className="py-2.5 px-3 text-[12px] text-text">
                       {run.collected} found · {run.createdCount} new leads · {run.duplicateCount} known
                     </td>
-                    <td className="py-2.5 px-3 text-[12px] text-[#a8a29e]">
+                    <td className="py-2.5 px-3 text-[12px] text-text-subtle">
                       {new Date(run.createdAt).toLocaleString()}
                     </td>
                     <td className="py-2.5 px-3">

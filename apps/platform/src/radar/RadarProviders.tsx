@@ -91,19 +91,19 @@ export default function RadarProviders({ onNewDiscovery, onOpenPresets }: RadarP
 
   function statusDot(status?: string) {
     const colors: Record<string, string> = {
-      READY: 'bg-emerald-500',
-      NOT_CONFIGURED: 'bg-amber-500',
-      DISABLED: 'bg-gray-400',
-      ERROR: 'bg-red-500',
-      UNAVAILABLE: 'bg-stone-400',
+      READY: 'bg-success',
+      NOT_CONFIGURED: 'bg-warning',
+      DISABLED: 'bg-surface-hover',
+      ERROR: 'bg-danger',
+      UNAVAILABLE: 'bg-surface-hover',
     };
-    return <span className={`inline-block w-2 h-2 rounded-full ${colors[(status || '') as string] || 'bg-gray-400'}`} />;
+    return <span className={`inline-block w-2 h-2 rounded-full ${colors[(status || '') as string] || 'bg-surface-hover'}`} />;
   }
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
-      <div className="bg-white border-b border-[#e5e3df] px-6 h-[52px] flex items-center justify-between shrink-0">
-        <h1 className="text-[14px] font-semibold text-[#1c1917]">Discovery providers</h1>
+      <div className="bg-surface border-b border-border px-6 h-[52px] flex items-center justify-between shrink-0">
+        <h1 className="text-[14px] font-semibold text-text">Discovery providers</h1>
         <div className="flex items-center gap-2">
           <Button variant="secondary" size="sm" onClick={onOpenPresets}>Search presets</Button>
           <Button size="sm" onClick={() => onNewDiscovery(undefined)}>+ New discovery</Button>
@@ -112,37 +112,37 @@ export default function RadarProviders({ onNewDiscovery, onOpenPresets }: RadarP
       </div>
 
       <div className="p-6">
-        {error && <div className="mb-4 text-[12px] text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</div>}
-        {loading && <div className="text-[13px] text-[#a8a29e]">Loading providers…</div>}
-        {!loading && providers.length === 0 && <div className="text-[13px] text-[#a8a29e]">No providers found</div>}
+        {error && <div className="mb-4 text-[12px] text-danger bg-danger-subtle border border-danger-subtle rounded px-3 py-2">{error}</div>}
+        {loading && <div className="text-[13px] text-text-subtle">Loading providers…</div>}
+        {!loading && providers.length === 0 && <div className="text-[13px] text-text-subtle">No providers found</div>}
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {providers.map((p) => (
-            <div key={p.id} className="bg-white border border-[#e5e3df] rounded-md p-4 flex flex-col">
+            <div key={p.id} className="bg-surface border border-border rounded-md p-4 flex flex-col">
               <div className="flex items-start justify-between mb-2">
                 <div>
-                  <div className="text-[14px] font-semibold text-[#1c1917]">{p.name}</div>
-                  <div className="text-[11px] text-[#a8a29e] font-mono mt-0.5">{p.id}</div>
+                  <div className="text-[14px] font-semibold text-text">{p.name}</div>
+                  <div className="text-[11px] text-text-subtle font-mono mt-0.5">{p.id}</div>
                 </div>
-                <div className="flex items-center gap-1.5 text-[11px] font-medium text-[#57534e]">
+                <div className="flex items-center gap-1.5 text-[11px] font-medium text-text">
                   {statusDot(p.status)}
                   {(p.status || 'UNKNOWN').replace(/_/g, ' ')}
                 </div>
               </div>
 
-              <div className="text-[12px] text-[#57534e] mb-3 min-h-[40px]">
+              <div className="text-[12px] text-text mb-3 min-h-[40px]">
                 {capabilityList(p.capabilities).join(' · ')}
               </div>
 
-              <div className="text-[11px] text-[#a8a29e] mb-3 space-y-1">
+              <div className="text-[11px] text-text-subtle mb-3 space-y-1">
                 {p.config?.credentialEnv && (
-                  <div>Env binding: <span className="font-mono text-[#78716c]">{p.config.credentialEnv}</span></div>
+                  <div>Env binding: <span className="font-mono text-text-muted">{p.config.credentialEnv}</span></div>
                 )}
                 {!p.config?.credentialEnv && p.capabilities?.requiresCredentials === false && (
                   <div>No API key required</div>
                 )}
                 {p.lastTestAt && (
-                  <div>Last test: <span className={p.lastTestStatus === 'SUCCESS' ? 'text-emerald-600' : 'text-amber-600'}>{p.lastTestStatus}</span> · {new Date(p.lastTestAt).toLocaleString()}</div>
+                  <div>Last test: <span className={p.lastTestStatus === 'SUCCESS' ? 'text-success' : 'text-warning'}>{p.lastTestStatus}</span> · {new Date(p.lastTestAt).toLocaleString()}</div>
                 )}
                 {p.recentRunsCount > 0 && <div>Recent runs: {p.recentRunsCount}</div>}
               </div>
@@ -218,54 +218,54 @@ function ProviderConfigModal({ provider, onClose, onSaved }: { provider: Provide
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4">
-      <div className="bg-white border border-[#e5e3df] rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-overlay/30 p-4">
+      <div className="bg-surface border border-border rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-y-auto p-5">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-[14px] font-semibold text-[#1c1917]">Configure {provider.name}</h2>
-          <button onClick={onClose} className="text-[#a8a29e] hover:text-[#1c1917]">×</button>
+          <h2 className="text-[14px] font-semibold text-text">Configure {provider.name}</h2>
+          <button onClick={onClose} className="text-text-subtle hover:text-text">×</button>
         </div>
 
-        {message && <div className="mb-3 text-[12px] text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{message}</div>}
+        {message && <div className="mb-3 text-[12px] text-danger bg-danger-subtle border border-danger-subtle rounded px-3 py-2">{message}</div>}
 
         <div className="space-y-4">
           <div className="flex items-center justify-between">
-            <label className="text-[12px] font-medium text-[#57534e]">Enabled</label>
+            <label className="text-[12px] font-medium text-text">Enabled</label>
             <input type="checkbox" checked={enabled} onChange={(e) => setEnabled(e.target.checked)} />
           </div>
 
           <div>
-            <label className="block text-[12px] font-medium text-[#57534e] mb-1">Default location</label>
+            <label className="block text-[12px] font-medium text-text mb-1">Default location</label>
             <input
               type="text"
               value={defaults.defaultLocation ?? ''}
               onChange={(e) => setDefault('defaultLocation', e.target.value)}
-              className="w-full h-9 px-3 text-[13px] border border-[#e5e3df] rounded"
+              className="w-full h-9 px-3 text-[13px] border border-border rounded"
             />
           </div>
 
           <div>
-            <label className="block text-[12px] font-medium text-[#57534e] mb-1">Default limit</label>
+            <label className="block text-[12px] font-medium text-text mb-1">Default limit</label>
             <input
               type="number"
               value={defaults.defaultLimit ?? 50}
               onChange={(e) => setDefault('defaultLimit', Number(e.target.value))}
-              className="w-full h-9 px-3 text-[13px] border border-[#e5e3df] rounded"
+              className="w-full h-9 px-3 text-[13px] border border-border rounded"
             />
           </div>
 
           <div>
-            <label className="block text-[12px] font-medium text-[#57534e] mb-1">Default max pages</label>
+            <label className="block text-[12px] font-medium text-text mb-1">Default max pages</label>
             <input
               type="number"
               value={defaults.defaultMaxPages ?? 5}
               onChange={(e) => setDefault('defaultMaxPages', Number(e.target.value))}
-              className="w-full h-9 px-3 text-[13px] border border-[#e5e3df] rounded"
+              className="w-full h-9 px-3 text-[13px] border border-border rounded"
             />
           </div>
 
           {provider.config?.credentialEnv && (
-            <div className="text-[11px] text-[#a8a29e] bg-[#fafaf8] border border-[#e5e3df] rounded p-3">
-              <div className="font-medium text-[#57534e] mb-1">Credentials</div>
+            <div className="text-[11px] text-text-subtle bg-surface-raised border border-border rounded p-3">
+              <div className="font-medium text-text mb-1">Credentials</div>
               <div>Environment binding: <span className="font-mono">{provider.config.credentialEnv}</span></div>
               <div className="mt-1">Status: {provider.configured ? 'Configured' : 'Not configured'}</div>
             </div>

@@ -28,7 +28,7 @@ const MODULES: {
     name: 'Radar',
     tagline: 'Discover & qualify leads',
     description: 'Search for potential clients by city and business category. Score, filter, and select leads for website generation.',
-    statColor: 'bg-emerald-500',
+    statColor: 'bg-success',
     mark: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <circle cx="12" cy="12" r="10"/>
@@ -42,7 +42,7 @@ const MODULES: {
     name: 'Factory',
     tagline: 'Generation pipeline',
     description: 'Monitor website generation runs stage by stage. Track progress, review errors, and retry failed jobs.',
-    statColor: 'bg-amber-400',
+    statColor: 'bg-warning',
     mark: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <path d="M5 3l14 9-14 9V3z"/>
@@ -54,7 +54,7 @@ const MODULES: {
     name: 'Forge',
     tagline: 'Generated websites',
     description: 'All generated sites in one place. Open Studio to edit content, share Showcase links with clients.',
-    statColor: 'bg-gray-400',
+    statColor: 'bg-surface-hover',
     mark: (
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
         <rect x="3" y="3" width="18" height="18" rx="2"/>
@@ -87,26 +87,26 @@ export default function Hub({ onNavigate }: HubProps) {
 
   if (loading) {
     return (
-      <div className="flex-1 overflow-y-auto bg-[#f4f5f7] flex items-center justify-center">
-        <div className="text-[13px] font-mono text-gray-400">Loading Hub…</div>
+      <div className="flex-1 overflow-y-auto bg-bg flex items-center justify-center">
+        <div className="text-[13px] font-mono text-text-subtle">Loading Hub…</div>
       </div>
     )
   }
 
   if (error || !stats) {
     return (
-      <div className="flex-1 overflow-y-auto bg-[#f4f5f7] flex items-center justify-center">
-        <div className="text-[13px] font-mono text-red-600">{error || 'No data'}</div>
+      <div className="flex-1 overflow-y-auto bg-bg flex items-center justify-center">
+        <div className="text-[13px] font-mono text-danger">{error || 'No data'}</div>
       </div>
     )
   }
 
   return (
-    <div className="flex-1 overflow-y-auto bg-[#f4f5f7]">
+    <div className="flex-1 overflow-y-auto bg-bg">
       <div className="max-w-[880px] mx-auto px-8 py-12">
         <div className="mb-10">
-          <h1 className="text-[20px] font-semibold text-gray-900 tracking-tight">WebsiteLeadAgent</h1>
-          <p className="text-[13px] text-gray-400 mt-1">Business website generation platform</p>
+          <h1 className="text-[20px] font-semibold text-text tracking-tight">WebsiteLeadAgent</h1>
+          <p className="text-[13px] text-text-subtle mt-1">Business website generation platform</p>
         </div>
 
         <div className="grid grid-cols-3 gap-4 mb-6">
@@ -114,53 +114,53 @@ export default function Hub({ onNavigate }: HubProps) {
             <button
               key={m.area}
               onClick={() => onNavigate(m.area)}
-              className="bg-white border border-gray-200 rounded p-5 text-left hover:border-gray-300 hover:shadow-[0_1px_4px_rgba(0,0,0,0.06)] transition-all group"
+              className="bg-surface border border-border rounded p-5 text-left hover:border-border hover:shadow-[0_1px_4px_var(--color-shadow)] transition-all group"
             >
               <div className="flex items-start justify-between mb-4">
-                <div className="w-8 h-8 rounded bg-[#1a2332] flex items-center justify-center text-white flex-shrink-0">
+                <div className="w-8 h-8 rounded bg-surface-inverse flex items-center justify-center text-text-inverse flex-shrink-0">
                   {m.mark}
                 </div>
-                <span className="text-gray-300 group-hover:text-gray-500 transition-colors mt-1">
+                <span className="text-text-subtle group-hover:text-text-muted transition-colors mt-1">
                   <IconChevronRight size={14} />
                 </span>
               </div>
 
-              <p className="text-[15px] font-semibold text-gray-900 mb-0.5">{m.name}</p>
-              <p className="text-[12px] text-gray-500 mb-4 leading-snug">{m.tagline}</p>
-              <p className="text-[12px] text-gray-400 leading-relaxed mb-5">{m.description}</p>
+              <p className="text-[15px] font-semibold text-text mb-0.5">{m.name}</p>
+              <p className="text-[12px] text-text-muted mb-4 leading-snug">{m.tagline}</p>
+              <p className="text-[12px] text-text-subtle leading-relaxed mb-5">{m.description}</p>
 
-              <div className="flex items-center gap-1.5 pt-3 border-t border-gray-100">
+              <div className="flex items-center gap-1.5 pt-3 border-t border-border">
                 <span className={`w-1.5 h-1.5 rounded-full flex-shrink-0 ${m.statColor}`} />
-                <span className="text-[11px] text-gray-500">{statLabel(m.area)}</span>
+                <span className="text-[11px] text-text-muted">{statLabel(m.area)}</span>
               </div>
             </button>
           ))}
         </div>
 
-        <div className="bg-white border border-gray-200 rounded px-5 py-4">
-          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-3">Current activity</p>
+        <div className="bg-surface border border-border rounded px-5 py-4">
+          <p className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider mb-3">Current activity</p>
           <div className="flex items-center gap-0 divide-x divide-gray-100">
             <ActivityCell label="Leads discovered">
-              <span className="text-[13px] font-medium text-gray-800">{stats.totalLeads} in Radar</span>
+              <span className="text-[13px] font-medium text-text">{stats.totalLeads} in Radar</span>
             </ActivityCell>
             <ActivityCell label="Sites processing">
-              <span className="flex items-center gap-1.5 text-[13px] font-medium text-gray-800">
+              <span className="flex items-center gap-1.5 text-[13px] font-medium text-text">
                 {stats.runningRuns > 0 ? (
-                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse flex-shrink-0" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-warning animate-pulse flex-shrink-0" />
                 ) : null}
                 {stats.runningRuns} in Factory
               </span>
             </ActivityCell>
             <ActivityCell label="Generated sites">
-              <span className="text-[13px] font-medium text-gray-800">{stats.totalSites} in Forge</span>
+              <span className="text-[13px] font-medium text-text">{stats.totalSites} in Forge</span>
             </ActivityCell>
             <ActivityCell label="Good leads">
-              <span className="text-[13px] font-medium text-gray-800">{stats.goodLeads} ready to generate</span>
+              <span className="text-[13px] font-medium text-text">{stats.goodLeads} ready to generate</span>
             </ActivityCell>
             <div className="flex-1 flex items-center justify-end pl-5">
               <button
                 onClick={() => onNavigate('factory')}
-                className="text-[12px] text-[#16a34a] hover:text-[#15803d] transition-colors"
+                className="text-[12px] text-accent hover:text-accent transition-colors"
               >
                 View Factory →
               </button>
@@ -175,7 +175,7 @@ export default function Hub({ onNavigate }: HubProps) {
 function ActivityCell({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex flex-col gap-0.5 pr-6 first:pl-0 pl-6">
-      <p className="text-[11px] text-gray-400">{label}</p>
+      <p className="text-[11px] text-text-subtle">{label}</p>
       {children}
     </div>
   )

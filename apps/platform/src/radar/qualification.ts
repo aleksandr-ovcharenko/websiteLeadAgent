@@ -20,12 +20,12 @@ export const STAGE_ICONS: Record<string, string> = {
 };
 
 export function stageColor(status: string) {
-  if (['SUCCESS', 'FOUND'].includes(status)) return 'text-emerald-700 bg-emerald-50 border-emerald-200';
-  if (['RUNNING'].includes(status)) return 'text-blue-700 bg-blue-50 border-blue-200';
-  if (['PENDING', 'UNREVIEWED', 'UNKNOWN'].includes(status)) return 'text-amber-700 bg-amber-50 border-amber-200';
-  if (['WAITING'].includes(status)) return 'text-stone-500 bg-stone-50 border-stone-200';
-  if (['FAILED', 'NOT_FOUND'].includes(status)) return 'text-red-700 bg-red-50 border-red-200';
-  return 'text-stone-600 bg-stone-50 border-stone-200';
+  if (['SUCCESS', 'FOUND'].includes(status)) return 'text-success bg-success-subtle border-success-subtle';
+  if (['RUNNING'].includes(status)) return 'text-info bg-info-subtle border-info-subtle';
+  if (['PENDING', 'UNREVIEWED', 'UNKNOWN'].includes(status)) return 'text-warning bg-warning-subtle border-warning-subtle';
+  if (['WAITING'].includes(status)) return 'text-text-muted bg-surface-raised border-border';
+  if (['FAILED', 'NOT_FOUND'].includes(status)) return 'text-danger bg-danger-subtle border-danger-subtle';
+  return 'text-text bg-surface-raised border-border';
 }
 
 export interface QualificationStage {
@@ -109,7 +109,7 @@ export function computeQualification(lead: any, optimistic: Record<string, 'RUNN
   const stages: QualificationStage[] = STAGE_ORDER.map((id, i) => {
     const base = rawStatuses[id];
     const optimisticStatus = optimistic[id as keyof typeof optimistic];
-    let status = optimisticStatus || base;
+    let status: string = optimisticStatus || base;
     const op = activeByStage.get(id);
     if (op || (runningStage === id && !optimisticStatus)) {
       if (status !== 'SUCCESS' && status !== 'FAILED' && status !== 'NOT_FOUND') status = 'RUNNING';

@@ -94,11 +94,11 @@ export default function RadarFilters({
               onClick={() => onView(t.key)}
               className={`flex items-center gap-2 px-3 h-[32px] rounded-[5px] text-[12px] font-mono font-medium border transition-colors duration-150 ${
                 active
-                  ? 'bg-[#1c1917] text-white border-[#1c1917]'
-                  : 'bg-white text-[#57534e] border-[#e5e3df] hover:bg-[#f5f4f2]'
+                  ? 'bg-surface-inverse text-text-inverse border-surface-inverse'
+                  : 'bg-surface text-text border-border hover:bg-surface-raised'
               }`}>
               <span>{t.label}</span>
-              <span className={`tabular-nums text-[11px] px-1.5 py-0.5 rounded ${active ? 'bg-white/20' : 'bg-[#f5f4f2]'}`}>
+              <span className={`tabular-nums text-[11px] px-1.5 py-0.5 rounded ${active ? 'bg-surface/20' : 'bg-surface-raised'}`}>
                 {t.count}
               </span>
             </button>
@@ -107,9 +107,9 @@ export default function RadarFilters({
       </div>
 
       {/* ── Detail filters ── */}
-      <div className="bg-white border border-[#e5e3df] rounded-md px-4 py-2.5 flex flex-wrap items-center gap-3">
+      <div className="bg-surface border border-border rounded-md px-4 py-2.5 flex flex-wrap items-center gap-3">
         <div className="relative">
-          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-[#c0bdb8]" width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-subtle" width="12" height="12" viewBox="0 0 12 12" fill="none">
             <circle cx="5" cy="5" r="3.5" stroke="currentColor" strokeWidth="1.2" />
             <path d="M8 8l2.5 2.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
           </svg>
@@ -117,14 +117,14 @@ export default function RadarFilters({
             value={filters.q}
             onChange={(e) => onChange({ q: e.target.value })}
             placeholder="Search leads…"
-            className="h-[30px] pl-7 pr-3 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] font-mono w-44 focus:outline-none focus:border-[#a8a29e]"
+            className="h-[30px] pl-7 pr-3 text-[12px] border border-border rounded bg-surface-raised font-mono w-44 focus:outline-none focus:border-border"
           />
         </div>
 
         <select
           value={filters.websiteStatus}
           onChange={(e) => onChange({ websiteStatus: e.target.value })}
-          className="h-[30px] px-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] font-mono focus:outline-none focus:border-[#a8a29e]">
+          className="h-[30px] px-2 text-[12px] border border-border rounded bg-surface-raised font-mono focus:outline-none focus:border-border">
           <option value="">All websites</option>
           <option value="FOUND">Has website</option>
           <option value="NOT_FOUND">No website</option>
@@ -134,7 +134,7 @@ export default function RadarFilters({
         <select
           value={filters.qualificationStatus}
           onChange={(e) => onChange({ qualificationStatus: e.target.value })}
-          className="h-[30px] px-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] font-mono focus:outline-none focus:border-[#a8a29e]">
+          className="h-[30px] px-2 text-[12px] border border-border rounded bg-surface-raised font-mono focus:outline-none focus:border-border">
           <option value="ALL">All qualification</option>
           <option value="PENDING">Pending</option>
           <option value="READY">Ready</option>
@@ -144,7 +144,7 @@ export default function RadarFilters({
         <select
           value={filters.manual}
           onChange={(e) => onChange({ manual: e.target.value })}
-          className="h-[30px] px-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] font-mono focus:outline-none focus:border-[#a8a29e]">
+          className="h-[30px] px-2 text-[12px] border border-border rounded bg-surface-raised font-mono focus:outline-none focus:border-border">
           <option value="">All reviews</option>
           <option value="UNREVIEWED">Unreviewed</option>
           <option value="GOOD">Good</option>
@@ -155,7 +155,7 @@ export default function RadarFilters({
         <select
           value={filters.generationStatus}
           onChange={(e) => onChange({ generationStatus: e.target.value })}
-          className="h-[30px] px-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] font-mono focus:outline-none focus:border-[#a8a29e]">
+          className="h-[30px] px-2 text-[12px] border border-border rounded bg-surface-raised font-mono focus:outline-none focus:border-border">
           <option value="">All generation</option>
           <option value="NOT_SELECTED">Not selected</option>
           <option value="SELECTED">Selected</option>
@@ -167,14 +167,14 @@ export default function RadarFilters({
         <select
           value={filters.sort}
           onChange={(e) => onChange({ sort: e.target.value })}
-          className="h-[30px] px-2 text-[12px] border border-[#e5e3df] rounded bg-[#fafaf9] font-mono ml-auto focus:outline-none focus:border-[#a8a29e]">
+          className="h-[30px] px-2 text-[12px] border border-border rounded bg-surface-raised font-mono ml-auto focus:outline-none focus:border-border">
           {sorts.map((s) => <option key={s.key} value={s.key}>{s.label}</option>)}
         </select>
 
         {hasActiveFilters && (
           <button
             onClick={clearFilters}
-            className="text-[11px] font-mono text-[#9b1c1c] hover:underline">
+            className="text-[11px] font-mono text-danger hover:underline">
             Clear filters
           </button>
         )}
