@@ -3,10 +3,33 @@ import { cleanCardSummary } from './siteContentPlanV2.js';
 // Deterministic — the plan is authoritative; this only maps shapes.
 const clean = (s, n) => s.replace(/\s+/g, ' ').trim().slice(0, n) || undefined;
 const media = (src, alt) => (src ? { sourceUrl: src, filename: src.split('/').pop()?.split('?')[0] || 'media', alt } : undefined);
-const blocksOf = (e) => {
+const normT = (t) => (t || '').toLowerCase().replace(/ё/g, 'е').replace(/[«»"“”'‘’`]/g, '').replace(/\s+/g, ' ').trim();
+// Entity body text never carries raw scrape chrome: prefer the card-cleaned
+// summary, then a cleaned summary, then a grounded dynamic-section item whose
+// title matches the entity (e.g. project write-ups stored under "Последние
+// проекты"). No copy is invented — only real source text is reused.
+// Raw copy that is obviously site chrome (phone/nav/CTA) is never entity text.
+const JUNK_COPY = /запросить|оставьте заявку|позвоните|звоните|закажите|заказать|записаться|подробнее|читать далее|порядок выполнения|наши контакты|меню|наверх|✔|➔|✓|\+?\d[\d\s()\-]{6,}/i;
+const entityText = (e, dynCopy) => {
+    const t = (e.cardSummary && !JUNK_COPY.test(e.cardSummary) ? e.cardSummary : undefined) || cleanCardSummary(e.summary, e.title);
+    if (t)
+        return t;
+    // Short but real copy still belongs on the detail page — only chrome is dropped.
+    const raw = (e.summary || '').replace(/\s+/g, ' ').trim();
+    if (raw && raw.length >= 8 && !JUNK_COPY.test(raw) && !normT(raw).includes(normT(e.title)))
+        return raw.slice(0, 300);
+    const nt = normT(e.title);
+    for (const [dt, text] of dynCopy) {
+        if (nt.length >= 8 && dt.length >= 8 && (nt.includes(dt) || dt.includes(nt)))
+            return text;
+    }
+    return undefined;
+};
+const blocksOf = (e, dynCopy) => {
     const b = [];
-    if (e.summary)
-        b.push({ type: 'text', content: e.summary });
+    const txt = entityText(e, dynCopy);
+    if (txt)
+        b.push({ type: 'text', content: txt });
     // Structured attributes render via the dedicated spec table — do not also
     // dump them into body copy as a "Параметры" text block.
     const gallery = e.media.filter((s) => s !== e.primaryImage).slice(0, 8);
@@ -23,6 +46,17 @@ const HOMEPAGE_TYPE = {
 export function planToContent(plan) {
     const id = plan.siteIdentity;
     const byId = new Map(plan.entities.map((e) => [e.id, e]));
+    // Grounded copy pool from dynamic-section items (any kind incl. IGNORED):
+    // sections like "Последние проекты" hold real per-entity descriptions.
+    const dynCopy = new Map();
+    for (const d of plan.dynamicSections) {
+        for (const i of d.items || []) {
+            const t = normT(i.title || '');
+            const text = cleanCardSummary(i.text || '', i.title || '') || clean(i.text || '', 400);
+            if (t && text && text.length >= 40 && !JUNK_COPY.test(text) && !dynCopy.has(t))
+                dynCopy.set(t, text);
+        }
+    }
     // Navigation: internal semantic targets only.
     const navigation = plan.plannedNavigation.map((n) => ({ label: n.label, url: n.route }));
     const services = plan.entities.filter((e) => e.type === 'service');
@@ -35,7 +69,7 @@ export function planToContent(plan) {
     if (articles.length) {
         pages.push({ title: 'Статьи', slug: 'articles', sourceType: 'IMPORTED', isHomepage: false, blocks: articles.slice(0, 30).map((a) => ({ type: 'text', heading: a.title, content: a.summary || '' })) });
         for (const a of articles)
-            pages.push({ title: a.title, slug: `articles/${a.slug}`, sourceType: 'IMPORTED', isHomepage: false, sourceUrl: a.detailUrl, blocks: blocksOf(a) });
+            pages.push({ title: a.title, slug: `articles/${a.slug}`, sourceType: 'IMPORTED', isHomepage: false, sourceUrl: a.detailUrl, blocks: blocksOf(a, dynCopy) });
     }
     for (const d of plan.dynamicSections.filter((d) => d.kind !== 'IGNORED' && d.items.length)) {
         pages.push({
@@ -51,8 +85,13 @@ export function planToContent(plan) {
     const pricingEvidence = plan.dynamicSections.some((d) => d.kind === 'PRICING')
         || plan.entities.some((e) => /руб|₽|\$|цен|стоимост|price/iu.test(JSON.stringify(e.attributes || {})));
     const descCleaned = (id.description || '').replace(/^цены[^.]*\.\s*/i, (m) => (pricingEvidence ? m : ''));
+    // Ignored/editorial fragments can still hold grounded company copy — a
+    // self-description item ("X — это …", "Почему мы") enriches About.
+    const aboutExtra = plan.dynamicSections.flatMap((d) => d.items || [])
+        .find((i) => /это|мы |компания|студия|нас\b/i.test(i.title || '') && (i.text || '').length >= 150);
     const aboutContent = [
         descCleaned,
+        aboutExtra ? cleanCardSummary(aboutExtra.text, aboutExtra.title || '') || clean(aboutExtra.text || '', 400) : '',
         aboutDyn?.items?.length ? aboutDyn.items.map((i) => i.title || i.text).filter(Boolean).join('\n') : '',
         '',
     ].filter(Boolean).join('\n\n');
@@ -80,14 +119,23 @@ export function planToContent(plan) {
             workingHours: plan.contacts.workingHours,
             socialLinks: plan.contacts.socialLinks,
         },
-        about: { heading: 'О компании', content: aboutContent, imageId: plan.media.hero },
+        about: {
+            heading: 'О компании', content: aboutContent,
+            // About never reuses the hero photo and never uses utility/placeholder
+            // art — pick another grounded entity image first.
+            imageId: (() => {
+                const hero = plan.media.hero;
+                const entityImg = plan.entities.map((e) => e.primaryImage).find((src) => src && src !== hero && !/logo|icon|sprite|placeholder|removebg/i.test(src));
+                return entityImg || plan.media.images.map((m) => m.src).find((src) => src && src !== hero && !/logo|icon|sprite|placeholder|removebg/i.test(src)) || undefined;
+            })(),
+        },
         branding: { companyName: id.displayName, logo: media(plan.media.logo, id.displayName), defaultSeoTitle: id.displayName },
         navigation,
         homepageSections,
         pages,
-        services: services.map((s) => ({ title: s.title, slug: s.slug, sourceType: 'IMPORTED', shortDescription: s.cardSummary || cleanCardSummary(s.summary, s.title), blocks: blocksOf(s), sourceUrl: s.detailUrl, image: media(s.primaryImage, s.title) })),
-        projects: projects.map((p) => ({ title: p.title, slug: p.slug, sourceType: 'IMPORTED', excerpt: p.cardSummary || cleanCardSummary(p.summary, p.title), blocks: blocksOf(p), sourceUrl: p.detailUrl, coverImage: media(p.primaryImage, p.title), gallery: p.media.slice(0, 8).map((s) => media(s, p.title)).filter(Boolean) })),
-        news: news.map((n) => ({ title: n.title, slug: n.slug, sourceType: 'IMPORTED', excerpt: n.summary, blocks: blocksOf(n), sourceUrl: n.detailUrl, coverImage: media(n.primaryImage, n.title) })),
+        services: services.map((s) => ({ title: s.title, slug: s.slug, sourceType: 'IMPORTED', shortDescription: s.cardSummary || cleanCardSummary(s.summary, s.title), blocks: blocksOf(s, dynCopy), sourceUrl: s.detailUrl, image: media(s.primaryImage, s.title) })),
+        projects: projects.map((p) => ({ title: p.title, slug: p.slug, sourceType: 'IMPORTED', excerpt: p.cardSummary || cleanCardSummary(p.summary, p.title), blocks: blocksOf(p, dynCopy), sourceUrl: p.detailUrl, coverImage: media(p.primaryImage, p.title), gallery: p.media.slice(0, 8).map((s) => media(s, p.title)).filter(Boolean) })),
+        news: news.map((n) => ({ title: n.title, slug: n.slug, sourceType: 'IMPORTED', excerpt: cleanCardSummary(n.summary, n.title), blocks: blocksOf(n, dynCopy), sourceUrl: n.detailUrl, coverImage: media(n.primaryImage, n.title) })),
         vacancies: vacancies.map((v) => ({ title: v.title, slug: v.slug, sourceType: 'IMPORTED', description: v.summary, sourceUrl: v.detailUrl })),
         reviews: (reviews?.items || []).slice(0, 12).map((i) => ({ author: i.meta?.author || i.title, text: i.text || i.title || '' })),
         contacts: {
@@ -100,7 +148,7 @@ export function planToContent(plan) {
         products: products.map((p) => ({
             title: p.title, slug: p.slug, sourceType: 'IMPORTED',
             summary: p.cardSummary || undefined, attributes: p.attributes,
-            blocks: blocksOf(p), sourceUrl: p.detailUrl,
+            blocks: blocksOf(p, dynCopy), sourceUrl: p.detailUrl,
             coverImage: media(p.primaryImage, p.title),
             gallery: p.media.slice(0, 8).map((u) => media(u, p.title)).filter(Boolean),
         })),

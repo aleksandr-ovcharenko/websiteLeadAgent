@@ -5,6 +5,8 @@ import { Badge, Button, SearchInput, FilterTabs, DropdownMenu, ConfirmDelete, In
 import { useStudio, formatDate } from './context'
 import { api, uiStatus, apiStatus } from './api'
 
+const mediaUrlOf = (siteId: string, m: any) => m ? `/site-media/${siteId}/${m.filename}` : ''
+
 interface ProjectsListProps {
   onNavigate: (s: Screen, id?: string) => void
 }
@@ -32,7 +34,7 @@ function useProjectFilters() {
 }
 
 export function ProjectsList({ onNavigate }: ProjectsListProps) {
-  const { siteId, projects, refresh, site } = useStudio()
+  const { siteId, projects, refresh, site, media } = useStudio()
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const { search, setSearch, filter, setFilter, visible, tabs } = useProjectFilters()
   const { show } = useToast()
@@ -65,7 +67,7 @@ export function ProjectsList({ onNavigate }: ProjectsListProps) {
                 <td className="px-4 py-2">
                   <div className="flex items-center gap-2.5">
                     <div className="w-8 h-8 rounded bg-gray-100 flex-shrink-0 overflow-hidden">
-                      {project.coverImageId ? <img src={`/api/cms/sites/${siteId}/media`} alt="" className="w-full h-full object-cover" onError={() => undefined} /> : null}
+                      {project.coverImageId ? <img src={mediaUrlOf(siteId, (media || []).find((m: any) => m.id === project.coverImageId))} alt={project.title} className="w-full h-full object-cover" /> : null}
                     </div>
                     <button onClick={() => onNavigate('project-editor', project.id)} className="text-[13px] font-medium text-gray-900 hover:text-[#16a34a] transition-colors text-left">{project.title}</button>
                   </div>
@@ -112,7 +114,7 @@ interface ProjectEditorProps {
 }
 
 export function ProjectEditor({ projectId, onNavigate }: ProjectEditorProps) {
-  const { siteId, projects, refresh, site } = useStudio()
+  const { siteId, projects, refresh, site, media } = useStudio()
   const isNew = !projectId || projectId === 'new'
   const project = isNew ? null : projects.find((p: any) => p.id === projectId)
 
@@ -223,10 +225,20 @@ export function ProjectEditor({ projectId, onNavigate }: ProjectEditorProps) {
             <div>
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Cover image</p>
               <div className="bg-white border border-gray-200 rounded p-4">
-                {coverImageId && <p className="text-[12px] text-gray-600 mb-2 mono">{coverImageId} <button onClick={() => { setCoverImageId(''); markDirty() }} className="ml-2 text-red-500">Remove</button></p>}
+                {(() => { const coverM = (media || []).find((m: any) => m.id === coverImageId); return coverM ? (
+                  <div className="mb-3">
+                    <img src={mediaUrlOf(siteId, coverM)} alt={coverM.alt || title} className="w-full max-h-[220px] object-cover rounded border border-gray-100" />
+                    <div className="flex items-center gap-3 mt-2">
+                      <label className="text-[12px] text-[#16a34a] font-medium cursor-pointer hover:underline">
+                        <input type="file" accept="image/*" onChange={e => upload(e, setCoverImageId)} className="hidden" />Replace
+                      </label>
+                      <button onClick={() => { setCoverImageId(''); markDirty() }} className="text-[12px] text-red-500 hover:underline">Remove</button>
+                    </div>
+                  </div>
+                ) : null })()}
                 <label className="h-[120px] border border-dashed border-gray-300 rounded flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-gray-50 hover:border-[#16a34a] hover:text-[#16a34a] cursor-pointer transition-colors">
                   <input type="file" accept="image/*" onChange={e => upload(e, setCoverImageId)} className="hidden" />
-                  {uploading ? 'Uploading…' : <><IconUpload size={18} /><span className="text-[12px]">Click to upload cover</span><span className="text-[11px] text-gray-300">JPG, PNG — recommended 1600×900</span></>}
+                  {uploading ? 'Uploading…' : <><IconUpload size={18} /><span className="text-[12px]">{coverImageId ? 'Replace cover image' : 'Click to upload cover'}</span><span className="text-[11px] text-gray-300">JPG, PNG — recommended 1600×900</span></>}
                 </label>
               </div>
             </div>
@@ -237,7 +249,7 @@ export function ProjectEditor({ projectId, onNavigate }: ProjectEditorProps) {
                 <div className="grid grid-cols-4 gap-2 mb-3">
                   {galleryImageIds.map((id, i) => (
                     <div key={id} className="relative aspect-[4/3] rounded overflow-hidden bg-gray-100 group/img">
-                      <img src={`/api/cms/sites/${siteId}/media`} alt="" className="w-full h-full object-cover" onError={() => undefined} />
+                      <img src={mediaUrlOf(siteId, (media || []).find((m: any) => m.id === id))} alt={`${title} ${i + 1}`} className="w-full h-full object-cover" />
                       <button onClick={() => { setGalleryImageIds(imgs => imgs.filter((_, j) => j !== i)); markDirty() }} className="absolute top-1 right-1 w-5 h-5 rounded-full bg-black/60 text-white flex items-center justify-center"><IconX size={9} /></button>
                     </div>
                   ))}

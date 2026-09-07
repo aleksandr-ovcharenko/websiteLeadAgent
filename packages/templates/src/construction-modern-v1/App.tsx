@@ -229,17 +229,17 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
     >
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 h-16 md:h-20 flex items-center justify-between gap-6">
         {/* Brand block */}
-        <a href={homeHref()} className="flex items-center shrink-0 gap-3.5">
+        <a href={homeHref()} className="flex items-center gap-3.5 min-w-0 flex-1 lg:flex-none">
           <BrandMark size={44} dark />
-          <div className="flex flex-col leading-none gap-1">
+          <div className="flex flex-col leading-none gap-1 min-w-0">
             <span
-              className="text-[13px] font-bold tracking-[0.07em] uppercase leading-none"
+              className="text-[13px] font-bold tracking-[0.07em] uppercase leading-tight"
               style={{ ...GEO, color: 'var(--fg)' }}
             >
               {COMPANY.name}
             </span>
             <span
-              className="text-[9.5px] uppercase tracking-[0.22em] font-medium leading-none"
+              className="text-[9.5px] uppercase tracking-[0.22em] font-medium leading-tight"
               style={{ color: 'var(--muted)' }}
             >
               {HERO.industry || ''}
@@ -1633,6 +1633,23 @@ function ProjectList({ preview = false }: { preview?: boolean }) {
               </a>
             </article>
           ))}
+          {preview && PROJECTS.length % 2 === 1 ? (
+            <a
+              href={collectionHref('PROJECTS')}
+              className="flex flex-col items-start justify-between p-6 md:p-8 min-h-[220px] group border-b"
+              style={{ background: 'var(--dark)', borderColor: 'var(--border)' }}
+            >
+              <span className="text-[10px] uppercase tracking-[0.35em] font-semibold" style={{ color: 'rgba(242,244,245,0.5)' }}>
+                Портфолио
+              </span>
+              <span className="font-black leading-none tabular-nums" style={{ ...GEO, fontSize: 'clamp(2.5rem, 5vw, 4rem)', color: 'var(--brass)' }}>
+                {String(PROJECTS.length).padStart(2, '0')}
+              </span>
+              <span className="text-xs uppercase tracking-[0.15em] font-medium transition-colors group-hover:text-[var(--brass)]" style={{ color: 'rgba(242,244,245,0.7)' }}>
+                Смотреть все объекты →
+              </span>
+            </a>
+          ) : null}
         </div>
       </div>
     </section>

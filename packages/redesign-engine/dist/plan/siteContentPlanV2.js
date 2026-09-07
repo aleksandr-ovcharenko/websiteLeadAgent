@@ -26,7 +26,7 @@ const digits = (s) => s.replace(/\D/g, '');
 export function cleanCardSummary(raw, title) {
     if (!raw)
         return undefined;
-    const JUNK = /запросить|оставьте заявку|позвоните|звоните|закажите|заказать|записаться|получить консультац|получить консультацию|узнать (цену|стоимость)|подробнее|читать далее|порядок выполнения|наши контакты|все права|cookie|карта сайта|политика конфиденциальности|✔|➔|✓|тариф|menu|меню|наверх|call us|order now|read more/i;
+    const JUNK = /запросить|оставьте заявку|позвоните|звоните|закажите|заказать|записаться|получить консультац|получить консультацию|узнать (цену|стоимость)|подробнее|читать далее|порядок выполнения|наши контакты|все права|последние (выполненные |реализованные )?(работы|проекты)|другие (проекты|работы)|cookie|карта сайта|политика конфиденциальности|✔|➔|✓|тариф|menu|меню|наверх|call us|order now|read more/i;
     const PHONE = /\+?\d[\d\s()\-]{6,}/;
     const sentences = raw.split(/(?<=[.!?])\s+|\n+/)
         .map((s) => s.trim().replace(/(получить консультац\S*|заказать|закажите|узнать (цену|стоимость)|оставить заявку|подробнее|читать далее|✔|➔|✓|тариф\s*«[^»]*»).*$/iu, '').trim())
@@ -751,18 +751,27 @@ export function buildSiteContentPlanV2(opts) {
         plannedSections.push({ type: 'projects', heading: L.projects, origin: 'SOURCE_CONTENT', entityIds: featured('project'), rationale: 'representative portfolio subset; full collection on /projects' });
     if (has('product'))
         plannedSections.push({ type: 'products', heading: L.products, origin: 'SOURCE_CONTENT', entityIds: featured('product'), rationale: 'catalogue highlights; full catalogue on /products' });
+    // Article-style dynamic sections (an editorial heading like "Рейки в
+    // интерьере: преимущества и недостатки") are journal content — they render
+    // near the end of the page, never between primary sales sections.
+    const EDITORIAL_HEAD = /[:—–]|совет|секрет|обзор|тренд|рейк|декор|как (выбрать|сделать|устроить|не )|плюсы и минусы|преимущества и недостатки/iu;
+    const lateDyn = [];
     for (const d of dynamicSections) {
         if (['PROCESS', 'ADVANTAGES', 'REVIEWS', 'FAQ', 'TEAM', 'PRICING', 'PARTNERS', 'STATS'].includes(d.kind)) {
-            plannedSections.push({ type: 'dynamic', heading: d.heading || d.kind, origin: 'SOURCE_CONTENT', entityIds: [], dynamicSectionId: d.id, rationale: `${d.kind} section preserved from source` });
+            const sec = { type: 'dynamic', heading: d.heading || d.kind, origin: 'SOURCE_CONTENT', entityIds: [], dynamicSectionId: d.id, rationale: `${d.kind} section preserved from source` };
+            (EDITORIAL_HEAD.test(d.heading || '') ? lateDyn : plannedSections).push(sec);
         }
     }
     if (has('news'))
         plannedSections.push({ type: 'news', heading: L.news, origin: 'SOURCE_CONTENT', entityIds: featured('news', 3), rationale: 'latest news' });
     if (has('article'))
         plannedSections.push({ type: 'articles', heading: L.articles, origin: 'SOURCE_CONTENT', entityIds: featured('article', 3), rationale: 'editorial content teaser' });
+    plannedSections.push(...lateDyn);
     if (graph.company?.description)
         plannedSections.push({ type: 'about', heading: L.about, origin: 'SOURCE_FACT', entityIds: [], rationale: 'company identity + stats' });
     plannedSections.push({ type: 'contacts', heading: L.contacts, origin: 'SOURCE_FACT', entityIds: [], rationale: 'validated contacts' });
+    const identityText = `${graph.company?.industry || ''} ${graph.company?.description || ''} ${entities.slice(0, 8).map((e) => e.title).join(' ')}`;
+    const isCreative = /дизайн|design|интерьер|архитект|студи|interior|studio/i.test(identityText);
     // --- media --------------------------------------------------------------------------
     const media = {
         logo: absUrl(graph.media.find((m) => m.role === 'LOGO' && !isPlaceholderMedia(m.src))?.src || homeDoc?.chrome?.logo?.src) || undefined,
@@ -783,10 +792,21 @@ export function buildSiteContentPlanV2(opts) {
                 const u = norm(src);
                 return u && !isPlaceholderMedia(u) && !/\.svg(\?|$)|logo|icon|sprite|removebg/i.test(u) ? u : undefined;
             };
-            return pick(entities.find((e) => (e.type === 'project' || e.type === 'product') && e.primaryImage)?.primaryImage)
-                || pick(graph.media.find((m) => m.role === 'HERO_CANDIDATE')?.src)
+            // Prefer imagery that is NOT an entity's own photo — otherwise the hero
+            // visibly duplicates a project/product card. Entity images are the last
+            // resort, never a first choice.
+            const entityImg = () => pick(entities.find((e) => (e.type === 'project' || e.type === 'product') && e.primaryImage)?.primaryImage);
+            const entitySrcs = new Set(entities.flatMap((e) => [e.primaryImage, ...e.media].filter(Boolean)));
+            const freeImg = (m) => { const u = norm(m?.src); return u && !entitySrcs.has(u) && !isPlaceholderMedia(u) && !/\.svg(\?|$)|logo|icon|sprite|removebg/i.test(u) ? u : undefined; };
+            const chrome = () => pick(graph.media.find((m) => m.role === 'HERO_CANDIDATE')?.src)
                 || pick(homeDoc?.images?.find((i) => isChromeImage(i) && ((i.width || 0) >= 600 || i.width == null))?.src)
                 || pick(homeDoc?.openGraph?.['og:image']);
+            // Portfolio-led businesses (design studios) lead with their work — an
+            // entity photo IS the identity. Others prefer a free site photo so the
+            // hero doesn't visibly duplicate a project card.
+            return isCreative
+                ? (entityImg() || chrome() || (graph.media || []).map(freeImg).find(Boolean))
+                : (chrome() || (graph.media || []).map(freeImg).find(Boolean) || entityImg());
         })(),
         images: (() => {
             const base = (graph.media || []).filter((m) => !isPlaceholderMedia(m.src) && m.role !== 'UTILITY_ICON' && m.role !== 'LANGUAGE_ICON')
@@ -818,8 +838,6 @@ export function buildSiteContentPlanV2(opts) {
     warnings.push(...reasons);
     // --- experience / presentation layer -----------------------------------------
     const cnt = (t) => entities.filter((e) => e.type === t).length;
-    const identityText = `${graph.company?.industry || ''} ${graph.company?.description || ''} ${entities.slice(0, 8).map((e) => e.title).join(' ')}`;
-    const isCreative = /дизайн|design|интерьер|архитект|студи|interior|studio/i.test(identityText);
     const archetype = cnt('product') >= 3 ? 'CATALOG' : isCreative && cnt('project') >= 1 ? 'CREATIVE_PORTFOLIO' : 'SERVICE_PORTFOLIO';
     const archetypeReason = cnt('product') >= 3
         ? `${cnt('product')} catalogue items dominate`
@@ -835,12 +853,25 @@ export function buildSiteContentPlanV2(opts) {
     const hasPricingEvidence = dynamicSections.some((d) => d.kind === 'PRICING')
         || entities.some((e) => /руб|₽|\$|цен|стоимост|price/iu.test(JSON.stringify(e.attributes || {})));
     const ogTitleSegs = (homeDoc?.openGraph?.['og:title'] || '').split('|').map((x) => x.trim()).filter((x) => x && x.length <= 70);
+    // A logo/domain token written as a word ("SDKE") is chrome, not headline
+    // copy — drop candidates built around it when the human brand name is
+    // different (e.g. "Студия дизайна Елены Кожеуровой" vs logo "SDKE").
+    const hostTok = (() => { try {
+        return new URL(opts.baseUrl).hostname.split('.')[0];
+    }
+    catch {
+        return '';
+    } })();
+    const brandHasHostTok = !!hostTok && normTitle(brandName).includes(normTitle(hostTok));
+    const hostTokRe = hostTok && hostTok.length >= 2 ? new RegExp(`(^|\\b)${hostTok.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(\\b|$)`, 'iu') : null;
     const heroCandidates = [
         ...descClean.split(/(?<=[.!?])\s+/).map((c) => (c || '').replace(/[.!?]+$/, '').split(/\s+[–—]\s+|\s*\|\s*/)[0].trim()),
         ...ogTitleSegs,
-    ].filter((h) => h && h.length >= 8 && h.length <= 70);
+    ].filter((h) => h && h.length >= 8 && h.length <= 70 && (brandHasHostTok || !hostTokRe || !hostTokRe.test(h)));
     const heroHeadline = heroCandidates.find((h) => hasPricingEvidence || !/^цены|прайс|стоимость|недорого/iu.test(h)) || brandName;
     const heroSub = [brandName, descClean.slice(heroHeadline === brandName ? 0 : descClean.indexOf(heroHeadline) + heroHeadline.length).trim().replace(/^[.!?\s–—]+/, '').slice(0, 160)]
+        .map((x) => (x || '').replace(/^[\s–—\-]+/, '').trim())
+        .filter((x) => x && (brandHasHostTok || !hostTokRe || !hostTokRe.test(x)))
         .filter(Boolean).join(' — ').slice(0, 220) || undefined;
     // Dark-safe presets — light-theme presets break hardcoded light-on-dark sections.
     const ARCHETYPE_PRESETS = {

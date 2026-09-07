@@ -76,7 +76,7 @@ interface ServiceEditorProps {
 }
 
 export function ServiceEditor({ serviceId, onNavigate }: ServiceEditorProps) {
-  const { siteId, services, refresh, site } = useStudio()
+  const { siteId, services, refresh, site, media } = useStudio()
   const isNew = !serviceId || serviceId === 'new'
   const item = isNew ? null : services.find((s: any) => s.id === serviceId)
 
@@ -156,10 +156,20 @@ export function ServiceEditor({ serviceId, onNavigate }: ServiceEditorProps) {
             <div>
               <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2">Service image</p>
               <div className="bg-white border border-gray-200 rounded p-4">
-                {imageId && <p className="text-[12px] text-gray-600 mb-2 mono">{imageId} <button onClick={() => { setImageId(''); markDirty() }} className="ml-2 text-red-500">Remove</button></p>}
+                {(() => { const m = (media || []).find((x: any) => x.id === imageId); return m ? (
+                  <div className="mb-3">
+                    <img src={`/site-media/${siteId}/${m.filename}`} alt={m.alt || title} className="w-full max-h-[220px] object-cover rounded border border-gray-100" />
+                    <div className="flex items-center gap-3 mt-2">
+                      <label className="text-[12px] text-[#16a34a] font-medium cursor-pointer hover:underline">
+                        <input type="file" accept="image/*" onChange={upload} className="hidden" />Replace
+                      </label>
+                      <button onClick={() => { setImageId(''); markDirty() }} className="text-[12px] text-red-500 hover:underline">Remove</button>
+                    </div>
+                  </div>
+                ) : null })()}
                 <label className="h-[120px] border border-dashed border-gray-300 rounded flex flex-col items-center justify-center gap-2 text-gray-400 hover:bg-gray-50 hover:border-[#16a34a] hover:text-[#16a34a] cursor-pointer transition-colors">
                   <input type="file" accept="image/*" onChange={upload} className="hidden" />
-                  {uploading ? 'Uploading…' : <><IconUpload size={18} /><span className="text-[12px]">Click to upload or drag image here</span><span className="text-[11px] text-gray-300">JPG, PNG — recommended 800×600</span></>}
+                  {uploading ? 'Uploading…' : <><IconUpload size={18} /><span className="text-[12px]">{imageId ? 'Replace image' : 'Click to upload or drag image here'}</span><span className="text-[11px] text-gray-300">JPG, PNG — recommended 800×600</span></>}
                 </label>
               </div>
             </div>
