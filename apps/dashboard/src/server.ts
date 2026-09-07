@@ -38,6 +38,75 @@ app.get('/health', (_req: Request, res: Response) => {
   res.json({ service: 'platform-api', status: 'ok' });
 });
 
+const LEAD_SELECT =  {
+      id: true,
+      companyName: true,
+      categories: true,
+      website: true,
+      websiteDomain: true,
+      phone: true,
+      address: true,
+      createdAt: true,
+      leadScore: true,
+      businessScore: true,
+      websiteQualityScore: true,
+      technicalQualityScore: true,
+      visualQualityScore: true,
+      businessConfidenceScore: true,
+      leadScoreV2: true,
+      websiteStatus: true,
+      websiteIneligibilityReason: true,
+      enrichmentStatus: true,
+      scoreStatus: true,
+      generationStatus: true,
+      manualReviewStatus: true,
+      manualReviewNote: true,
+      reviewedAt: true,
+      auditStatus: true,
+      auditErrorMessage: true,
+      redesignStage: true,
+      site: {
+        select: {
+          id: true,
+          previewToken: true,
+          status: true
+        }
+      },
+      lighthouseReport: {
+        select: {
+          status: true,
+          error: true,
+          attempts: true,
+          durationMs: true,
+          performance: true,
+          seo: true,
+          accessibility: true,
+          bestPractices: true
+        }
+      },
+      visualAnalysis: {
+        select: {
+          status: true,
+          modernity: true,
+          visualQuality: true,
+          mobileUX: true,
+          trust: true,
+          ctaQuality: true,
+          contentStructure: true,
+          visualHierarchy: true,
+          brandConsistency: true,
+          redesignPotential: true,
+          problems: true,
+          strengths: true,
+          summary: true,
+          model: true,
+          promptVersion: true,
+          updatedAt: true,
+          errorMessage: true
+        }
+      }
+    };
+
 app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
   const limit = Math.min(200, Math.max(1, Math.floor(numParam(req.query.limit, 50))));
   const offset = Math.max(0, Math.floor(numParam(req.query.offset, 0)));
@@ -118,7 +187,7 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
 
   if (websiteStatus) {
     where.websiteStatus = websiteStatus;
-  } else if (!includeExcluded) {
+  } else if (!includeExcluded && qualificationStatus !== 'FAILED') {
     where.websiteStatus = 'FOUND';
   }
 
@@ -144,11 +213,7 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
     where.websiteStatus = 'FOUND';
     where.NOT = readyForReviewWhere;
   } else if (qualificationStatus === 'FAILED') {
-    where.OR = [
-      { auditStatus: 'FAILED' },
-      { scoreStatus: 'FAILED' },
-      { visualAnalysis: { status: 'FAILED' } },
-    ];
+    where.OR = FAILED_CHECKS_OR;
   }
 
   const generationStageMap: Record<string, string[]> = {
@@ -213,74 +278,7 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
     orderBy: orderBy as any,
     skip: offset,
     take: limit,
-    select: {
-      id: true,
-      companyName: true,
-      categories: true,
-      website: true,
-      websiteDomain: true,
-      phone: true,
-      address: true,
-      createdAt: true,
-      leadScore: true,
-      businessScore: true,
-      websiteQualityScore: true,
-      technicalQualityScore: true,
-      visualQualityScore: true,
-      businessConfidenceScore: true,
-      leadScoreV2: true,
-      websiteStatus: true,
-      websiteIneligibilityReason: true,
-      enrichmentStatus: true,
-      scoreStatus: true,
-      generationStatus: true,
-      manualReviewStatus: true,
-      manualReviewNote: true,
-      reviewedAt: true,
-      auditStatus: true,
-      auditErrorMessage: true,
-      redesignStage: true,
-      site: {
-        select: {
-          id: true,
-          previewToken: true,
-          status: true
-        }
-      },
-      lighthouseReport: {
-        select: {
-          status: true,
-          error: true,
-          attempts: true,
-          durationMs: true,
-          performance: true,
-          seo: true,
-          accessibility: true,
-          bestPractices: true
-        }
-      },
-      visualAnalysis: {
-        select: {
-          status: true,
-          modernity: true,
-          visualQuality: true,
-          mobileUX: true,
-          trust: true,
-          ctaQuality: true,
-          contentStructure: true,
-          visualHierarchy: true,
-          brandConsistency: true,
-          redesignPotential: true,
-          problems: true,
-          strengths: true,
-          summary: true,
-          model: true,
-          promptVersion: true,
-          updatedAt: true,
-          errorMessage: true
-        }
-      }
-    } as any
+    select: LEAD_SELECT
     }),
     prisma.lead.count({ where }),
   ]);
@@ -312,6 +310,16 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
   }));
   res.json({ items: withReadiness, meta: { limit, offset, total, q, sort, discoveryRunId, websiteStatus, enrichmentStatus, qualificationStatus } });
 });
+
+// Failed Checks = leads blocked by a terminal technical-stage failure.
+// RUNNING/PENDING stages are never counted here.
+const FAILED_CHECKS_OR: any[] = [
+  { websiteStatus: 'FAILED' },
+  { auditStatus: 'FAILED' },
+  { scoreStatus: 'FAILED' },
+  { visualAnalysis: { status: 'FAILED' } },
+  { lighthouseReport: { status: 'FAILED' } },
+];
 
 app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => {
   const discoveryRunId = typeof req.query.discoveryRunId === 'string' ? req.query.discoveryRunId : '';
@@ -356,12 +364,12 @@ app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => 
     prisma.lead.count({ where: { ...where, scoreStatus: 'SUCCESS' } }),
     prisma.lead.count({ where: { ...where, ...readyForReviewWhere } }),
     prisma.lead.count({ where: { ...where, websiteStatus: 'FOUND', NOT: readyForReviewWhere } }),
-    prisma.lead.count({ where: { ...where, OR: [ { auditStatus: 'FAILED' }, { scoreStatus: 'FAILED' }, { visualAnalysis: { status: 'FAILED' } } ] } }),
+    prisma.lead.count({ where: { ...where, OR: FAILED_CHECKS_OR } }),
     prisma.lead.count({ where: { ...where, ...readyForReviewWhere, manualReviewStatus: 'GOOD' } }),
     prisma.lead.count({ where: { ...where, redesignStage: 'SELECTED_FOR_REDESIGN' } }),
     prisma.lead.count({ where: { ...where, site: { isNot: null } } }),
     prisma.lead.count({ where: { ...where, manualReviewStatus: 'GOOD', redesignStage: { notIn: ['NOT_SELECTED'] } } }),
-    prisma.lead.count({ where: { ...where, auditStatus: 'FAILED' } })
+    prisma.lead.count({ where: { ...where, OR: FAILED_CHECKS_OR } })
   ]);
   res.json({
     total,
@@ -387,6 +395,110 @@ app.get('/api/discovery/runs/:runId/stats', requireSuperAdmin, async (req: Reque
   const run = await prisma.discoveryRun.findUnique({ where: { id: String(req.params.runId) }, include: { _count: { select: { leadIds: true } } } });
   if (!run) { res.status(404).json({ error: 'not_found' }); return; }
   res.json(await discovery.getRunFunnel(run.id));
+});
+
+app.get('/api/leads/:leadId', requireAuth, async (req: Request, res: Response) => {
+  const leadId = String(req.params.leadId);
+  const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: LEAD_SELECT });
+  if (!lead) { res.status(404).json({ error: 'lead_not_found' }); return; }
+  const activeOperations = await prisma.operationRun.findMany({
+    where: { leadId, status: { in: ['PENDING', 'RUNNING', 'CANCEL_REQUESTED'] } },
+    select: { id: true, operationId: true, leadId: true, status: true, createdAt: true },
+  });
+  const l: any = lead;
+  res.json({
+    lead: {
+      ...l,
+      activeOperations,
+      readyForReview: !!(
+        l.websiteStatus === 'FOUND' &&
+        l.auditStatus === 'SUCCESS' &&
+        l.lighthouseReport?.status === 'SUCCESS' &&
+        l.visualAnalysis?.status === 'SUCCESS' &&
+        l.scoreStatus === 'SUCCESS'
+      ),
+    },
+  });
+});
+
+// Delete follows the existing data contract: lead-owned records cascade
+// (queries, reports, analyses, redesign runs); any generated Site survives —
+// Site.leadId is SetNull, CMS content is never deleted here.
+app.delete('/api/leads/:leadId', requireSuperAdmin, async (req: Request, res: Response) => {
+  const leadId = String(req.params.leadId);
+  const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { id: true, companyName: true, site: { select: { id: true } } } });
+  if (!lead) { res.status(404).json({ error: 'lead_not_found' }); return; }
+  await prisma.lead.delete({ where: { id: leadId } });
+  await activity.log({
+    level: 'INFO', module: 'RADAR', eventType: 'lead_deleted',
+    message: `Lead deleted: ${lead.companyName}`,
+    details: { leadId, hadSite: !!lead.site },
+  }).catch(() => {});
+  res.json({ ok: true, detachedSiteId: lead.site?.id ?? null });
+});
+
+// Bulk row actions. Per-item results: success | skipped | failed. A human
+// bulk decision uses the same review semantics as the single-lead path —
+// approve persists GOOD but technical readiness gating is never bypassed.
+app.post('/api/leads/bulk', requireSuperAdmin, async (req: Request, res: Response) => {
+  const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids.filter((x: any) => typeof x === 'string') : [];
+  const action = typeof req.body?.action === 'string' ? req.body.action : '';
+  if (!ids.length || !['reaudit', 'approve', 'reject', 'delete'].includes(action)) {
+    res.status(400).json({ error: 'invalid_request' });
+    return;
+  }
+  if (ids.length > 200) { res.status(400).json({ error: 'too_many_ids' }); return; }
+
+  const results: { id: string; result: 'success' | 'skipped' | 'failed'; reason?: string }[] = [];
+
+  for (const leadId of ids) {
+    try {
+      const lead = await prisma.lead.findUnique({
+        where: { id: leadId },
+        select: { id: true, website: true, websiteStatus: true, manualReviewStatus: true, auditStatus: true, site: { select: { id: true } } },
+      });
+      if (!lead) { results.push({ id: leadId, result: 'skipped', reason: 'not_found' }); continue; }
+
+      if (action === 'reaudit') {
+        if (!lead.website) { results.push({ id: leadId, result: 'skipped', reason: 'no_website' }); continue; }
+        const active = await prisma.operationRun.findFirst({ where: { leadId, status: { in: ['PENDING', 'RUNNING', 'CANCEL_REQUESTED'] }, operationId: 'AUDIT_WEBSITE' }, select: { id: true } });
+        if (active) { results.push({ id: leadId, result: 'skipped', reason: 'audit_running' }); continue; }
+        // Re-audit = recovery path: a FAILED website gets one fresh viability
+        // attempt; audit stage resets so qualification can advance again.
+        await prisma.lead.update({
+          where: { id: leadId },
+          data: {
+            auditStatus: 'PENDING',
+            auditErrorMessage: null,
+            ...(lead.websiteStatus === 'FAILED' ? { websiteStatus: 'FOUND' } : {}),
+          },
+        });
+        const { run } = await operations.execute({ operationId: 'AUDIT_WEBSITE', input: { leadId, website: lead.website }, leadId });
+        results.push({ id: leadId, result: 'success', reason: run?.id });
+      } else if (action === 'approve') {
+        if (lead.manualReviewStatus === 'GOOD') { results.push({ id: leadId, result: 'skipped', reason: 'already_good' }); continue; }
+        await prisma.lead.update({ where: { id: leadId }, data: { manualReviewStatus: 'GOOD', reviewedAt: new Date() } });
+        results.push({ id: leadId, result: 'success' });
+      } else if (action === 'reject') {
+        await prisma.lead.update({ where: { id: leadId }, data: { manualReviewStatus: 'BAD', reviewedAt: new Date() } });
+        const cancelled = await operations.cancelForLead(leadId);
+        results.push({ id: leadId, result: 'success', reason: cancelled.length ? `cancelled ${cancelled.length} run(s)` : undefined });
+      } else { // delete
+        await prisma.lead.delete({ where: { id: leadId } });
+        results.push({ id: leadId, result: 'success', reason: lead.site ? `site ${lead.site.id} detached` : undefined });
+      }
+    } catch (e: any) {
+      results.push({ id: leadId, result: 'failed', reason: e?.message || 'error' });
+    }
+  }
+
+  await activity.log({
+    level: 'INFO', module: 'RADAR', eventType: `leads_bulk_${action}`,
+    message: `Bulk ${action}: ${results.filter(r => r.result === 'success').length}/${ids.length} succeeded`,
+    details: { ids, results },
+  }).catch(() => {});
+
+  res.json({ ok: true, action, results });
 });
 
 app.post('/api/leads/:leadId/redesign', requireAuth, async (req: Request, res: Response) => {

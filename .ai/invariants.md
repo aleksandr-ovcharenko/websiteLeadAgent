@@ -768,3 +768,42 @@ be able to inspect and approve/reject the generation from the product UI
 (Active/Draft) and generation review status (Generating/Validation/
 Awaiting human review/Demo ready/Needs attention) are separate concepts and
 are never conflated.
+
+
+## URL DISCOVERED IS NOT WEBSITE VIABLE
+
+A discovered website URL sets `websiteStatus = FOUND` only — it means a URL
+exists, not that the site is loadable. The audit navigation is the viability
+gate: a hard failure (DNS, refused, protocol, unrecoverable TLS, redirect
+loop, invalid URL — see `classifyNavigationError` in
+`apps/auditor/src/pipeline/auditLeadWebsite.ts`) sets `websiteStatus =
+FAILED`. Retryable conditions (timeout, 429/5xx, WAF/bot challenges) keep
+`FOUND` with `auditStatus = FAILED`. Deep-URL failures get one canonical
+origin-root attempt before being declared unreachable.
+
+## HARD FAILURE STOPS EXPENSIVE DOWNSTREAM WORK
+
+`websiteStatus = FAILED` blocks the entire qualification pipeline — no
+screenshots, Lighthouse, AI, or scoring — until an explicit Re-audit resets
+the viability state. Rejected/failed leads never become READY_FOR_REVIEW or
+READY_FOR_GENERATION; a human GOOD decision on a technically blocked lead is
+persisted but never bypasses the gate.
+
+## BACKGROUND UPDATES PATCH ENTITIES, NOT VIEWS
+
+SSE events and polls patch lead data by stable ID
+(`LeadSelectionStore.applyLeadData` / per-row merge). They never replace the
+table as a unit, never change selection, and never trigger a loading state.
+`GET /api/leads/:id` is the targeted fetch for event-driven updates.
+
+## TABLE ORDER IS USER VIEW STATE
+
+Background score/status changes patch cells in place and never reorder or
+re-sort the table. Rebuilds happen only at explicit user boundaries: sort,
+filter, view switch, or manual Refresh.
+
+## BULK SELECTION IS IDENTITY-BASED
+
+Checkbox selection stores Lead IDs, never row indices. Bulk results are
+per-item (success / skipped / failed); failed or skipped items stay selected
+for correction. Select-all covers only the currently visible rows.

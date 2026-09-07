@@ -18,6 +18,7 @@ enum LeadWebsiteStatus {
   UNKNOWN
   FOUND
   NOT_FOUND
+  FAILED
 }
 
 enum LeadEnrichmentStatus {

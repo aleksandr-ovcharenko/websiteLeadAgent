@@ -95,6 +95,13 @@ export class QualificationOrchestrator {
       return { operationId, runId, stage };
     };
 
+    // Hard website viability failure: the pipeline stops here until an
+    // explicit re-audit resets websiteStatus. Never auto-spend downstream
+    // compute (screenshots/Lighthouse/AI/scoring) on a proven-dead site.
+    if (lead.websiteStatus === 'FAILED') {
+      return { ok: false, started: null, reason: 'website_unreachable' };
+    }
+
     if (lead.websiteStatus !== 'FOUND' || !lead.website) {
       if (STOPPING_STATUSES.has(lead.enrichmentStatus)) {
         return { ok: false, started: null, reason: `enrichment_${lead.enrichmentStatus.toLowerCase()}` };

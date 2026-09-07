@@ -1,4 +1,4 @@
-export type PrimaryView = 'all' | 'review' | 'generation';
+export type PrimaryView = 'all' | 'review' | 'generation' | 'failed';
 
 export interface Filters {
   q: string;
@@ -34,6 +34,14 @@ export const defaultFilters: Record<PrimaryView, Filters> = {
     manual: 'GOOD',
     generationStatus: 'READY_FOR_GENERATION',
   },
+  failed: {
+    q: '',
+    sort: 'v2_desc',
+    websiteStatus: '',
+    qualificationStatus: 'FAILED',
+    manual: '',
+    generationStatus: '',
+  },
 };
 
 const sorts = [
@@ -62,12 +70,13 @@ export default function RadarFilters({
   onChange: (f: Partial<Filters>) => void;
   view: PrimaryView;
   onView: (v: PrimaryView) => void;
-  counts: { all: number; review: number; generation: number };
+  counts: { all: number; review: number; generation: number; failed: number };
 }) {
   const tabs: ViewTab[] = [
     { key: 'all', label: 'All sites', count: counts.all },
     { key: 'review', label: 'Ready for review', count: counts.review },
     { key: 'generation', label: 'Ready for generation', count: counts.generation },
+    { key: 'failed', label: 'Failed checks', count: counts.failed },
   ];
 
   const defaults = defaultFilters[view];

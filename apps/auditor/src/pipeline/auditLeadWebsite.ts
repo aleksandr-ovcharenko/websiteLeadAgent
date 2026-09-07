@@ -8,6 +8,22 @@ import { handleCookieConsent } from '../cookies/handleCookieConsent.js';
 
 export type ActivityCallback = (event: { level?: 'INFO' | 'WARN' | 'ERROR'; module: string; eventType: string; message: string; details?: Record<string, any> }) => Promise<void>;
 
+/**
+ * Navigation-error classification for the website viability gate.
+ * HARD failures mean the site is not loadable by a real browser; they flip
+ * lead.websiteStatus to FAILED so the lead can never enter review/generation
+ * until an explicit re-audit recovers it. Retryable/ambiguous conditions
+ * (bot challenges, 429/5xx at HTTP level, odd timeouts) keep the lead
+ * inspectable without claiming the website is dead.
+ */
+const HARD_NAV_FAILURE = /ERR_NAME_NOT_RESOLVED|ERR_ADDRESS_UNREACHABLE|ERR_CONNECTION_REFUSED|ERR_CONNECTION_RESET|ERR_CONNECTION_CLOSED|ERR_CONNECTION_FAILED|ERR_HTTP2_PROTOCOL_ERROR|ERR_SSL_|ERR_CERT_|ERR_TOO_MANY_REDIRECTS|ERR_INVALID_URL|ERR_ABORTED/i;
+const RETRYABLE_NAV_FAILURE = /ERR_TIMED_OUT|429|503|ERR_BLOCKED_BY_CLIENT|ERR_BLOCKED_BY_RESPONSE/i;
+
+export function classifyNavigationError(message: string): 'HARD' | 'RETRYABLE' {
+  if (RETRYABLE_NAV_FAILURE.test(message)) return 'RETRYABLE';
+  return HARD_NAV_FAILURE.test(message) ? 'HARD' : 'RETRYABLE';
+}
+
 export async function auditLeadWebsite(input: {
   prisma: PrismaClient;
   logger: pino.Logger;
@@ -49,9 +65,37 @@ export async function auditLeadWebsite(input: {
     let finalUrl = website;
     let tlsWarning: { status: 'INVALID_CERTIFICATE'; error: string; message: string } | null = null;
 
+    // Viability candidates: the discovered URL first, then the canonical
+    // origin root — a dead deep link does not prove the site is dead.
+    const navTargets: string[] = [website];
     try {
-      response = await page.goto(website, { waitUntil: 'domcontentloaded' });
+      const origin = new URL(website).origin;
+      if (origin && origin !== website) navTargets.push(origin);
+    } catch { /* unparseable URL → single target */ }
+
+    const tryNavigate = async (target: string) => {
+      response = await page.goto(target, { waitUntil: 'domcontentloaded' });
       finalUrl = page.url();
+    };
+
+    let lastNavError: string | null = null;
+    try {
+      for (const target of navTargets) {
+        try {
+          await tryNavigate(target);
+          lastNavError = null;
+          if (target !== website) {
+            await emit('WARN', 'AUDIT_ROOT_FALLBACK', 'Deep URL unreachable — canonical root loaded instead', { failedUrl: website, rootUrl: target });
+          }
+          break;
+        } catch (navErr) {
+          lastNavError = navErr instanceof Error ? navErr.message : String(navErr);
+          const certRetry = /ERR_CERT_DATE_INVALID|ERR_CERT_AUTHORITY_INVALID|ERR_CERT_COMMON_NAME_INVALID/.test(lastNavError);
+          if (certRetry) { throw navErr; } // handled by TLS path below
+          await emit('WARN', 'NAV_TARGET_FAILED', `Navigation failed: ${lastNavError}`, { target });
+        }
+      }
+      if (lastNavError) throw new Error(lastNavError);
     } catch (gotoErr) {
       const errMessage = gotoErr instanceof Error ? gotoErr.message : String(gotoErr);
       const isCertError = /ERR_CERT_DATE_INVALID|ERR_CERT_AUTHORITY_INVALID|ERR_CERT_COMMON_NAME_INVALID/.test(errMessage);
@@ -146,11 +190,21 @@ export async function auditLeadWebsite(input: {
     return { ok: true, httpStatus, tls: tlsWarning };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
+    // Viability gate: a hard navigation failure (DNS/protocol/TLS/refused)
+    // marks the website itself as failed — the lead can no longer be
+    // READY_FOR_REVIEW / READY_FOR_GENERATION until an explicit re-audit
+    // recovers it. Retryable failures keep websiteStatus FOUND so the lead
+    // stays inspectable under Failed checks.
+    const viability = classifyNavigationError(message);
     await prisma.lead.update({
       where: { id: leadId },
-      data: { auditStatus: 'FAILED', auditErrorMessage: message }
+      data: {
+        auditStatus: 'FAILED',
+        auditErrorMessage: message,
+        ...(viability === 'HARD' ? { websiteStatus: 'FAILED' } : {}),
+      }
     });
-    await emit('ERROR', 'AUDIT_FAILED', 'Audit failed', { error: message });
+    await emit('ERROR', viability === 'HARD' ? 'WEBSITE_UNREACHABLE' : 'AUDIT_FAILED', viability === 'HARD' ? 'Website unreachable — marked failed' : 'Audit failed', { error: message, viability });
 
     logger.warn({ runId, leadId, err }, 'audit.lead.failed');
   } finally {
