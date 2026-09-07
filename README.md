@@ -1,4 +1,21 @@
-# WebsiteLeadAgent (MVP)
+# WebsiteLeadAgent
+
+> A TypeScript monorepo for automated lead discovery, qualification, AI website redesign, and CMS-powered customer preview sites.
+
+## Features overview
+
+| # | Feature | Description |
+| --- | --- | --- |
+| 1 | **2GIS Lead Collection** | Scrape local businesses by city and query, then export leads to JSON/CSV. |
+| 2 | **Multi-Provider Discovery** | Plug in 2GIS, Yandex, DuckDuckGo, OSM, or manual input providers. |
+| 3 | **Lead Qualification (Radar)** | Website detection, Lighthouse audit, visual analysis, AI scoring, and manual review. |
+| 4 | **AI Redesign Engine** | Generate a design brief, wireframes, content, and a full React showcase site. |
+| 5 | **Customer CMS (Studio)** | Manage sites, pages, news, projects, services, vacancies, media, menus, and contacts. |
+| 6 | **Showcase Previews** | SSR preview sites with a `previewToken`, rendered by the site-renderer. |
+| 7 | **Platform Dashboard** | React app with Hub, Radar, Forge, Factory, and Studio. |
+| 8 | **Dark / Light / System Theme** | Semantic CSS tokens, persisted preference, FOUC-free theme switching. |
+| 9 | **Auth & RBAC** | Cookie-session auth with `SUPER_ADMIN`, `SITE_ADMIN`, and `EDITOR` roles. |
+| 10 | **QA Automation** | Playwright and Vitest scripts for discovery, link crawling, edit round-trips, and visual smoke tests. |
 
 ## Product terminology
 
@@ -6,21 +23,74 @@
 | --- | --- | --- | --- |
 | **Hub** | Product entry point for SUPER_ADMIN | `http://localhost:3000` | — |
 | **Radar** | Lead qualification and Factory start | `/radar` | `/leads` |
+| **Factory** | Redesign pipeline (runs inside CORE) | — | — |
 | **Forge** | Generated sites dashboard | `/forge` | `/sites` |
 | **Studio** | Site CMS editor | `/studio/:siteId` | `/cms?site=:siteId` |
 | **Showcase** | Customer preview site | `/showcase/:previewToken` | `/preview/:previewToken` |
-| **Factory** | Redesign pipeline (runs inside CORE) | — | — |
 | **Gate** | Single-port reverse proxy | `http://localhost:3000` | — |
 | **CORE** | Platform API | `http://localhost:3333` | — |
 | **STUDIO** | CMS service | `http://localhost:3335` | — |
 | **ENGINE** | Site renderer | `http://localhost:3336` | — |
 | **POSTGRES** | Database | `localhost:5433` | — |
 
-## Architecture & Technical Dive
+## Tech stack
 
-### 1. Service mesh
+| Layer | Technology |
+| --- | --- |
+| Language | TypeScript 5.6+ |
+| Runtime | Node.js 22+ |
+| Bundler | Vite 8 (platform), Vite (templates) |
+| Styling | Tailwind CSS 4 with semantic CSS tokens |
+| UI | React 19 |
+| API | Express 4 |
+| ORM | Prisma 5 |
+| Database | PostgreSQL |
+| QA | Vitest + Playwright |
 
-The product is a TypeScript monorepo built around an API Gateway that routes public traffic to the right internal service. Each app is a separate service; shared code and the site template live in `packages/`.
+## Platform UI gallery
+
+### Hub
+
+| Light | Dark |
+| --- | --- |
+| ![Hub light](apps/platform/screenshots/light-hub.png) | ![Hub dark](apps/platform/screenshots/dark-hub.png) |
+
+### Radar
+
+| Light | Dark |
+| --- | --- |
+| ![Radar light](apps/platform/screenshots/light-radar.png) | ![Radar dark](apps/platform/screenshots/dark-radar.png) |
+
+### Forge
+
+| Light | Dark |
+| --- | --- |
+| ![Forge light](apps/platform/screenshots/light-forge.png) | ![Forge dark](apps/platform/screenshots/dark-forge.png) |
+
+### Studio
+
+| Light | Dark |
+| --- | --- |
+| ![Studio light](apps/platform/screenshots/light-studio.png) | ![Studio dark](apps/platform/screenshots/dark-studio.png) |
+
+### Theme switcher
+
+![Theme dropdown in dark mode](apps/platform/screenshots/dark-theme-dropdown.png)
+
+## Lead lifecycle
+
+```mermaid
+graph LR
+    A[2GIS / Provider] -->|collect| B[apps/collector]
+    B -->|save| C[(PostgreSQL)]
+    C -->|pick lead| D[apps/dashboard CORE]
+    D -->|audit + score| E[apps/auditor]
+    E -->|qualified lead| F[Factory / Redesign]
+    F -->|generate| G[Site in Forge]
+    G -->|preview| H[Showcase]
+```
+
+## Architecture overview
 
 ```mermaid
 graph LR
@@ -39,7 +109,19 @@ graph LR
     TEMPLATES[packages/templates] -->|build| ENGINE
 ```
 
-### 2. Monorepo layout
+## Theme resolution flow
+
+```mermaid
+graph LR
+    A[User selects theme] --> B[ThemeToggle]
+    B --> C[ThemeProvider]
+    C --> D[localStorage wla-theme]
+    C --> E[data-theme attribute]
+    E --> F[CSS custom properties]
+    F --> G[Light / Dark UI]
+```
+
+## Monorepo layout
 
 ```
 websiteLeadAgent/
@@ -68,19 +150,13 @@ websiteLeadAgent/
 │   ├── schema.prisma     # source of truth for Site, Page, NewsPost, etc.
 │   └── migrations/
 ├── scripts/              # development and QA automation
-│   ├── dev.ts            # single-command dev launcher
-│   ├── link-crawler.ts   # Playwright link audit
-│   ├── news-qa.ts        # News edit round-trip test
-│   ├── project-service-qa.ts
-│   ├── edit-roundtrip.ts
-│   └── backfill-garant.ts
 ├── docs/                 # reports and screenshots
 ├── tests/                # Vitest specs
 ├── output/               # CLI output (leads.json, generated HTML)
 └── docker-compose.yml    # PostgreSQL only
 ```
 
-### 3. Applications (`apps/`)
+## Applications
 
 | App | Runtime | Responsibility |
 | --- | --- | --- |
@@ -93,7 +169,7 @@ websiteLeadAgent/
 | `apps/redesign` | Node CLI | CLI wrapper around `packages/redesign-engine`. |
 | `apps/dashboard` | Express | Platform API / CORE. Auth, discovery provider/preset management, discovery runs, webhooks and platform health. |
 
-### 4. Packages (`packages/`)
+## Packages
 
 | Package | Responsibility |
 | --- | --- |
@@ -104,7 +180,7 @@ websiteLeadAgent/
 | `packages/media-storage` | S3-compatible upload/presign helpers. |
 | `packages/screenshot` | Playwright screenshot capture utilities used by QA scripts. |
 
-### 5. Database & content model
+## Database & content model
 
 - **DB**: PostgreSQL (`localhost:5433` default).
 - **ORM**: Prisma (`prisma/schema.prisma`).
@@ -118,15 +194,7 @@ websiteLeadAgent/
   - `Lead`, `SiteUser`, `User` — auth and lead management.
   - `DiscoveryProviderConfig`, `DiscoveryPreset`, `DiscoveryRun`, `DiscoverySetting` — discovery sources, presets, runs and defaults.
 
-### 6. Template rendering pipeline
-
-1. **Build time**: `packages/templates` runs `vite build`, producing `dist/construction-modern-v1/public/` (static JS/CSS and `index.html`).
-2. **Runtime**: `apps/site-renderer` gets a request like `/showcase/:previewToken/about`.
-3. **Data load**: it fetches the `Site`, `SiteSettings`, published `Page`s, `Project`s, `Service`s, `NewsPost`s, `Vacancy`s, `MenuItem`s and `Media` from Prisma.
-4. **Payload construction**: `packages/templates/src/construction-modern-v1/index.ts` turns raw DB rows into `window.__CMS__` with `NAV`, `PAGES`, `SERVICES`, `PROJECTS`, `NEWS_ITEMS`, `VACANCIES`.
-5. **Hydration**: the browser receives `index.html` with the payload; `main.tsx` mounts `App.tsx`, which uses `__CMS__.route` and `__CMS__.subRoute` to render `PageView`, `ProjectList`, `ServiceDetail`, etc.
-
-### 7. Example request flow — opening `/showcase/8e25ix7c/about`
+## Example request flow — opening `/showcase/8e25ix7c/about`
 
 1. Browser → `apps/gateway` on `3000`.
 2. `gateway` recognizes `/showcase/*` and proxies to `apps/site-renderer` on `3336`.
@@ -134,49 +202,6 @@ websiteLeadAgent/
 4. Prisma loads the published `Page` with `slug = about` plus all other CMS entities.
 5. `packages/templates/.../index.ts` builds `__CMS__` and sets `route: 'about'`.
 6. `App.tsx` renders `PageView` because `route` is not a known collection and `PAGES` contains the `about` page.
-
-### 8. Development pipeline
-
-- `npm run dev` — starts PostgreSQL (if needed), CORE/STUDIO/ENGINE/HUB/GATE and builds the template.
-- `npm run dev -- --no-infra` — assumes PostgreSQL is already running.
-- `npm run db:migrate` — runs Prisma migrations.
-- `npm run infra:reset` — wipes and recreates the local database.
-- Vitest for unit tests: `npm run test`.
-
-### 9. QA & automation
-
-| Script | Purpose |
-| --- | --- |
-| `scripts/link-crawler.ts` | Crawls 7 public Showcase routes and classifies every `<a>` (`VALID_INTERNAL`, `EXTERNAL`, `PLACEHOLDER`, `BROKEN`, …). |
-| `scripts/news-qa.ts` | Studio → Showcase round-trip for News. |
-| `scripts/project-service-qa.ts` | Round-trip for Projects and Services. |
-| `scripts/edit-roundtrip.ts` | Basic multi-site edit verification. |
-| `scripts/screenshot-qa.ts` | Captures visual smoke tests. |
-| `scripts/discovery-qa.ts` | End-to-end test for New Discovery, presets and discovery history. |
-| `scripts/providers-qa.ts` | Verifies provider cards, configuration, test flow, presets CRUD and unconfigured CTA. |
-
-### 10. Discovery & provider configuration flow
-
-Discovery is driven by **BusinessDiscoveryProvider** implementations registered in `apps/dashboard/src/discovery/registry.ts`. Each provider exposes `meta` (capabilities, credentials), `isConfigured(env)` and `search(request, context)`.
-
-```
-Radar UI ──/radar/providers──> CORE (apps/dashboard)
-CORE ──> DiscoveryService
-DiscoveryService ──> Prisma: DiscoveryProviderConfig / DiscoveryPreset
-DiscoveryService ──> BusinessDiscoveryProvider.search()
-BusinessDiscoveryProvider ──> 2GIS / Yandex / DuckDuckGo / OSM / manual input
-```
-
-- **Status & configuration**: `DiscoveryService.listProviders()` computes `READY`, `NOT_CONFIGURED`, `DISABLED`, `ERROR` or `UNAVAILABLE` by checking the persisted `DiscoveryProviderConfig`, the provider's `isConfigured(env)` result and recent test results.
-- **Testing**: `POST /api/discovery/providers/:id/test` runs a safe search on the server, records `lastTestStatus`/`lastTestMessage` and never returns secrets to the browser.
-- **Presets**: `DiscoveryPreset` rows replace hard-coded topic presets; the UI at `/radar/presets` supports create, edit, delete, enable/disable and default provider/location/limit.
-- **New Discovery**: `/radar/providers` and the `NewDiscovery` modal pre-select the chosen provider. If it is not configured, the UI shows a **Configure provider** CTA.
-
-### 11. Security notes
-
-- Provider credentials are stored only in `process.env` on CORE.
-- The `DiscoveryProviderConfig` model persists `enabled`, `defaults` and test metadata, but never the secret itself.
-- Auth and super-admin checks on `/api/discovery/*` live in `apps/dashboard/src/server.ts` middleware.
 
 ## Requirements
 
@@ -235,8 +260,6 @@ Then open:
 
 ### Available flags
 
-Run `npm run dev:help` (or `npm run dev -- --help`) to see all options.
-
 | Command | What it starts |
 | --- | --- |
 | `npm run dev` | Everything: PostgreSQL (if not running), CORE, STUDIO, ENGINE, HUB, and GATE on `http://localhost:3000` |
@@ -256,11 +279,75 @@ npm run infra:reset # wipe local data and recreate
 
 ### Internal ports
 
-- CORE (Platform API): `3333`
-- STUDIO (CMS): `3335`
-- ENGINE (Renderer): `3336`
-- HUB (Platform web): `3004`
-- GATE (Gateway): `3000`
+| Service | Port |
+| --- | --- |
+| CORE (Platform API) | `3333` |
+| STUDIO (CMS) | `3335` |
+| ENGINE (Renderer) | `3336` |
+| HUB (Platform web) | `3004` |
+| GATE (Gateway) | `3000` |
+
+## Development commands
+
+| Command | Purpose |
+| --- | --- |
+| `npm run leads` | Collect leads from 2GIS |
+| `npm run audit` | Audit a lead/site |
+| `npm run lighthouse` | Run a Lighthouse report |
+| `npm run score` | Score a lead |
+| `npm run visual-analyze` | Run visual analysis |
+| `npm run redesign` | Run the redesign pipeline |
+| `npm run test` | Run all Vitest suites |
+
+## QA & automation
+
+| Script | Purpose |
+| --- | --- |
+| `scripts/link-crawler.ts` | Crawls 7 public Showcase routes and classifies every `<a>` (`VALID_INTERNAL`, `EXTERNAL`, `PLACEHOLDER`, `BROKEN`, …). |
+| `scripts/news-qa.ts` | Studio → Showcase round-trip for News. |
+| `scripts/project-service-qa.ts` | Round-trip for Projects and Services. |
+| `scripts/edit-roundtrip.ts` | Basic multi-site edit verification. |
+| `scripts/screenshot-qa.ts` | Captures visual smoke tests. |
+| `scripts/discovery-qa.ts` | End-to-end test for New Discovery, presets and discovery history. |
+| `scripts/providers-qa.ts` | Verifies provider cards, configuration, test flow, presets CRUD and unconfigured CTA. |
+| `scripts/capture-theme-screenshots.mjs` | Playwright screenshots of the platform in light, dark, and system themes. |
+| `apps/platform/src/theme/theme.test.ts` | Unit tests for theme resolution utilities. |
+
+## Discovery & provider configuration flow
+
+```mermaid
+graph LR
+    A[Radar UI] -->|/radar/providers| B[CORE]
+    B --> C[DiscoveryService]
+    C --> D[Prisma: ProviderConfig]
+    C --> E[BusinessDiscoveryProvider]
+    E --> F[2GIS / Yandex / DDG / OSM]
+```
+
+Discovery is driven by **BusinessDiscoveryProvider** implementations registered in `apps/dashboard/src/discovery/registry.ts`. Each provider exposes `meta` (capabilities, credentials), `isConfigured(env)` and `search(request, context)`.
+
+- **Status & configuration**: `DiscoveryService.listProviders()` computes `READY`, `NOT_CONFIGURED`, `DISABLED`, `ERROR` or `UNAVAILABLE` by checking the persisted `DiscoveryProviderConfig`, the provider's `isConfigured(env)` result and recent test results.
+- **Testing**: `POST /api/discovery/providers/:id/test` runs a safe search on the server, records `lastTestStatus`/`lastTestMessage` and never returns secrets to the browser.
+- **Presets**: `DiscoveryPreset` rows replace hard-coded topic presets; the UI at `/radar/presets` supports create, edit, delete, enable/disable and default provider/location/limit.
+- **New Discovery**: `/radar/providers` and the `NewDiscovery` modal pre-select the chosen provider. If it is not configured, the UI shows a **Configure provider** CTA.
+
+## Qualification pipeline
+
+| Stage | Source | Possible statuses |
+| --- | --- | --- |
+| Website detection | `websiteStatus` | `FOUND`, `NOT_FOUND`, `FAILED` |
+| Audit | `auditStatus` | `SUCCESS`, `PENDING`, `FAILED` |
+| Screenshots | Derived from audit | `SUCCESS`, `PENDING`, `WAITING`, `FAILED` |
+| Lighthouse | `lighthouseReport` | `SUCCESS`, `PENDING`, `WAITING` |
+| AI analysis | `visualAnalysis.status` | `SUCCESS`, `PENDING`, `FAILED` |
+| Scoring | `scoreStatus` | `SUCCESS`, `PENDING`, `FAILED` |
+| Manual review | `manualReviewStatus` | `UNREVIEWED`, `APPROVED`, `REJECTED` |
+
+## Security notes
+
+- Provider credentials are stored only in `process.env` on CORE.
+- The `DiscoveryProviderConfig` model persists `enabled`, `defaults` and test metadata, but never the secret itself.
+- Auth and super-admin checks on `/api/discovery/*` live in `apps/dashboard/src/server.ts` middleware.
 
 ## Collect leads (2GIS)
 
