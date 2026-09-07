@@ -26,9 +26,11 @@ const digits = (s) => s.replace(/\D/g, '');
 export function cleanCardSummary(raw, title) {
     if (!raw)
         return undefined;
-    const JUNK = /запросить|оставьте заявку|позвоните|звоните|закажите|записаться|подробнее|читать далее|порядок выполнения|наши контакты|все права|cookie|карта сайта|политика конфиденциальности|menu|меню|наверх|call us|order now|read more/i;
+    const JUNK = /запросить|оставьте заявку|позвоните|звоните|закажите|заказать|записаться|получить консультац|получить консультацию|узнать (цену|стоимость)|подробнее|читать далее|порядок выполнения|наши контакты|все права|cookie|карта сайта|политика конфиденциальности|✔|➔|✓|тариф|menu|меню|наверх|call us|order now|read more/i;
     const PHONE = /\+?\d[\d\s()\-]{6,}/;
-    const sentences = raw.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter((s) => {
+    const sentences = raw.split(/(?<=[.!?])\s+|\n+/)
+        .map((s) => s.trim().replace(/(получить консультац\S*|заказать|закажите|узнать (цену|стоимость)|оставить заявку|подробнее|читать далее|✔|➔|✓|тариф\s*«[^»]*»).*$/iu, '').trim())
+        .filter((s) => {
         if (!s || s.length < 12)
             return false;
         if (JUNK.test(s) || PHONE.test(s))
@@ -533,7 +535,43 @@ export function buildSiteContentPlanV2(opts) {
             });
         }
     }
-    const dynamicSections = [...dynSeen.values()];
+    // Merge same-kind sections: keep the one with more items and cleaner titles.
+    const KIND_DEFAULT_HEADING = {
+        FAQ: 'Часто задаваемые вопросы', PROCESS: 'Как мы работаем', REVIEWS: 'Отзывы клиентов',
+        ADVANTAGES: 'Преимущества', TEAM: 'Команда', PRICING: 'Цены', PARTNERS: 'Партнёры',
+        STATS: 'Цифры', PROMOTION: 'Акции', OTHER: '', IGNORED: '',
+    };
+    const itemOk = (t) => {
+        const x = (t || '').trim();
+        return x.length >= 4 && !/[✔➔✓→]/.test(x) && !/\+?\d[\d\s()\-]{6,}/.test(x);
+    };
+    const quality = (d) => d.items.filter((i) => itemOk(i.title || '')).length;
+    const byKind = new Map();
+    for (const d of [...dynSeen.values()]) {
+        const keep = byKind.get(d.kind);
+        if (!keep || quality(d) > quality(keep))
+            byKind.set(d.kind, d);
+    }
+    const dynamicSections = [...byKind.values()]
+        .map((d) => {
+        let items = d.items.filter((i) => itemOk(i.title || ''));
+        if (d.kind === 'FAQ')
+            items = items.filter((i) => (i.title || '').trim().endsWith('?') || (i.text || '').length > 20);
+        // short titles are legitimate for names/prices (REVIEWS, PRICING, TEAM,
+        // PARTNERS) — but for PROCESS/ADVANTAGES/OTHER a bare <10-char fragment
+        // with no body text is nav chrome, not a step.
+        else if (['PROCESS', 'ADVANTAGES', 'OTHER'].includes(d.kind))
+            items = items.filter((i) => (i.title || '').trim().length >= 10 || (i.text || '').trim().length > 0);
+        return {
+            ...d,
+            items,
+            // heading must look like a section heading, not a captured item title
+            heading: d.heading && detectDynamicKind(d.heading, [], { kind: d.kind })?.kind === d.kind
+                ? d.heading
+                : KIND_DEFAULT_HEADING[d.kind] || d.heading,
+        };
+    })
+        .filter((d) => d.items.length >= (d.kind === 'REVIEWS' ? 1 : 2) || d.kind === 'IGNORED');
     // --- pages ---------------------------------------------------------------------
     const L = language.startsWith('ru') ? {
         home: 'Главная', services: 'Услуги', projects: 'Проекты', products: 'Каталог', news: 'Новости', articles: 'Статьи', about: 'О компании', contacts: 'Контакты', vacancies: 'Вакансии',
@@ -575,6 +613,23 @@ export function buildSiteContentPlanV2(opts) {
     navPush('/contacts', L.contacts);
     const sourceNavigation = (homeDoc?.chrome?.nav?.primary || []).slice(0, 14).map((n, i) => ({ label: n.label, url: n.url, order: i }));
     const matchedMedia = [];
+    // --- boilerplate card copy ---------------------------------------------------
+    // If >2 entities share an identical normalized summary it is site boilerplate,
+    // not entity copy — drop it (UNKNOWN > WRONG).
+    {
+        const freq = new Map();
+        for (const e of entities) {
+            const k = normTitle(e.cardSummary || '');
+            if (k)
+                freq.set(k, (freq.get(k) || 0) + 1);
+        }
+        for (const e of entities) {
+            const k = normTitle(e.cardSummary || '');
+            if (k && (freq.get(k) || 0) > 2) {
+                e.cardSummary = undefined;
+            }
+        }
+    }
     // --- filename↔slug media matching ------------------------------------------
     // Source filenames often mirror entity slugs ("promyshlenny-obekt-1.jpg" →
     // project "promyshlenny-obekt"). Grounded in the source URL itself.
@@ -612,7 +667,6 @@ export function buildSiteContentPlanV2(opts) {
             if (uniq.length) {
                 e.primaryImage = uniq[0];
                 e.media = [...uniq.slice(0, 6), ...e.media];
-                matchedMedia.push(...uniq);
             }
         }
     }
@@ -675,10 +729,14 @@ export function buildSiteContentPlanV2(opts) {
             const base = (graph.media || []).filter((m) => !isPlaceholderMedia(m.src) && m.role !== 'UTILITY_ICON' && m.role !== 'LANGUAGE_ICON')
                 .map((m) => ({ id: m.id, src: absUrl(m.src) || m.src, role: m.role }));
             const seen = new Set(base.map((m) => m.src));
-            // entity-matched images go FIRST — they drive entity cover resolution;
-            // the tail cap must never evict them.
+            // any entity-referenced src must be importable
+            for (const e of entities)
+                for (const src of [e.primaryImage, ...e.media]) {
+                    if (src && !seen.has(src) && !matchedMedia.includes(src))
+                        matchedMedia.push(src);
+                }
             const matched = matchedMedia.filter((src) => !seen.has(src)).map((src) => ({ id: `matched-${src}`, src, role: 'PROJECT_IMAGE' }));
-            return [...matched, ...base].slice(0, 200);
+            return [...matched, ...base].slice(0, 240);
         })(),
     };
     for (const rc of graph.rejectedCollections || [])

@@ -33,6 +33,14 @@ function formatDateRu(d: string | Date | null | undefined): string {
   return date.toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
+const JUNK_LINE_RE = /\+?\d[\d\s()\-]{6,}|получить консультац|заказать|оставьте заявку|позвоните|звоните|записаться|подробнее|читать далее|✔|➔|✓|тариф|меню|наверх|портфолио\s*$|все права|cookie|политика конфиденциальности|карта сайта/i;
+function cleanDetailText(text: string): string {
+  return (text || '')
+    .split(/\n+/)
+    .map((l) => l.trim())
+    .filter((l) => l.length >= 12 && !JUNK_LINE_RE.test(l))
+    .join('\n\n');
+}
 function textFrom(page: any): string {
   if (!page) return '';
   if (Array.isArray(page.blocks)) {
@@ -232,7 +240,7 @@ export function constructionModernV1(ctx: RenderContext): string {
     num: String(i + 1).padStart(2, '0'),
     title: s.title || 'Услуга',
     desc: s.shortDescription || '',  // never dump raw scraped blocks into cards
-    content: textFrom(s),
+    content: cleanDetailText(textFrom(s)),
     img: mediaUrl(ctx, s.imageId)
   }));
 
@@ -250,7 +258,7 @@ export function constructionModernV1(ctx: RenderContext): string {
     slug: p.slug,
     title: p.title || 'Страница',
     isHomepage: p.isHomepage || false,
-    content: textFrom(p),
+    content: cleanDetailText(textFrom(p)),
     blocks: (p.blocks || []).map(mapBlock),
     seoTitle: p.seoTitle || '',
     seoDescription: p.seoDescription || ''
@@ -264,7 +272,7 @@ export function constructionModernV1(ctx: RenderContext): string {
     location: p.location || '',
     status: p.projectStatus || '',
     excerpt: p.excerpt || '',
-    content: textFrom(p),
+    content: cleanDetailText(textFrom(p)),
     img: mediaUrl(ctx, p.coverImageId),
     gallery: (p.projectMedia || []).map((pm: any) => mediaUrl(ctx, pm.media?.id) || pm.media?.sourceUrl).filter(Boolean)
   }));
@@ -292,7 +300,7 @@ export function constructionModernV1(ctx: RenderContext): string {
     date: formatDateRu(n.publishedAt),
     title: n.title || 'Новость',
     excerpt: n.excerpt || '',
-    content: textFrom(n),
+    content: cleanDetailText(textFrom(n)),
     coverImageUrl: mediaUrl(ctx, n.coverImageId)
   }));
 

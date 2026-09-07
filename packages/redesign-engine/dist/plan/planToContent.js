@@ -97,7 +97,7 @@ export function planToContent(plan) {
         },
         products: products.map((p) => ({
             title: p.title, slug: p.slug, sourceType: 'IMPORTED',
-            summary: p.cardSummary || cleanCardSummary(p.summary, p.title) || clean(p.summary || '', 140), attributes: p.attributes,
+            summary: p.cardSummary || undefined, attributes: p.attributes,
             blocks: blocksOf(p), sourceUrl: p.detailUrl,
             coverImage: media(p.primaryImage, p.title),
             gallery: p.media.slice(0, 8).map((u) => media(u, p.title)).filter(Boolean),

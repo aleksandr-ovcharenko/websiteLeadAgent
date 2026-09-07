@@ -564,6 +564,40 @@ function Hero() {
 }
 
 // ─── Projects section ─────────────────────────────────────────────────────────
+
+// Honest no-image tile: branded monogram + index — never a fake photo.
+function NoImageTile({ title, num, dark }: { title?: string; num?: string; dark?: boolean }) {
+  return (
+    <div
+      className="w-full h-full flex flex-col items-start justify-between p-6 md:p-8"
+      style={{
+        background: 'var(--dark)',
+        border: '1px solid var(--border)',
+        minHeight: '220px',
+      }}
+      aria-label={title ? `${title} — без фотографии` : 'Без фотографии'}
+    >
+      <span
+        className="text-[10px] uppercase tracking-[0.35em] font-semibold"
+        style={{ color: 'rgba(242,244,245,0.5)' }}
+      >
+        {COMPANY.name}
+      </span>
+      <span
+        className="font-black leading-none tabular-nums"
+        style={{ ...GEO, fontSize: 'clamp(3rem, 6vw, 5rem)', color: 'var(--brass)', opacity: 0.55 }}
+      >
+        {num || '—'}
+      </span>
+      {title ? (
+        <span className="text-xs uppercase tracking-[0.15em] font-medium" style={{ color: 'rgba(242,244,245,0.7)', maxWidth: '80%' }}>
+          {title}
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
 function Projects() {
   const [hov, setHov] = useState<number | null>(null)
 
@@ -680,7 +714,7 @@ function Projects() {
                 style={{ transform: hov === 0 ? 'scale(1.04)' : 'scale(1)' }}
               />
             ) : (
-              <div className="w-full h-full" style={{ background: 'var(--card-bg)' }} />
+              <NoImageTile title={PROJECTS[0].title} num="01" dark />
             )}
           </div>
         </div>
@@ -708,7 +742,7 @@ function Projects() {
                 style={{ transform: hov === 1 ? 'scale(1.04)' : 'scale(1)' }}
               />
             ) : (
-              <div className="w-full h-full" style={{ background: 'var(--card-bg)' }} />
+              <NoImageTile title={PROJECTS[1].title} num="02" dark />
             )}
           </div>
 
@@ -797,7 +831,7 @@ function Projects() {
                       style={{ transform: hov === idx ? 'scale(1.04)' : 'scale(1)' }}
                     />
                   ) : (
-                    <div className="w-full h-full" style={{ background: 'var(--card-bg)' }} />
+                    <NoImageTile title={project.title} num={String(i + 3).padStart(2, '0')} dark />
                   )}
                 </div>
 
@@ -1559,7 +1593,7 @@ function ProjectList({ preview = false }: { preview?: boolean }) {
                   {p.img ? (
                     <img src={p.img} alt={p.title} className="w-full h-full object-cover" />
                   ) : (
-                    <div className="w-full h-full" style={{ background: 'var(--card-bg)' }} />
+                    <NoImageTile title={p.title} dark />
                   )}
                 </div>
                 <div className="p-6">
@@ -1607,7 +1641,7 @@ function ProjectDetail({ slug }: { slug: string }) {
               <img src={p.img} alt={p.title} className="w-full h-full object-cover" />
             </div>
           ) : null}
-          <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--muted)' }}>{p.category} · {p.location} · {p.status}</p>
+          <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--muted)' }}>{[p.category, p.location, p.status].filter(Boolean).join(' · ')}</p>
           <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-5" style={{ ...GEO, color: 'var(--fg)' }}>{p.title}</h1>
           {p.excerpt ? <p className="text-lg leading-relaxed mb-8" style={{ color: 'var(--muted)' }}>{p.excerpt}</p> : null}
           <div className="text-base leading-relaxed mb-10" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{p.content}</div>
