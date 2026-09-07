@@ -461,33 +461,24 @@ function Hero() {
         </div>
 
         {/* Headline */}
+        {/* Headline — deliberately composed: flowing text with balanced wraps,
+            never word-per-line. ~1-3 lines desktop, ~2-4 mobile. */}
         <h1
           className="font-black text-white mb-8 md:mb-10"
           style={{
             ...GEO,
-            fontSize: titleWords.length > 3 ? 'clamp(2.1rem, 5vw, 4.2rem)' : 'clamp(3.2rem, 8.5vw, 7.25rem)',
-            lineHeight: titleWords.length > 3 ? 1.02 : 0.9,
-            letterSpacing: '-0.02em',
-            maxWidth: '880px',
+            fontSize: 'clamp(2rem, 4.6vw, 4rem)',
+            lineHeight: 1.06,
+            letterSpacing: '-0.015em',
+            maxWidth: 'min(92%, 22ch)',
+            textWrap: 'balance',
           }}
         >
-          {titleWords.map((word, i) => {
-            const isLast = i === titleWords.length - 1
-            const isSecond = i === 1
-            return (
-              <span
-                key={i}
-                className="block"
-                style={{
-                  color: isSecond ? 'var(--brass)' : (isLast ? 'transparent' : 'white'),
-                  WebkitTextStroke: isLast ? '2px rgba(242,244,245,0.6)' : undefined,
-                  fontStyle: isLast ? 'italic' : undefined,
-                }}
-              >
-                {word}
-              </span>
-            )
-          })}
+          {titleWords.map((word, i) => (
+            <span key={i} style={{ color: i === 1 ? 'var(--brass)' : 'white' }}>
+              {word}{i < titleWords.length - 1 ? ' ' : ''}
+            </span>
+          ))}
         </h1>
 
         {/* Sub-row: descriptor + CTAs side by side */}
@@ -1250,6 +1241,9 @@ function ProductCard({ p, i }: { p: any; i: number }) {
             </div>
           ) : null}
           {p.price ? <p className="mt-3 text-sm font-semibold" style={{ color: 'var(--brass)' }}>{p.price}</p> : null}
+          <span className="inline-flex items-center gap-1.5 mt-4 text-[11px] uppercase font-bold tracking-[0.16em] group-hover:gap-3 transition-all" style={{ color: 'var(--brass)' }}>
+            Подробнее <span>→</span>
+          </span>
         </div>
       </a>
     </article>
@@ -1306,7 +1300,7 @@ function ProductDetail({ slug }: { slug: string }) {
             {p.img ? <img src={p.img} alt={p.title} className="w-full object-cover" style={{ aspectRatio: '4/3', background: 'var(--card-bg)' }} /> : null}
             {p.gallery?.length ? (
               <div className="grid grid-cols-2 gap-3 mt-3">
-                {p.gallery.slice(0, 6).map((src: string, i: number) => <img key={i} src={src} alt={`${p.title} ${i + 1}`} className="w-full h-32 object-cover" />)}
+                {p.gallery.slice(0, 8).map((src: string, i: number) => <img key={i} src={src} alt={`${p.title} ${i + 1}`} className="w-full object-cover" style={{ aspectRatio: '3/2', background: 'var(--card-bg)' }} />)}
               </div>
             ) : null}
           </div>
@@ -1317,9 +1311,9 @@ function ProductDetail({ slug }: { slug: string }) {
             {attrs.length ? (
               <div className="border-t border-b py-4 mb-6" style={{ borderColor: 'var(--border)' }}>
                 {attrs.map(([k, v]) => (
-                  <div key={k} className="flex justify-between py-1.5 text-sm">
+                  <div key={k} className="flex flex-wrap justify-between gap-x-6 gap-y-1 py-1.5 text-sm">
                     <span style={{ color: 'var(--muted)' }}>{k}</span>
-                    <span className="font-medium" style={{ color: 'var(--fg)' }}>{String(v)}</span>
+                    <span className="font-medium text-right" style={{ color: 'var(--fg)' }}>{String(v)}</span>
                   </div>
                 ))}
               </div>
@@ -1332,6 +1326,29 @@ function ProductDetail({ slug }: { slug: string }) {
             {p.content ? <div className="mt-8 text-sm leading-relaxed" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{clampCopy(p.content, 1200)}</div> : null}
           </div>
         </div>
+        {/* related models */}
+        {(() => {
+          const others = PRODUCTS.filter((x: any) => x.slug !== p.slug).slice(0, 3)
+          if (!others.length) return null
+          return (
+            <div className="mt-16 pt-10" style={{ borderTop: '1px solid var(--border)' }}>
+              <p className="text-[11px] uppercase tracking-[0.22em] mb-6" style={{ color: 'var(--muted)' }}>Другие модели</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                {others.map((x: any) => (
+                  <a key={x.slug} href={productHref(x.slug)} className="group block border" style={{ borderColor: 'var(--border)', background: 'var(--card-bg)' }}>
+                    <div className="overflow-hidden" style={{ aspectRatio: '4/3', background: 'var(--bg)' }}>
+                      {x.img ? <img src={x.img} alt={x.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-[1.03]" /> : null}
+                    </div>
+                    <div className="p-4">
+                      <span className="text-sm font-bold" style={{ ...GEO, color: 'var(--fg)' }}>{x.title}</span>
+                      <span className="block text-[10px] uppercase tracking-[0.16em] mt-1 group-hover:underline" style={{ color: 'var(--brass)' }}>Смотреть модель →</span>
+                    </div>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )
+        })()}
       </div>
     </section>
   )
@@ -2019,7 +2036,8 @@ function CallToAction() {
               ))}
             </div>
 
-            {/* Procurement department */}
+            {/* Procurement department — only when the business actually has one */}
+            {COMPANY.contacts.procurement.length ? (
             <div className="border-t pt-8" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
               <p className="text-[10px] uppercase tracking-[0.3em] mb-3" style={{ color: 'rgba(242,244,245,0.35)' }}>
                 Отдел закупок
@@ -2037,6 +2055,7 @@ function CallToAction() {
                 </a>
               ))}
             </div>
+            ) : null}
 
             {/* Email + CTA */}
             {COMPANY.contacts.email ? (
@@ -2173,8 +2192,9 @@ function Footer() {
           </div>
 
           {/* Contacts — procurement */}
+          {(COMPANY.contacts.procurement.length || COMPANY.contacts.tenderEmail) ? (
           <div>
-            <FooterHeading>Отдел закупок</FooterHeading>
+            {COMPANY.contacts.procurement.length ? <FooterHeading>Отдел закупок</FooterHeading> : null}
             <div className="flex flex-col gap-2 mb-6">
               {COMPANY.contacts.procurement.map(c => (
                 <a
@@ -2189,7 +2209,8 @@ function Footer() {
                 </a>
               ))}
             </div>
-            <FooterHeading>Тендеры</FooterHeading>
+            {COMPANY.contacts.tenderEmail ? <FooterHeading>Тендеры</FooterHeading> : null}
+            {COMPANY.contacts.tenderEmail ? (
             <a
               href={`mailto:${COMPANY.contacts.tenderEmail}?subject=Приглашение на тендер`}
               className="text-sm transition-colors"
@@ -2199,7 +2220,9 @@ function Footer() {
             >
               Пригласить на тендер →
             </a>
+            ) : null}
           </div>
+          ) : null}
 
         </div>
 

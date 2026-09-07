@@ -1,4 +1,4 @@
-export const PRESET_IDS = ['manna', 'stykka', 'eindhoven', 'xai', 'yllw', 'foret', 'ember', 'atlas'] as const;
+export const PRESET_IDS = ['manna', 'stykka', 'eindhoven', 'xai', 'yllw', 'foret', 'ember', 'atlas', 'nordic'] as const;
 
 export type PresetId = typeof PRESET_IDS[number];
 
@@ -205,6 +205,31 @@ ${heroOverrides('#000000', '#000000', 'rgba(202,199,180,0.35)', true, '2px')}`,
 
   // ── Dark-safe presets: keep --dark dark so hardcoded light-on-dark copy stays
   // legible; variants differ through accent, paper tone, radius and font.
+  nordic: `body[data-style="nordic"] {
+  --bg: #f6f4ef;
+  --fg: #1d1b16;
+  --dark: #1f1c17;
+  --brass: #8a6a48;
+  --brass-light: #a9885f;
+  --muted: #6f6a5e;
+  --border: #ddd6c9;
+  --card-bg: #ffffff;
+  --overlay: rgba(31, 28, 23, 0.45);
+  --font-display: 'Geologica', ui-sans-serif, system-ui, sans-serif;
+  --font-body: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--bg);
+  color: var(--fg);
+}
+/* nordic: light warm-neutral architectural language — airy spacing, soft
+   radius, white cards, quiet borders */
+body[data-style="nordic"] img { border-radius: 10px !important; }
+body[data-style="nordic"] [class*="rounded"] { border-radius: 10px !important; }
+body[data-style="nordic"] button,
+body[data-style="nordic"] a.inline-flex { border-radius: 8px !important; }
+body[data-style="nordic"] section { border-top: none !important; }
+body[data-style="nordic"] article { border-radius: 12px !important; overflow: hidden; }
+body[data-style="nordic"] [data-hero] { min-height: 78svh !important; }
+body[data-style="nordic"] [data-hero] h1 { letter-spacing: -0.01em !important; }`,
   foret: `body[data-style="foret"] {
   --bg: #f4f1e8;
   --fg: #161d18;

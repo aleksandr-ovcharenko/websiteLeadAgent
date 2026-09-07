@@ -77,7 +77,9 @@ function buildCompany(ctx: RenderContext) {
   const phone = rawPhone;
   const phoneHref = cleanPhone(rawPhone) ? `tel:${cleanPhone(rawPhone)}` : '';
   const email = settings.email || '';
-  const tenderEmail = settings.email || email;
+  // A dedicated tenders channel is never fabricated — only a distinct
+  // source-provided procurement email would qualify (rarely available).
+  const tenderEmail = '';
   const address = settings.address || '';
 
   const contactsPage = ctx.pages?.find((p) => p.slug === 'contacts' || /контакт/i.test(p.title || ''));

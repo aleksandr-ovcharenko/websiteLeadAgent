@@ -11,8 +11,8 @@ const media = (src?: string, alt?: string) => (src ? { sourceUrl: src, filename:
 const blocksOf = (e: PlannedEntity): ContentBlock[] => {
   const b: ContentBlock[] = [];
   if (e.summary) b.push({ type: 'text', content: e.summary });
-  const attrs = Object.entries(e.attributes || {}).filter(([, v]) => v);
-  if (attrs.length) b.push({ type: 'text', heading: 'Параметры', content: attrs.map(([k, v]) => `${k}: ${v}`).join('\n') });
+  // Structured attributes render via the dedicated spec table — do not also
+  // dump them into body copy as a "Параметры" text block.
   const gallery = e.media.filter((s) => s !== e.primaryImage).slice(0, 8);
   if (gallery.length) b.push({ type: 'gallery', imageIds: gallery });
   return b;
@@ -55,9 +55,12 @@ export function planToContent(plan: SiteContentPlanV2): ExtractedContent {
   const reviews = plan.dynamicSections.find((d) => d.kind === 'REVIEWS');
   const faq = plan.dynamicSections.find((d) => d.kind === 'FAQ');
   const process = plan.dynamicSections.find((d) => d.kind === 'PROCESS');
-  const aboutDyn = plan.dynamicSections.find((d) => d.kind === 'ADVANTAGES' || d.kind === 'STATS');
+  const aboutDyn = plan.dynamicSections.find((d) => d.kind === 'ADVANTAGES');
+  const pricingEvidence = plan.dynamicSections.some((d) => d.kind === 'PRICING')
+    || plan.entities.some((e) => /руб|₽|\$|цен|стоимост|price/iu.test(JSON.stringify(e.attributes || {})));
+  const descCleaned = (id.description || '').replace(/^цены[^.]*\.\s*/i, (m) => (pricingEvidence ? m : ''));
   const aboutContent = [
-    id.description,
+    descCleaned,
     aboutDyn?.items?.length ? aboutDyn.items.map((i) => i.title || i.text).filter(Boolean).join('\n') : '',
     process?.items?.length ? process.items.map((i) => `${i.title ? i.title + ': ' : ''}${i.text || ''}`).join('\n') : '',
   ].filter(Boolean).join('\n\n');

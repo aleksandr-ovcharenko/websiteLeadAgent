@@ -674,3 +674,26 @@ MEASURED. Fallback-equal-to-rule output is not a semantic comparison.
 - Exactly 3 DemoVariants per site with distinct dark-safe style presets;
   exactly one `isPreferred`. A site is not DEMO_READY without a captured,
   linked screenshot and a passing visual/content gate.
+
+### IMPLEMENTER DOES NOT SELF-APPROVE VISUAL QUALITY
+
+The agent that generates or modifies a Showcase may verify objective defects,
+but it does not decide whether the redesign is client-ready. Generation ends at
+AWAITING_HUMAN_REVIEW when there are no technical blockers; only an explicit
+human action (scripts/approve-showcase.mjs) transitions to DEMO_READY. Gemini
+visual QA is advisory evidence; quota exhaustion must never block human review
+(AI_VISUAL_QA = QUOTA_UNAVAILABLE → still AWAITING_HUMAN_REVIEW).
+
+### PRODUCT PAGES MUST EXPOSE GROUNDED PRODUCT VALUE
+
+If structured Product attributes exist in the reviewed generation input, the
+renderer must not discard them and render only title/image. "Что входит?"
+completion levels, area/floor/spec data and floor plans are surfaced on cards
+and detail pages. Floor plans are detail media — never the primary card image
+when an exterior render exists.
+
+### RESPONSIVE TYPOGRAPHY MUST FOLLOW CONTENT
+
+Do not force arbitrary word-per-line layouts. Headline composition adapts to
+actual copy length and viewport (≤3 lines desktop, ≤4 mobile, balanced wraps).
+A hero may not claim prices/discounts the page cannot show.

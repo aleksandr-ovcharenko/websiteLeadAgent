@@ -106,3 +106,17 @@ Reject a Radar implementation if:
   not passes) — quota failures mean NEEDS_ATTENTION, not silent pass.
 - Reject entity card images that are logos, SVG icons, or images shared as
   site-wide chrome across many documents.
+
+### CATALOGUE-SITE REVIEW RULES
+
+Reject a generated catalogue site if:
+- Product cards show only image + title while useful grounded attributes exist;
+- Product Detail discards available specifications or galleries;
+- hero typography breaks into excessive one-word lines (word-per-line layout);
+- the homepage is sparse while useful grounded sections (stats, FAQ, process,
+  about, configurator evidence) exist in the reviewed plan;
+- the implementer self-certifies DEMO_READY — only explicit human approval may
+  transition AWAITING_HUMAN_REVIEW → DEMO_READY;
+- Gemini quota failure is treated as a permanent blocker instead of proceeding
+  to human review (AI_VISUAL_QA = QUOTA_UNAVAILABLE);
+- mobile is merely desktop stacking without visual verification at 390×844.

@@ -90,10 +90,12 @@ for (const key of SITES) {
 
   const shotDir = path.resolve('data/generated/sites', siteId, 'screenshots');
   fs.mkdirSync(shotDir, { recursive: true });
-  const presets = plan.experience?.stylePresets || ['stykka', 'eindhoven', 'manna'];
+  const allPresets = plan.experience?.stylePresets || ['stykka', 'eindhoven', 'manna'];
+  // SINGLE_VARIANT=1 → build only the preferred design (reference-quality mode).
+  const presets = process.env.SINGLE_VARIANT === '1' ? [plan.experience?.preferredPreset || allPresets[0]] : allPresets;
   const variants = [];
 
-  // 3 real variants: same template, distinct style presets, deduped tokens.
+  // Variants: same template, distinct style presets, deduped tokens.
   for (const [i, preset] of presets.entries()) {
     const token = i === 0 ? baseToken : randToken();
     const v = await prisma.demoVariant.upsert({
@@ -164,7 +166,7 @@ for (const key of SITES) {
   await prisma.$transaction([
     prisma.demoVariant.updateMany({ where: { siteId }, data: { isPreferred: false } }),
     prisma.demoVariant.update({ where: { id: chosenVariant.v.id }, data: { isPreferred: true } }),
-    prisma.site.update({ where: { id: siteId }, data: { preferredDemoVariantId: chosenVariant.v.id, status: best ? 'ACTIVE' : 'DRAFT', settings: { previewUrl: `${RENDERER}/showcase/${chosenVariant.token}` } } }),
+    prisma.site.update({ where: { id: siteId }, data: { preferredDemoVariantId: chosenVariant.v.id, status: 'ACTIVE', settings: { previewUrl: `${RENDERER}/showcase/${chosenVariant.token}`, reviewStatus: 'AWAITING_HUMAN_REVIEW' } } }),
   ]);
 
   // Site-level screenshot = preferred variant desktop shot
@@ -177,7 +179,11 @@ for (const key of SITES) {
   });
 
   const validation = await validateGeneratedSite({ siteId, prisma });
-  const status = best ? 'DEMO_READY' : 'NEEDS_ATTENTION';
+  // The implementing agent may never self-certify DEMO_READY — that transition
+  // requires explicit human approval (scripts/approve-showcase.mjs). Technical
+  // blockers → NEEDS_ATTENTION; otherwise AWAITING_HUMAN_REVIEW.
+  const aiQaUnavailable = variants.every((x) => x.qa?.qa?.error || x.qa?.error);
+  const status = (!validation.ok || gateFails.length) ? 'NEEDS_ATTENTION' : 'AWAITING_HUMAN_REVIEW';
   await prisma.redesignRun.update({ where: { id: run.id }, data: { stage: best ? 'DEMO_GENERATED' : 'AUDIT_DONE' } });
   await prisma.lead.update({ where: { id: lead.id }, data: { redesignStage: best ? 'DEMO_GENERATED' : 'AUDIT_DONE' } });
 
@@ -191,10 +197,10 @@ for (const key of SITES) {
     '', '## CMS', ...Object.entries(counts).map(([k, v]) => `- ${k}: ${v}`),
     '', '## Variants', ...variants.map((x) => `- ${x.preset}: readiness=${x.qa.score} passed=${x.qa.passed}${x === chosenVariant ? ' ← PREFERRED' : ''}${x.qa.hardFails.length ? ` fails: ${x.qa.hardFails.join('; ')}` : ''}${x.qa.qa?.suggestions ? ` suggestions: ${x.qa.qa.suggestions.slice(0, 3).join('; ')}` : ''}`),
     '', `## Preferred: ${chosen.preset} → ${RENDERER}/showcase/${chosenVariant.token}`,
-    `## Status: ${status}`, `## Validation: ${validation.ok ? 'PASS' : 'FAIL ' + validation.missing.join(', ')}`,
+    `## Status: ${status}${aiQaUnavailable ? ' (AI_VISUAL_QA = QUOTA_UNAVAILABLE)' : ''}`, `## Validation: ${validation.ok ? 'PASS' : 'FAIL ' + validation.missing.join(', ')}`,
     `## Content gates: ${gateFails.length ? gateFails.join('; ') : 'all pass'}`,
     '', '## Screenshots', ...variants.map((x) => `- ${x.preset}: ${x.qa.desktop} | ${x.qa.mobile}`),
-    '', '## Human review notes', `- Would show owner as redesign proposal: ${best ? 'YES (machine QA pass — human verify)' : 'NO — needs attention'}`,
+    '', '## Human review notes', '- Implementer does not self-approve visual quality — awaiting explicit human review.',
   ].join('\n') + '\n';
   fs.writeFileSync(path.join(dir, 'generation-review-v2.md'), review);
   console.log(`  → ${status} | preferred=${chosen.preset} | ${RENDERER}/showcase/${chosenVariant.token}`);

@@ -198,7 +198,7 @@ function detectDynamicKind(heading: string | undefined, items: any[], classifica
   // Item-shape evidence.
   const texts = items.map((i) => (i.title || i.text || '').trim()).filter(Boolean);
   if (texts.length >= 2 && texts.filter((t) => t.endsWith('?')).length >= Math.ceil(texts.length / 2)) return { kind: 'FAQ' };
-  if (texts.length >= 2 && texts.filter((t) => /\d/.test(t) && /[₽$€Br]|\d+\s*(м2|м²|%|лет|год)/iu.test(t)).length >= texts.length / 2) return { kind: 'STATS' };
+  if (texts.length >= 2 && texts.filter((t) => /\d/.test(t) && (/[₽$€Br%]|\d+\s*\+?\s*(м2|м²|лет|год|проект|домов|объект|опыт)/iu.test(t) || /^\d+\s*\+$/.test(t.trim()))).length >= texts.length / 2) return { kind: 'STATS' };
   if (items.some((i) => i.rating != null || (i.meta && (i.meta.author || i.meta.rating)))) return { kind: 'REVIEWS' };
   if (items.length >= 2 && items.filter((i) => /(руб|₽|\$|€|br\b|р\.)/iu.test(i.meta?.price || i.description || '')).length >= items.length / 2) return { kind: 'PRICING' };
   return { kind: 'OTHER' };
@@ -261,6 +261,7 @@ export function buildSiteContentPlanV2(opts: {
   const omittedContent: SiteContentPlanV2['omittedContent'] = [];
   const docById = new Map(docs.map((d) => [d.id, d]));
   const docByUrl = new Map(docs.map((d) => [d.url.replace(/\/+$/, ''), d]));
+  const decodeURIComponentSafe = (u: string) => { try { return decodeURIComponent(u); } catch { return u; } };
   const absUrl = (u?: string) => { if (!u) return ''; try { return new URL(u, opts.baseUrl).toString(); } catch { return ''; } };
   const homeDoc = docs.find((d) => d.isHomepage);
   const language = homeDoc?.language || 'ru';
@@ -298,6 +299,16 @@ export function buildSiteContentPlanV2(opts: {
     for (const s of d?.sections || []) for (const t of s.tables || []) for (const row of t.rows || []) {
       if (row.length >= 2 && row[0] && row[1] && !out[row[0]]) out[row[0].slice(0, 40)] = row[1].slice(0, 120);
     }
+    // "Что входит?" completion levels are grounded product configuration
+    // options (e.g. Box / Grey box / White box / Check-in) — surface them.
+    const kits: string[] = [];
+    for (const c of d?.collections || []) for (const i of c.items || []) {
+      if (/что входит/i.test(i.title || '')) {
+        const v = ((i as any).text || i.description || '').trim();
+        if (v && v.length <= 60 && !kits.includes(v)) kits.push(v);
+      }
+    }
+    if (kits.length) out['Комплектация'] = kits.slice(0, 8).join(' · ');
     return out;
   };
 
@@ -334,18 +345,30 @@ export function buildSiteContentPlanV2(opts: {
     // then sibling-doc images — never the site logo as an entity photo.
     const isLogoish = (src: string) => {
       const role = graph.media.find((m) => m.src === src)?.role;
-      return role === 'LOGO' || /\.svg(\?|$)|logo|icon|sprite|removebg|cropped-|filler|placeholder|blank\.|\d{2,3}x\d{2,3}\.png/i.test(src);
+      return role === 'LOGO' || /\.svg(\?|$)|logo|icon|sprite|removebg|cropped-|filler|placeholder|blank\.|vector|\d{2,3}x\d{2,3}\.png/i.test(src);
     };
     const isDocLogoish = (i: any) =>
       /лого|logo|icon/i.test(i?.alt || '') || ((i?.width || 0) > 0 && (i?.width || 0) < 240 && (i?.height || 0) < 240);
     const entityMedia = ((e.imageIds || []).map((id) => absUrl(graph.media.find((m) => m.id === id)?.src)).filter(Boolean) as string[]).filter((s) => !isLogoish(s) && !isPlaceholderMedia(s));
     const docImages = (detailDoc?.images || []).filter((i) => !isDocLogoish(i) && isChromeImage(i)).map((i) => absUrl(i.src)).filter((s) => s && !isPlaceholderMedia(s) && !isLogoish(s));
     const media = [...docImages, ...entityMedia].filter((s) => !isPlaceholderMedia(s));
-    const img = docImages[0] || entityMedia[0] || docImage(docIds.map((id) => docById.get(id)).find(Boolean) as any);
+    const isPlanish = (u?: string) => !u || /plan|план|схем|schema|layout/i.test(decodeURIComponentSafe(u)) || /\.png(\?|$)/i.test(u);
+    const renderFirst = (list: string[]) => [...list].sort((a, b) => Number(isPlanish(a)) - Number(isPlanish(b)));
+    const orderedMedia = renderFirst(media.filter((s) => !isPlaceholderMedia(s)));
+    const img = orderedMedia[0] || docImage(docIds.map((id) => docById.get(id)).find(Boolean) as any);
+    // Display title without a redundant trailing " - <Brand>" suffix.
+    const cleanTitle = (() => {
+      const t = e.title.trim();
+      const b = (identity.name || '').trim();
+      if (b.length < 3) return t;
+      const esc = b.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const c = t.replace(new RegExp(`[\\s\\-–—|]+${esc}$`, 'i'), '').trim();
+      return c.length >= 3 ? c : t;
+    })();
     entities.push({
       id: `${type}-${entities.length + 1}`,
       type,
-      title: e.title.trim(),
+      title: cleanTitle,
       slug: slugify(e.title),
       summary: (() => {
         const raw = (e.description || docSummary(detailDoc))?.slice(0, 400);
@@ -360,7 +383,7 @@ export function buildSiteContentPlanV2(opts: {
       })(),
       attributes: extra?.attributes || docAttrs(detailDoc) || {},
       primaryImage: img ? absUrl(img) : undefined,
-      media: media.filter((s) => !isPlaceholderMedia(s)),
+      media: orderedMedia,
       sourceUrls: urls,
       detailUrl,
       evidence: (e.evidence || []).slice(0, 6).map((x: any) => ({ type: x.type || 'TEXT', value: String(x.value || '').slice(0, 200), sourceUrl: x.sourceUrl })),
@@ -714,6 +737,7 @@ export function buildSiteContentPlanV2(opts: {
   }
   if (has('news')) plannedSections.push({ type: 'news', heading: L.news, origin: 'SOURCE_CONTENT', entityIds: featured('news', 3), rationale: 'latest news' });
   if (has('article')) plannedSections.push({ type: 'articles', heading: L.articles, origin: 'SOURCE_CONTENT', entityIds: featured('article', 3), rationale: 'editorial content teaser' });
+  if (graph.company?.description) plannedSections.push({ type: 'about', heading: L.about, origin: 'SOURCE_FACT', entityIds: [], rationale: 'company identity + stats' });
   plannedSections.push({ type: 'contacts', heading: L.contacts, origin: 'SOURCE_FACT', entityIds: [], rationale: 'validated contacts' });
 
   // --- media --------------------------------------------------------------------------
@@ -774,15 +798,23 @@ export function buildSiteContentPlanV2(opts: {
   // description) as headline; brand + remaining context as subheadline.
   const brandName = identity.name || 'Компания';
   const descClean = cleanCardSummary(graph.company?.description || homeDoc?.metaDescription, brandName) || '';
-  const firstSentence = (descClean.split(/(?<=[.!?])\s+/)[0] || '').replace(/[.!?]+$/, '');
-  const heroHeadline = firstSentence && firstSentence.length <= 70 ? firstSentence : brandName;
-  const heroSub = [brandName, descClean.slice(firstSentence.length).trim().replace(/^[.!?\s]+/, '').slice(0, 160)]
+  // A price-led headline ("Цены на…") is only grounded when the plan actually
+  // carries pricing evidence — otherwise it invents an offer we can't show.
+  const hasPricingEvidence = dynamicSections.some((d) => d.kind === 'PRICING')
+    || entities.some((e) => /руб|₽|\$|цен|стоимост|price/iu.test(JSON.stringify(e.attributes || {})));
+  const ogTitleSegs = (homeDoc?.openGraph?.['og:title'] || '').split('|').map((x) => x.trim()).filter((x) => x && x.length <= 70);
+  const heroCandidates = [
+    ...descClean.split(/(?<=[.!?])\s+/).map((c) => (c || '').replace(/[.!?]+$/, '').split(/\s+[–—]\s+|\s*\|\s*/)[0].trim()),
+    ...ogTitleSegs,
+  ].filter((h) => h && h.length >= 8 && h.length <= 70);
+  const heroHeadline = heroCandidates.find((h) => hasPricingEvidence || !/^цены|прайс|стоимость|недорого/iu.test(h)) || brandName;
+  const heroSub = [brandName, descClean.slice(heroHeadline === brandName ? 0 : descClean.indexOf(heroHeadline) + heroHeadline.length).trim().replace(/^[.!?\s–—]+/, '').slice(0, 160)]
     .filter(Boolean).join(' — ').slice(0, 220) || undefined;
 
   // Dark-safe presets — light-theme presets break hardcoded light-on-dark sections.
   const ARCHETYPE_PRESETS: Record<SiteArchetype, string[]> = {
     SERVICE_PORTFOLIO: ['foret', 'atlas', 'ember'],
-    CATALOG: ['atlas', 'foret', 'ember'],
+    CATALOG: ['nordic', 'atlas', 'foret'],
     CREATIVE_PORTFOLIO: ['ember', 'foret', 'atlas'],
   };
 
