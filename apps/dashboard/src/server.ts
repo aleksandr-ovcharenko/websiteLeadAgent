@@ -1,24 +1,23 @@
 import 'dotenv/config';
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import type { Request, Response } from 'express';
 import pino from 'pino';
-import { sessionMiddleware, authRouter, requireAuth, requireSuperAdmin } from './auth.js';
+import { prisma, sessionMiddleware, authRouter, requireAuth, requireSuperAdmin } from './auth.js';
 import { apiRateLimiter } from './security/rateLimit.js';
 import { apiSecurityHeaders } from './security/headers.js';
 import { originRefererCheck, requireJsonContentType } from './security/csrf.js';
 import { sanitizeWorkerEnv } from '@minsk/security';
 import { platformRouter } from './platform.js';
 import { securityRouter, seedSecurityScannerConfigs } from './security/api.js';
+import { seedRbac, migrateExistingUsers } from './security/rbacSeed.js';
 import { generateSite } from '@minsk/redesign-engine';
 import { DiscoveryService, listDiscoveryProviders, getDiscoveryProvider, DISCOVERY_PRESETS } from './discovery/index.js';
 import { OperationService } from './operations/index.js';
 import { ActivityService } from './activity/ActivityService.js';
 import { getBulkAiEligibility } from './qualification/bulkAiEligibility.js';
 
-const prisma = new PrismaClient();
 const app = express();
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
 const workerEnv = sanitizeWorkerEnv(process.env);
@@ -942,6 +941,8 @@ app.use('/api/security', securityRouter({ prisma, repoRoot: process.cwd() }));
 app.listen(PORT, async () => {
   // eslint-disable-next-line no-console
   console.log(`[CORE] ready on http://localhost:${PORT}`);
+  await seedRbac(prisma).catch((e) => logger.error(e, 'rbac.seed.failed'));
+  await migrateExistingUsers(prisma).catch((e) => logger.error(e, 'rbac.migrate.failed'));
   await seedSecurityScannerConfigs(prisma).catch((e) => logger.error(e, 'security.seed.failed'));
   await operations.reconcileAll();
   const { checkBrowserReadiness } = await import('./activity/browserCheck.js');

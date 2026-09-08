@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { api } from '../cms/api'
+import { hasPermission } from '../auth/permissions'
 
 type Tab = 'overview' | 'findings' | 'dependencies' | 'events' | 'audits'
 
@@ -505,9 +506,9 @@ function Audits() {
 export default function SecurityCenter({ user }: { user?: any }) {
   const [tab, setTab] = useState<Tab>('overview')
   const [findSev, setFindSev] = useState<string | undefined>()
-  const isSuperAdmin = user?.globalRole === 'SUPER_ADMIN'
+  const canReadSecurity = hasPermission(user?.permissions, 'security.read')
 
-  if (!isSuperAdmin) {
+  if (!canReadSecurity) {
     return (
       <div className="flex-1 flex items-center justify-center bg-bg">
         <div className="bg-surface border border-border rounded-lg px-8 py-10 text-center">

@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { api } from './api'
 import { ThemeToggle } from '../theme/ThemeToggle'
 import { IconChevronLeft, IconChevronDown, IconExternal, IconBell } from './icons'
+import type { EffectivePermission, ProductArea } from '../auth/permissions'
+import { hasAnyPermission, visibleAreas } from '../auth/permissions'
 
-export type ProductArea = 'hub' | 'radar' | 'factory' | 'forge' | 'studio' | 'security'
+export type { ProductArea }
 
 interface DemoVariant {
   id: string
@@ -25,7 +27,7 @@ interface SiteContext {
 interface ProductHeaderProps {
   productArea: ProductArea
   siteId?: string
-  user?: { globalRole?: string; email?: string; name?: string } | null
+  user?: { globalRole?: string; email?: string; name?: string; permissions?: EffectivePermission[] } | null
   onNavigate: (area: ProductArea) => void
 }
 
@@ -101,10 +103,10 @@ export default function ProductHeader({ productArea, siteId, user, onNavigate }:
   const siteRef = useRef<HTMLDivElement>(null)
   const showcaseRef = useRef<HTMLDivElement>(null)
 
-  const userRole = user?.globalRole?.toLowerCase() ?? 'editor'
-  const isSuperAdmin = userRole === 'super_admin'
   const isStudio = productArea === 'studio'
-  const isEditor = !isSuperAdmin
+  const canManageUsers = hasAnyPermission(user?.permissions, ['roles.manage', 'users.manage'])
+  const canReadForge = hasAnyPermission(user?.permissions, ['forge.read', 'forge.run'])
+  const areas = visibleAreas(user?.permissions)
 
   useEffect(() => {
     function handler(e: MouseEvent) {
@@ -161,7 +163,7 @@ export default function ProductHeader({ productArea, siteId, user, onNavigate }:
         {isStudio && (
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider select-none">Studio</span>
-            {isSuperAdmin && (
+            {canReadForge && (
               <button
                 onClick={() => onNavigate('forge')}
                 className="flex items-center gap-1 h-[26px] px-2.5 rounded text-[12px] text-text-subtle hover:text-text hover:bg-surface-hover transition-colors"
@@ -173,9 +175,9 @@ export default function ProductHeader({ productArea, siteId, user, onNavigate }:
           </div>
         )}
 
-        {!isStudio && isSuperAdmin && (
+        {!isStudio && areas.length > 0 && (
           <nav className="flex items-center gap-0.5">
-            {AREA_LABELS.map(({ area, label }) => {
+            {AREA_LABELS.filter(({ area }) => areas.includes(area)).map(({ area, label }) => {
               const isActive = productArea === area
               return (
                 <button
@@ -198,9 +200,9 @@ export default function ProductHeader({ productArea, siteId, user, onNavigate }:
           <>
             <div className="relative" ref={siteRef}>
               <button
-                onClick={() => (isSuperAdmin || availableSites.length > 1) ? setSiteOpen(o => !o) : undefined}
+                onClick={() => (canManageUsers || availableSites.length > 1) ? setSiteOpen(o => !o) : undefined}
                 className={`flex items-center gap-2 h-[30px] px-2.5 rounded border border-border transition-colors ${
-                  isSuperAdmin || availableSites.length > 1
+                  canManageUsers || availableSites.length > 1
                     ? 'hover:border-border hover:bg-surface-raised cursor-pointer'
                     : 'cursor-default'
                 }`}
@@ -210,14 +212,14 @@ export default function ProductHeader({ productArea, siteId, user, onNavigate }:
                   <span className="text-[12px] font-semibold text-text">{displaySite.name}</span>
                   <span className="text-[10px] text-text-subtle mono">{displaySite.domain}</span>
                 </div>
-                {(isSuperAdmin || availableSites.length > 1) && <IconChevronDown size={11} className="text-text-subtle ml-0.5" />}
+                {(canManageUsers || availableSites.length > 1) && <IconChevronDown size={11} className="text-text-subtle ml-0.5" />}
               </button>
 
               {siteOpen && (
                 <div className="absolute top-full right-0 mt-1 w-64 bg-surface border border-border rounded shadow-lg z-50">
                   <div className="px-3 pt-2.5 pb-1.5 border-b border-border">
                     <p className="text-[10px] font-semibold text-text-subtle uppercase tracking-wider">
-                      {isSuperAdmin ? 'Switch site' : 'Your sites'}
+                      {canManageUsers ? 'Switch site' : 'Your sites'}
                     </p>
                   </div>
                   <div className="py-1 max-h-64 overflow-y-auto">

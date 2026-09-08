@@ -4,13 +4,17 @@ import { PrismaClient } from '@prisma/client';
 import multer from 'multer';
 import bcrypt from 'bcryptjs';
 import path from 'node:path';
-import { sessionMiddleware, getSessionUser, requireSiteAccess } from '../../dashboard/src/auth.js';
+import { sessionMiddleware, getSessionUser } from '../../dashboard/src/auth.js';
 import { apiSecurityHeaders } from '../../dashboard/src/security/headers.js';
 import { apiRateLimiter } from '../../dashboard/src/security/rateLimit.js';
 import { originRefererCheck, requireJsonContentType } from '../../dashboard/src/security/csrf.js';
+import { requireSitePermission } from '../../dashboard/src/security/authz.js';
 import { LocalFilesystemMediaStorage } from '../../../packages/media-storage/dist/index.js';
 
 const prisma = new PrismaClient();
+const canReadCms = requireSitePermission(prisma, 'cms.read', 'siteId');
+const canEditCms = requireSitePermission(prisma, 'cms.edit', 'siteId');
+const canManageCmsUsers = requireSitePermission(prisma, 'cms.users.manage', 'siteId');
 const app = express();
 const PORT = Number(process.env.CMS_PORT ?? 3335);
 
@@ -34,25 +38,7 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   }).catch((e: any) => next(e));
 }
 
-async function getSiteRole(user: any, siteId: string): Promise<string | null> {
-  if (user.globalRole === 'SUPER_ADMIN') return 'ADMIN';
-  const su = await (prisma as any).siteUser.findUnique({
-    where: { siteId_userId: { siteId, userId: user.id } },
-    select: { role: true }
-  });
-  return su?.role ?? null;
-}
 
-function requireSiteRole(...roles: string[]) {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    const user = (req as any).user;
-    const siteId = req.params.siteId || req.query.siteId || req.body?.siteId;
-    if (!siteId) { res.status(400).json({ error: 'missing_site' }); return; }
-    const role = await getSiteRole(user, String(siteId));
-    if (!role || !roles.includes(role)) { res.status(403).json({ error: 'forbidden' }); return; }
-    next();
-  };
-}
 
 app.get('/health', (_req: Request, res: Response) => {
   res.json({ service: 'cms', status: 'ok' });
@@ -67,8 +53,8 @@ app.get('/api/cms/sites', requireAuth, async (req: Request, res: Response) => {
   const user = (req as any).user;
   const where: any = {};
   if (user.globalRole !== 'SUPER_ADMIN') {
-    const siteUsers = await (prisma as any).siteUser.findMany({ where: { userId: user.id }, select: { siteId: true } });
-    where.id = { in: siteUsers.map((s: any) => s.siteId) };
+    const userSites = await (prisma as any).userRole.findMany({ where: { userId: user.id, siteId: { not: null } }, select: { siteId: true } });
+    where.id = { in: userSites.map((s: any) => s.siteId) };
   }
   const sites = await (prisma as any).site.findMany({
     where,
@@ -77,7 +63,7 @@ app.get('/api/cms/sites', requireAuth, async (req: Request, res: Response) => {
   res.json({ sites });
 });
 
-app.get('/api/cms/sites/:siteId', requireSiteAccess('siteId'), async (req: Request, res: Response) => {
+app.get('/api/cms/sites/:siteId', canReadCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const site = await (prisma as any).site.findUnique({ where: { id: siteId }, include: { siteSettings: true } });
   if (!site) { res.status(404).json({ error: 'not_found' }); return; }
@@ -95,7 +81,7 @@ app.get('/api/cms/sites/:siteId', requireSiteAccess('siteId'), async (req: Reque
   res.json({ site, pages, services, projects, products, news, menu, media, vacancies, users });
 });
 
-app.post('/api/cms/sites/:siteId/settings', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/settings', canEditCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const data = { ...req.body, manualModifiedAt: new Date() };
   const settings = await (prisma as any).siteSettings.upsert({
@@ -111,7 +97,7 @@ function createSlug(title: string) {
 }
 
 // Pages
-app.post('/api/cms/sites/:siteId/pages', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/pages', canEditCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const { title, slug, blocks, status, isHomepage, seoTitle, seoDescription, showInNav } = req.body;
   const s = slug || createSlug(title);
@@ -126,7 +112,7 @@ app.post('/api/cms/sites/:siteId/pages', requireSiteAccess('siteId'), requireSit
   res.json({ ok: true, page });
 });
 
-app.put('/api/cms/sites/:siteId/pages/:pageId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.put('/api/cms/sites/:siteId/pages/:pageId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, pageId } = req.params;
   const { title, slug, blocks, status, isHomepage, seoTitle, seoDescription } = req.body;
   const data: any = { manualModifiedAt: new Date() };
@@ -141,14 +127,14 @@ app.put('/api/cms/sites/:siteId/pages/:pageId', requireSiteAccess('siteId'), req
   res.json({ ok: true, page });
 });
 
-app.delete('/api/cms/sites/:siteId/pages/:pageId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.delete('/api/cms/sites/:siteId/pages/:pageId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, pageId } = req.params;
   await (prisma as any).page.delete({ where: { id: pageId, siteId } });
   res.json({ ok: true });
 });
 
 // News
-app.post('/api/cms/sites/:siteId/news', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/news', canEditCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const { title, slug, excerpt, blocks, status, coverImageId, seoTitle, seoDescription, publishedAt } = req.body;
   const s = slug || createSlug(title);
@@ -159,7 +145,7 @@ app.post('/api/cms/sites/:siteId/news', requireSiteAccess('siteId'), requireSite
   res.json({ ok: true, news });
 });
 
-app.put('/api/cms/sites/:siteId/news/:newsId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.put('/api/cms/sites/:siteId/news/:newsId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, newsId } = req.params;
   const data: any = { manualModifiedAt: new Date() };
   ['title', 'slug', 'excerpt', 'blocks', 'status', 'coverImageId', 'publishedAt', 'seoTitle', 'seoDescription'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
@@ -170,14 +156,14 @@ app.put('/api/cms/sites/:siteId/news/:newsId', requireSiteAccess('siteId'), requ
   res.json({ ok: true, news });
 });
 
-app.delete('/api/cms/sites/:siteId/news/:newsId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.delete('/api/cms/sites/:siteId/news/:newsId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, newsId } = req.params;
   await (prisma as any).newsPost.delete({ where: { id: newsId, siteId } });
   res.json({ ok: true });
 });
 
 // Projects
-app.post('/api/cms/sites/:siteId/projects', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/projects', canEditCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const { title, slug, excerpt, category, location, completionDate, blocks, status, coverImageId, galleryImageIds, projectStatus, seoTitle, seoDescription } = req.body;
   const s = slug || createSlug(title);
@@ -194,7 +180,7 @@ app.post('/api/cms/sites/:siteId/projects', requireSiteAccess('siteId'), require
   res.json({ ok: true, project });
 });
 
-app.put('/api/cms/sites/:siteId/projects/:projectId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.put('/api/cms/sites/:siteId/projects/:projectId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, projectId } = req.params;
   const data: any = { manualModifiedAt: new Date() };
   ['title', 'slug', 'excerpt', 'category', 'location', 'completionDate', 'blocks', 'status', 'coverImageId', 'projectStatus', 'seoTitle', 'seoDescription'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
@@ -213,7 +199,7 @@ app.put('/api/cms/sites/:siteId/projects/:projectId', requireSiteAccess('siteId'
   res.json({ ok: true, project });
 });
 
-app.delete('/api/cms/sites/:siteId/projects/:projectId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.delete('/api/cms/sites/:siteId/projects/:projectId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, projectId } = req.params;
   await (prisma as any).projectMedia.deleteMany({ where: { projectId } });
   await (prisma as any).project.delete({ where: { id: projectId, siteId } });
@@ -221,7 +207,7 @@ app.delete('/api/cms/sites/:siteId/projects/:projectId', requireSiteAccess('site
 });
 
 // Services
-app.post('/api/cms/sites/:siteId/services', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/services', canEditCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const { title, slug, shortDescription, blocks, status, imageId, sortOrder, seoTitle, seoDescription } = req.body;
   const s = slug || createSlug(title);
@@ -231,7 +217,7 @@ app.post('/api/cms/sites/:siteId/services', requireSiteAccess('siteId'), require
   res.json({ ok: true, service });
 });
 
-app.put('/api/cms/sites/:siteId/services/:serviceId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.put('/api/cms/sites/:siteId/services/:serviceId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, serviceId } = req.params;
   const data: any = { manualModifiedAt: new Date() };
   ['title', 'slug', 'shortDescription', 'blocks', 'status', 'imageId', 'sortOrder', 'icon', 'seoTitle', 'seoDescription'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
@@ -241,14 +227,14 @@ app.put('/api/cms/sites/:siteId/services/:serviceId', requireSiteAccess('siteId'
   res.json({ ok: true, service });
 });
 
-app.delete('/api/cms/sites/:siteId/services/:serviceId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.delete('/api/cms/sites/:siteId/services/:serviceId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, serviceId } = req.params;
   await (prisma as any).service.delete({ where: { id: serviceId, siteId } });
   res.json({ ok: true });
 });
 
 // Products — catalogue entities are first-class, independently editable
-app.post('/api/cms/sites/:siteId/products', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/products', canEditCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const { title, slug, summary, attributes, blocks, coverImageId, category, price, status, sortOrder, seoTitle, seoDescription, gallery } = req.body;
   const s = slug || createSlug(title);
@@ -261,7 +247,7 @@ app.post('/api/cms/sites/:siteId/products', requireSiteAccess('siteId'), require
   res.json({ ok: true, product });
 });
 
-app.put('/api/cms/sites/:siteId/products/:productId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.put('/api/cms/sites/:siteId/products/:productId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, productId } = req.params;
   const { title, slug, summary, attributes, blocks, coverImageId, category, price, status, sortOrder, seoTitle, seoDescription, gallery } = req.body;
   const data: any = { manualModifiedAt: new Date() };
@@ -277,14 +263,14 @@ app.put('/api/cms/sites/:siteId/products/:productId', requireSiteAccess('siteId'
   res.json({ ok: true, product });
 });
 
-app.delete('/api/cms/sites/:siteId/products/:productId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.delete('/api/cms/sites/:siteId/products/:productId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, productId } = req.params;
   await (prisma as any).product.delete({ where: { id: productId, siteId } });
   res.json({ ok: true });
 });
 
 // Vacancies
-app.post('/api/cms/sites/:siteId/vacancies', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/vacancies', canEditCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const { title, slug, location, description, requirements, conditions, contact, status } = req.body;
   const s = slug || createSlug(title);
@@ -294,7 +280,7 @@ app.post('/api/cms/sites/:siteId/vacancies', requireSiteAccess('siteId'), requir
   res.json({ ok: true, vacancy });
 });
 
-app.put('/api/cms/sites/:siteId/vacancies/:vacancyId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.put('/api/cms/sites/:siteId/vacancies/:vacancyId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, vacancyId } = req.params;
   const data: any = { manualModifiedAt: new Date() };
   ['title', 'slug', 'location', 'description', 'requirements', 'conditions', 'contact', 'status'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
@@ -303,20 +289,20 @@ app.put('/api/cms/sites/:siteId/vacancies/:vacancyId', requireSiteAccess('siteId
   res.json({ ok: true, vacancy });
 });
 
-app.delete('/api/cms/sites/:siteId/vacancies/:vacancyId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.delete('/api/cms/sites/:siteId/vacancies/:vacancyId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, vacancyId } = req.params;
   await (prisma as any).vacancy.delete({ where: { id: vacancyId, siteId } });
   res.json({ ok: true });
 });
 
 // Menu
-app.get('/api/cms/sites/:siteId/menu', requireSiteAccess('siteId'), async (req: Request, res: Response) => {
+app.get('/api/cms/sites/:siteId/menu', canReadCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const items = await (prisma as any).menuItem.findMany({ where: { siteId }, include: { page: { select: { slug: true, title: true } } }, orderBy: { sortOrder: 'asc' } });
   res.json({ items });
 });
 
-app.put('/api/cms/sites/:siteId/menu', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.put('/api/cms/sites/:siteId/menu', canEditCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const items = req.body.items || [];
   let menu = await (prisma as any).menu.findFirst({ where: { siteId, name: 'Main' } });
@@ -358,13 +344,13 @@ function mediaStorage(siteId: string) {
   return new LocalFilesystemMediaStorage({ baseDir, baseUrl: `/site-media/${siteId}` });
 }
 
-app.get('/api/cms/sites/:siteId/media', requireSiteAccess('siteId'), async (req: Request, res: Response) => {
+app.get('/api/cms/sites/:siteId/media', canReadCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const media = await (prisma as any).media.findMany({ where: { siteId }, orderBy: { createdAt: 'desc' } });
   res.json({ items: media });
 });
 
-app.post('/api/cms/sites/:siteId/media', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), upload.single('file'), async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/media', canEditCms, upload.single('file'), async (req: Request, res: Response) => {
   const { siteId } = req.params;
   if (!req.file) { res.status(400).json({ error: 'no_file' }); return; }
   const storage = mediaStorage(String(siteId));
@@ -383,14 +369,14 @@ app.post('/api/cms/sites/:siteId/media', requireSiteAccess('siteId'), requireSit
   res.json({ ok: true, media: file });
 });
 
-app.put('/api/cms/sites/:siteId/media/:mediaId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.put('/api/cms/sites/:siteId/media/:mediaId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, mediaId } = req.params;
   const { alt, caption } = req.body;
   const media = await (prisma as any).media.update({ where: { id: mediaId, siteId }, data: { alt, caption } });
   res.json({ ok: true, media });
 });
 
-app.delete('/api/cms/sites/:siteId/media/:mediaId', requireSiteAccess('siteId'), requireSiteRole('ADMIN', 'EDITOR'), async (req: Request, res: Response) => {
+app.delete('/api/cms/sites/:siteId/media/:mediaId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, mediaId } = req.params;
   const media = await (prisma as any).media.findUnique({ where: { id: mediaId, siteId } });
   if (media) {
@@ -402,13 +388,13 @@ app.delete('/api/cms/sites/:siteId/media/:mediaId', requireSiteAccess('siteId'),
 });
 
 // Users
-app.get('/api/cms/sites/:siteId/users', requireSiteAccess('siteId'), requireSiteRole('ADMIN'), async (req: Request, res: Response) => {
+app.get('/api/cms/sites/:siteId/users', canManageCmsUsers, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const users = await (prisma as any).siteUser.findMany({ where: { siteId }, include: { user: { select: { id: true, email: true, createdAt: true } } } });
   res.json({ users });
 });
 
-app.post('/api/cms/sites/:siteId/users', requireSiteAccess('siteId'), requireSiteRole('ADMIN'), async (req: Request, res: Response) => {
+app.post('/api/cms/sites/:siteId/users', canManageCmsUsers, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const email = typeof req.body?.email === 'string' ? req.body.email : '';
   const rawRole = req.body?.role;
@@ -428,14 +414,14 @@ app.post('/api/cms/sites/:siteId/users', requireSiteAccess('siteId'), requireSit
   res.json({ ok: true, user: siteUser });
 });
 
-app.put('/api/cms/sites/:siteId/users/:userId', requireSiteAccess('siteId'), requireSiteRole('ADMIN'), async (req: Request, res: Response) => {
+app.put('/api/cms/sites/:siteId/users/:userId', canManageCmsUsers, async (req: Request, res: Response) => {
   const { siteId, userId } = req.params;
   const role = req.body?.role === 'ADMIN' ? 'ADMIN' : 'EDITOR';
   const siteUser = await (prisma as any).siteUser.update({ where: { siteId_userId: { siteId, userId } }, data: { role } });
   res.json({ ok: true, user: siteUser });
 });
 
-app.delete('/api/cms/sites/:siteId/users/:userId', requireSiteAccess('siteId'), requireSiteRole('ADMIN'), async (req: Request, res: Response) => {
+app.delete('/api/cms/sites/:siteId/users/:userId', canManageCmsUsers, async (req: Request, res: Response) => {
   const { siteId, userId } = req.params;
   await (prisma as any).siteUser.delete({ where: { siteId_userId: { siteId, userId } } });
   res.json({ ok: true });

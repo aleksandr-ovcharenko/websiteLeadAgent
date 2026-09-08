@@ -2,6 +2,7 @@ import { useState, useMemo, useRef, useEffect } from "react";
 import Studio from "./cms/Studio";
 import ProductHeader from "./cms/ProductHeader";
 import type { ProductArea } from "./cms/ProductHeader";
+import { hasAnyPermission, visibleAreas, siteIdsFor } from "./auth/permissions";
 import Hub from "./Hub";
 import Factory from "./Factory";
 import RadarConfiguration from './radar/RadarConfiguration';
@@ -1183,10 +1184,29 @@ export default function App({ user }: { user?: any }) {
     return { view: 'hub' as ProductArea };
   };
   const initial = parse();
+  const areas = visibleAreas(user?.permissions);
+  const canSeeHub = hasAnyPermission(user?.permissions, ['settings.read', 'users.read', 'roles.manage']);
   const [view, setView] = useState<ProductArea>(initial.view);
   const [studioSiteId, setStudioSiteId] = useState<string | undefined>(initial.siteId);
-  const isSuperAdmin = user?.globalRole === 'SUPER_ADMIN';
   const consoleRef = useRef<HTMLDivElement>(null);
+
+  // Redirect site-only users away from the global Hub into their allowed site/product.
+  useEffect(() => {
+    if (initial.view !== 'hub' || areas.length === 0) return;
+    if (canSeeHub) return;
+    const target = areas[0];
+    if (target === 'studio') {
+      const sites = [
+        ...siteIdsFor(user?.permissions, 'studio.read'),
+        ...siteIdsFor(user?.permissions, 'cms.read'),
+      ];
+      if (sites.length > 0) {
+        window.location.replace(`/studio/${sites[0]}`);
+      }
+    } else {
+      window.location.replace(`/${target}`);
+    }
+  }, []);
 
   useEffect(() => {
     const el = consoleRef.current;
@@ -1253,7 +1273,7 @@ export default function App({ user }: { user?: any }) {
         return <SecurityCenter user={user} />;
       case 'hub':
       default:
-        return isSuperAdmin ? <div className={common}><Hub onNavigate={navigate} /></div> : <div className={`${common} overflow-y-auto`}><ForgeView /></div>;
+        return canSeeHub ? <div className={common}><Hub onNavigate={navigate} /></div> : <div className={`${common} overflow-y-auto`}><ForgeView /></div>;
     }
   };
 

@@ -4,6 +4,7 @@ import cookieSession from 'cookie-session';
 import bcrypt from 'bcryptjs';
 import { getCookieSessionOptions } from '@minsk/security';
 import { getClientIp, loginRateLimiter } from './security/rateLimit.js';
+import { getEffectivePermissions, hasPermission, type EffectivePermission } from './security/authz.js';
 
 export const prisma = new PrismaClient();
 
@@ -16,6 +17,7 @@ export interface PlatformUser {
   id: string;
   email: string;
   globalRole: 'SUPER_ADMIN' | 'USER';
+  permissions?: EffectivePermission[];
 }
 
 export async function getSessionUser(req: Request): Promise<PlatformUser | null> {
@@ -37,9 +39,10 @@ export function requireAuth(req: Request, res: Response, next: NextFunction) {
 }
 
 export function requireSuperAdmin(req: Request, res: Response, next: NextFunction) {
-  getSessionUser(req).then((user) => {
+  getSessionUser(req).then(async (user) => {
     if (!user) { res.status(401).json({ error: 'unauthorized' }); return; }
-    if (user.globalRole !== 'SUPER_ADMIN') { res.status(403).json({ error: 'forbidden' }); return; }
+    const ok = await hasPermission(prisma, user.id, 'roles.manage');
+    if (!ok) { res.status(403).json({ error: 'forbidden' }); return; }
     (req as any).user = user;
     next();
   }).catch((e) => next(e));
@@ -105,7 +108,8 @@ authRouter.post('/login', loginRateLimiter, async (req: Request, res: Response) 
   (req as any).session = null;
   (req as any).session = { userId: user.id };
 
-  res.json({ ok: true, user: { id: user.id, email: user.email, globalRole: user.globalRole } });
+  const permissions = await getEffectivePermissions(prisma, user.id);
+  res.json({ ok: true, user: { id: user.id, email: user.email, globalRole: user.globalRole, permissions } });
 });
 
 authRouter.post('/logout', (req: Request, res: Response) => {
@@ -116,7 +120,8 @@ authRouter.post('/logout', (req: Request, res: Response) => {
 authRouter.get('/me', async (req: Request, res: Response) => {
   const user = await getSessionUser(req);
   if (!user) { res.status(401).json({ error: 'unauthorized' }); return; }
-  res.json({ user });
+  const permissions = await getEffectivePermissions(prisma, user.id);
+  res.json({ user: { ...user, permissions } });
 });
 
 export { getClientIp };

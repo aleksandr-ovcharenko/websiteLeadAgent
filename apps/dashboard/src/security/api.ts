@@ -1,7 +1,8 @@
 import { Router, type Request, type Response } from 'express';
 import type { PrismaClient } from '@prisma/client';
 import pino from 'pino';
-import { requireSuperAdmin } from '../auth.js';
+import { requireAuth } from '../auth.js';
+import { requirePermission } from './authz.js';
 import { SecurityAuditService } from './audit.js';
 import { evaluateSecurityGate } from './gate.js';
 import { SecurityEventService } from './event.js';
@@ -36,10 +37,12 @@ export function securityRouter(opts: SecurityApiOptions): Router {
   const events = new SecurityEventService(prisma);
 
   const r = Router();
+  const canReadSecurity = requirePermission(prisma, 'security.read');
+  const canManageSecurity = requirePermission(prisma, 'security.manage');
 
-  r.use(requireSuperAdmin);
+  r.use(requireAuth);
 
-  r.get('/overview', async (_req: Request, res: Response) => {
+  r.get('/overview', canReadSecurity, async (_req: Request, res: Response) => {
     const [counts, gate, products, recentAudits] = await Promise.all([
       prisma.securityFinding.groupBy({
         by: ['severity', 'status'],
@@ -52,12 +55,12 @@ export function securityRouter(opts: SecurityApiOptions): Router {
     res.json({ counts, products, gate, recentAudits });
   });
 
-  r.get('/gate', async (_req: Request, res: Response) => {
+  r.get('/gate', canReadSecurity, async (_req: Request, res: Response) => {
     const gate = await prisma.securityGate.findFirst({ orderBy: { evaluatedAt: 'desc' } });
     res.json(gate || { status: 'HEALTHY' });
   });
 
-  r.get('/audits', async (req: Request, res: Response) => {
+  r.get('/audits', canReadSecurity, async (req: Request, res: Response) => {
     const take = Math.min(parseInt(req.query.limit as string) || 50, 200);
     const skip = parseInt(req.query.offset as string) || 0;
     const where: any = {};
@@ -70,7 +73,7 @@ export function securityRouter(opts: SecurityApiOptions): Router {
     res.json({ items, total });
   });
 
-  r.post('/audits/run', async (req: Request, res: Response) => {
+  r.post('/audits/run', canManageSecurity, async (req: Request, res: Response) => {
     const { scanner, category } = req.body || {};
     const commitSha = (await prisma.$queryRaw`SELECT pg_catalog.version()`) as any; // placeholder, use git later
     try {
@@ -92,7 +95,7 @@ export function securityRouter(opts: SecurityApiOptions): Router {
     }
   });
 
-  r.get('/findings', async (req: Request, res: Response) => {
+  r.get('/findings', canReadSecurity, async (req: Request, res: Response) => {
     const take = Math.min(parseInt(req.query.limit as string) || 100, 500);
     const skip = parseInt(req.query.offset as string) || 0;
     const where: any = {};
@@ -109,7 +112,7 @@ export function securityRouter(opts: SecurityApiOptions): Router {
     res.json({ items, total });
   });
 
-  r.get('/findings/:id', async (req: Request, res: Response) => {
+  r.get('/findings/:id', canReadSecurity, async (req: Request, res: Response) => {
     const finding = await prisma.securityFinding.findUnique({
       where: { id: req.params.id },
       include: { dependency: true, affects: true, audit: true },
@@ -118,7 +121,7 @@ export function securityRouter(opts: SecurityApiOptions): Router {
     res.json(finding);
   });
 
-  r.patch('/findings/:id', async (req: Request, res: Response) => {
+  r.patch('/findings/:id', canManageSecurity, async (req: Request, res: Response) => {
     const { status, remediationNote, acceptedBy, assignedTo } = req.body || {};
     if (!status) { res.status(400).json({ error: 'missing_status' }); return; }
     const data: any = { status, remediationNote, assignedTo };
@@ -140,7 +143,7 @@ export function securityRouter(opts: SecurityApiOptions): Router {
     res.json(finding);
   });
 
-  r.get('/dependencies', async (req: Request, res: Response) => {
+  r.get('/dependencies', canReadSecurity, async (req: Request, res: Response) => {
     const take = Math.min(parseInt(req.query.limit as string) || 100, 500);
     const skip = parseInt(req.query.offset as string) || 0;
     const where: any = {};
@@ -153,7 +156,7 @@ export function securityRouter(opts: SecurityApiOptions): Router {
     res.json({ items, total });
   });
 
-  r.get('/dependencies/:id', async (req: Request, res: Response) => {
+  r.get('/dependencies/:id', canReadSecurity, async (req: Request, res: Response) => {
     const dep = await prisma.securityDependency.findUnique({
       where: { id: req.params.id },
       include: { findings: { include: { affects: true } }, snapshots: { include: { snapshot: true } } },
@@ -162,7 +165,7 @@ export function securityRouter(opts: SecurityApiOptions): Router {
     res.json(dep);
   });
 
-  r.get('/events', async (req: Request, res: Response) => {
+  r.get('/events', canReadSecurity, async (req: Request, res: Response) => {
     const take = Math.min(parseInt(req.query.limit as string) || 100, 500);
     const skip = parseInt(req.query.offset as string) || 0;
     const where: any = {};
@@ -175,12 +178,12 @@ export function securityRouter(opts: SecurityApiOptions): Router {
     res.json({ items, total });
   });
 
-  r.get('/scanner-configs', async (_req: Request, res: Response) => {
+  r.get('/scanner-configs', canReadSecurity, async (_req: Request, res: Response) => {
     const items = await prisma.securityScannerConfig.findMany({ orderBy: { scanner: 'asc' } });
     res.json(items);
   });
 
-  r.patch('/scanner-configs/:id', async (req: Request, res: Response) => {
+  r.patch('/scanner-configs/:id', canManageSecurity, async (req: Request, res: Response) => {
     const { enabled, schedule, config } = req.body || {};
     const item = await prisma.securityScannerConfig.update({
       where: { id: req.params.id },
