@@ -827,3 +827,20 @@ Checkbox selection stores Lead IDs, never row indices. Bulk results are
 per-item (success / skipped / failed); failed or skipped items stay selected
 for correction. Select-all covers only the currently visible rows. One bulk
 action produces N entity patches, not N view rebuilds.
+
+
+### BULK ACTIONS PATCH ENTITIES, NOT VIEWS
+
+Bulk operations may update many Lead entities, but they must never rebuild the
+current Radar view. `runBulk` calls `getLead` for each affected ID and feeds
+the entity into `RadarStore.patchEntity` only. `visibleLeadIds`,
+`checkedLeadIds` and `selectedLeadId` are not cleared or rebuilt as part of a
+bulk action; `Run AI` keeps the selection so the user can continue reviewing.
+
+### AI RERUN DOES NOT IMPLY FULL RE-AUDIT
+
+An explicit `Run AI` / `RUN_VISUAL_ANALYSIS` rerun reuses valid persisted
+upstream artifacts (audit, screenshots, Lighthouse) and reruns only the
+AI-dependent downstream work. It does not restart website viability, audit,
+screenshots or Lighthouse. Eligibility is strict: the Lead must have a viable
+website and a successful audit; otherwise it is `SKIPPED`.

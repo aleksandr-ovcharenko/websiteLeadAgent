@@ -11,6 +11,7 @@ import { generateSite } from '@minsk/redesign-engine';
 import { DiscoveryService, listDiscoveryProviders, getDiscoveryProvider, DISCOVERY_PRESETS } from './discovery/index.js';
 import { OperationService } from './operations/index.js';
 import { ActivityService } from './activity/ActivityService.js';
+import { getBulkAiEligibility } from './qualification/bulkAiEligibility.js';
 
 const prisma = new PrismaClient();
 const app = express();
@@ -454,7 +455,7 @@ app.delete('/api/leads/:leadId', requireSuperAdmin, async (req: Request, res: Re
 app.post('/api/leads/bulk', requireSuperAdmin, async (req: Request, res: Response) => {
   const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids.filter((x: any) => typeof x === 'string') : [];
   const action = typeof req.body?.action === 'string' ? req.body.action : '';
-  if (!ids.length || !['reaudit', 'approve', 'reject', 'delete'].includes(action)) {
+  if (!ids.length || !['reaudit', 'runAi', 'approve', 'reject', 'delete'].includes(action)) {
     res.status(400).json({ error: 'invalid_request' });
     return;
   }
@@ -466,7 +467,7 @@ app.post('/api/leads/bulk', requireSuperAdmin, async (req: Request, res: Respons
     try {
       const lead = await prisma.lead.findUnique({
         where: { id: leadId },
-        select: { id: true, website: true, websiteStatus: true, manualReviewStatus: true, auditStatus: true, site: { select: { id: true } } },
+        select: { id: true, website: true, websiteStatus: true, manualReviewStatus: true, auditStatus: true, visualAnalysis: { select: { status: true } }, site: { select: { id: true } } },
       });
       if (!lead) { results.push({ id: leadId, result: 'skipped', reason: 'not_found' }); continue; }
 
@@ -494,6 +495,18 @@ app.post('/api/leads/bulk', requireSuperAdmin, async (req: Request, res: Respons
         await prisma.lead.update({ where: { id: leadId }, data: { manualReviewStatus: 'BAD', reviewedAt: new Date() } });
         const cancelled = await operations.cancelForLead(leadId);
         results.push({ id: leadId, result: 'success', reason: cancelled.length ? `cancelled ${cancelled.length} run(s)` : undefined });
+      } else if (action === 'runAi') {
+        const active = await prisma.operationRun.findMany({
+          where: { leadId, status: { in: ['PENDING', 'RUNNING', 'CANCEL_REQUESTED'] }, operationId: 'RUN_VISUAL_ANALYSIS' },
+          select: { operationId: true },
+        });
+        const eligibility = getBulkAiEligibility(lead, active);
+        if (eligibility.result !== 'STARTED') {
+          results.push({ id: leadId, result: 'skipped', reason: eligibility.reason });
+          continue;
+        }
+        const { run } = await operations.execute({ operationId: 'RUN_VISUAL_ANALYSIS', input: { leadId, force: true }, leadId });
+        results.push({ id: leadId, result: 'success', reason: run?.id });
       } else { // delete
         await prisma.lead.delete({ where: { id: leadId } });
         results.push({ id: leadId, result: 'success', reason: lead.site ? `site ${lead.site.id} detached` : undefined });

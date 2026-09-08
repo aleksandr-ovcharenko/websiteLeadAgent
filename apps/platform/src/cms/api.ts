@@ -55,7 +55,7 @@ export const api = {
   getLeadChanges: (since: number) => request(`/api/leads/changes?since=${since}`) as Promise<{ items: any[] }>,
   getLead: (leadId: string) => request(`/api/leads/${leadId}`) as Promise<{ lead: any }>,
   deleteLead: (leadId: string) => request(`/api/leads/${leadId}`, { method: 'DELETE' }) as Promise<{ ok: boolean }>,
-  bulkLeads: (ids: string[], action: 'reaudit' | 'approve' | 'reject' | 'delete') =>
+  bulkLeads: (ids: string[], action: 'reaudit' | 'runAi' | 'approve' | 'reject' | 'delete') =>
     request('/api/leads/bulk', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids, action }) }) as Promise<{ ok: boolean; results: { id: string; result: 'success' | 'skipped' | 'failed'; reason?: string }[] }>,
   getLeadStats: (discoveryRunId?: string) => {
     const qs = discoveryRunId ? `?discoveryRunId=${discoveryRunId}` : '';

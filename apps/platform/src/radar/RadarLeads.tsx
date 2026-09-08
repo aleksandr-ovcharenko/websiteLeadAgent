@@ -32,6 +32,15 @@ function getInitialState(mode: Mode): { view: PrimaryView; filters: Filters } {
   return { view, filters };
 }
 
+// Mirrors server-side getBulkAiEligibility for UI enablement.
+function isAiEligible(lead: any): boolean {
+  if (!lead) return false;
+  if (lead.manualReviewStatus === 'BAD') return false;
+  if (lead.websiteStatus === 'FAILED' || !lead.website) return false;
+  if (lead.auditStatus !== 'SUCCESS') return false;
+  return true;
+}
+
 function statusBadge(status?: string | null, type: 'audit' | 'lighthouse' | 'ai' = 'audit') {
   const s = status || 'PENDING';
   const label = { audit: { PENDING: 'Audit', SUCCESS: 'Audited', FAILED: 'Failed' }, lighthouse: { PENDING: 'Lighthouse', SUCCESS: 'Lighthouse', FAILED: 'Failed' }, ai: { PENDING: 'AI', SUCCESS: 'AI', FAILED: 'Failed' } }[type];
@@ -320,7 +329,7 @@ setLoading(true);
     api.getLead(leadId).then((r) => r?.lead && store.patchEntity(r.lead)).catch(() => {});
   };
 
-  async function runBulk(action: 'reaudit' | 'approve' | 'reject' | 'delete') {
+  async function runBulk(action: 'reaudit' | 'runAi' | 'approve' | 'reject' | 'delete') {
     const ids = [...checkedIds];
     if (!ids.length) return;
     if (action === 'delete' && !window.confirm(`Delete ${ids.length} selected lead(s)? Lead history and technical reports are removed; generated Sites and CMS content are not deleted.`)) return;
@@ -333,8 +342,11 @@ setLoading(true);
       const failedIds = results.filter((r) => r.result === 'failed').map((r) => r.id);
       const skippedIds = results.filter((r) => r.result === 'skipped').map((r) => r.id);
       setBulkResult(`${action}: ${ok} succeeded${skipped ? `, ${skipped} skipped` : ''}${failedIds.length ? `, ${failedIds.length} failed` : ''}`);
-      const keep = new Set([...failedIds, ...skippedIds]);
-      setCheckedIds((prev) => new Set([...prev].filter((id) => keep.has(id))));
+      // Run AI: keep selection so the user can inspect results then continue.
+      if (action !== 'runAi') {
+        const keep = new Set([...failedIds, ...skippedIds]);
+        setCheckedIds((prev) => new Set([...prev].filter((id) => keep.has(id))));
+      }
       if (action === 'delete') {
         // User-requested destructive change: rows leave the view explicitly.
         const deleted = results.filter((r) => r.result === 'success').map((r) => r.id);
@@ -399,6 +411,7 @@ setLoading(true);
             <span className="text-[12px] font-mono text-text">{checkedIds.size} selected</span>
             <div className="h-4 w-px bg-border" />
             <Button size="sm" variant="secondary" disabled={!!bulkBusy} onClick={() => runBulk('reaudit')}>Re-audit</Button>
+            <Button data-testid="bulk-run-ai" size="sm" variant="secondary" disabled={!!bulkBusy} onClick={() => runBulk('runAi')}>Run AI</Button>
             <Button size="sm" variant="secondary" disabled={!!bulkBusy} onClick={() => runBulk('approve')}>Approve</Button>
             <Button size="sm" variant="secondary" disabled={!!bulkBusy} onClick={() => runBulk('reject')}>Reject</Button>
             <Button size="sm" variant="secondary" disabled={!!bulkBusy} onClick={() => runBulk('delete')}>Delete</Button>
