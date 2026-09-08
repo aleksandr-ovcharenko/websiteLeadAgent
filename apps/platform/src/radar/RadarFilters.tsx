@@ -12,7 +12,7 @@ export interface Filters {
 export const defaultFilters: Record<PrimaryView, Filters> = {
   all: {
     q: '',
-    sort: 'v2_desc',
+    sort: 'createdAt_desc',
     websiteStatus: '',
     qualificationStatus: 'ALL',
     manual: '',
@@ -20,7 +20,7 @@ export const defaultFilters: Record<PrimaryView, Filters> = {
   },
   review: {
     q: '',
-    sort: 'v2_desc',
+    sort: 'createdAt_desc',
     websiteStatus: 'FOUND',
     qualificationStatus: 'READY',
     manual: 'UNREVIEWED',
@@ -28,7 +28,7 @@ export const defaultFilters: Record<PrimaryView, Filters> = {
   },
   generation: {
     q: '',
-    sort: 'v2_desc',
+    sort: 'createdAt_desc',
     websiteStatus: 'FOUND',
     qualificationStatus: 'ALL',
     manual: 'GOOD',
@@ -36,7 +36,7 @@ export const defaultFilters: Record<PrimaryView, Filters> = {
   },
   failed: {
     q: '',
-    sort: 'v2_desc',
+    sort: 'createdAt_desc',
     websiteStatus: '',
     qualificationStatus: 'FAILED',
     manual: '',
@@ -45,12 +45,16 @@ export const defaultFilters: Record<PrimaryView, Filters> = {
 };
 
 const sorts = [
-  { key: 'v2_desc', label: 'Lead score ↓' },
+  { key: 'createdAt_desc', label: 'Added: newest' },
+  { key: 'createdAt_asc', label: 'Added: oldest' },
+  { key: 'company_asc', label: 'Company A–Z' },
+  { key: 'company_desc', label: 'Company Z–A' },
+  { key: 'v2_desc', label: 'Score: highest' },
+  { key: 'v2_asc', label: 'Score: lowest' },
   { key: 'visual_desc', label: 'Visual ↓' },
   { key: 'tech_desc', label: 'Technical ↓' },
   { key: 'biz_desc', label: 'Business ↓' },
   { key: 'web_desc', label: 'Website ↓' },
-  { key: 'discovered', label: 'Newest' },
 ];
 
 interface ViewTab {
@@ -88,7 +92,7 @@ export default function RadarFilters({
     filters.generationStatus !== defaults.generationStatus;
 
   const clearFilters = () => {
-    onChange(defaultFilters[view]);
+    onChange({ ...defaultFilters[view], sort: filters.sort });
   };
 
   return (
@@ -138,6 +142,7 @@ export default function RadarFilters({
           <option value="FOUND">Has website</option>
           <option value="NOT_FOUND">No website</option>
           <option value="UNKNOWN">Unknown</option>
+          <option value="FAILED">Failed</option>
         </select>
 
         <select

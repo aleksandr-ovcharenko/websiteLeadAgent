@@ -1113,8 +1113,7 @@ export default function RadarView({ onForge }: { onForge?: () => void }) {
           ))}
         </nav>
         <div className="mt-auto p-4 border-t border-border space-y-2">
-          <div className="text-[10px] font-mono text-text-subtle">admin@system.internal</div>
-          <div className="text-[10px] font-mono text-text-subtle">g · u · b · j · k</div>
+          <div className="text-[10px] font-mono text-text-subtle">WebsiteLeadAgent · Super Admin</div>
         </div>
       </div>
 

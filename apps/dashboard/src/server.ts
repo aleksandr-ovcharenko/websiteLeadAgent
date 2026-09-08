@@ -132,6 +132,14 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
   const orderBy = (() => {
     const stable = [{ id: 'asc' as const }];
     switch (sort) {
+      case 'createdAt_desc':
+        return [{ createdAt: 'desc' as const }, ...stable];
+      case 'createdAt_asc':
+        return [{ createdAt: 'asc' as const }, ...stable];
+      case 'company_asc':
+        return [{ companyName: 'asc' as const }, ...stable];
+      case 'company_desc':
+        return [{ companyName: 'desc' as const }, ...stable];
       case 'v2_desc':
         return [{ leadScoreV2: 'desc' as const }, { leadScore: 'desc' as const }, ...stable];
       case 'v2_asc':
@@ -157,7 +165,7 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
       case 'web_asc':
         return [{ websiteQualityScore: 'asc' as const }, { leadScoreV2: 'desc' as const }, ...stable];
       default:
-        return [{ leadScoreV2: 'desc' as const }, { leadScore: 'desc' as const }, ...stable];
+        return [{ createdAt: 'desc' as const }, ...stable];
     }
   })();
 

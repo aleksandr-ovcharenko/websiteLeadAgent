@@ -844,3 +844,28 @@ upstream artifacts (audit, screenshots, Lighthouse) and reruns only the
 AI-dependent downstream work. It does not restart website viability, audit,
 screenshots or Lighthouse. Eligibility is strict: the Lead must have a viable
 website and a successful audit; otherwise it is `SKIPPED`.
+
+
+### SIDEBAR STATE IS NOT RADAR VIEW STATE
+
+Opening or closing navigation must never reload or mutate Radar data.
+`sidebarOpen` is local UI state: it cannot call `loadView`, change
+`visibleLeadIds`, filters, selection, checked IDs, or scroll.
+
+### RADAR FILTERS ARE EXPLICIT VIEW BOUNDARIES
+
+Filter, sort and view changes are explicit user actions and may rebuild the
+view snapshot via `loadView`. Background data patches cannot change filters,
+sort, or the visible row order.
+
+### ONE SOURCE OF TRUTH FOR STYLE PREVIEW
+
+Forge style previews must derive from the same structured `themeConfig`
+settings consumed by the renderer. Do not infer style from screenshots or
+fabricate tokens.
+
+### PRODUCT ACTIVITY IS PERSISTENT
+
+Meaningful actions are stored in the database and survive browser/server
+restarts. Notifications are user-visible product events, not raw operational
+noise.

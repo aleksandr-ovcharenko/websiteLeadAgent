@@ -102,6 +102,9 @@ const LeadRow = memo(function LeadRow({ store, leadId, checked, stale, onCheck, 
           {lead.manualReviewStatus || 'UNREVIEWED'}
         </span>
       </td>
+      <td className="px-3 py-2 text-[10px] font-mono text-text-subtle" title={lead.createdAt ? new Date(lead.createdAt).toLocaleString() : undefined}>
+        {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString('ru-RU', { day: '2-digit', month: 'short', year: '2-digit' }) : '—'}
+      </td>
       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
         <div className="flex gap-1">
           {lead.website && (
@@ -146,6 +149,7 @@ const RadarTable = memo(function RadarTable({ store, ids, checkedIds, pendingIds
             <th className="px-3 py-2 font-medium text-text w-[70px]">Audit</th>
             <th className="px-3 py-2 font-medium text-text w-[60px]">AI</th>
             <th className="px-3 py-2 font-medium text-text w-[110px]">Review</th>
+            <th className="px-3 py-2 font-medium text-text w-[80px]">Added</th>
             <th className="px-3 py-2 font-medium text-text w-[110px]">Actions</th>
           </tr>
         </thead>

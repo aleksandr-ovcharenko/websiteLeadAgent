@@ -254,6 +254,7 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
                 )}
                 {lead.categories?.[0] && <span className="text-[11px] text-text-subtle">· {lead.categories[0]}</span>}
                 {lead.city && <span className="text-[11px] text-text-subtle">· {lead.city}</span>}
+                {lead.createdAt && <span className="text-[11px] text-text-subtle">· Added {new Date(lead.createdAt).toLocaleDateString('ru-RU', { day: '2-digit', month: 'long', year: 'numeric' })}</span>}
               </div>
               {hasTlsWarning && (
                 <div className="w-full mt-2 p-2 rounded border bg-warning-subtle border-warning-subtle text-warning text-[11px] font-mono">
