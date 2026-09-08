@@ -110,6 +110,46 @@ export const api = {
     request('/api/operations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) as Promise<{ run: any; alreadyActive?: boolean }>,
   cancelOperation: (runId: string) => request(`/api/operations/${runId}/cancel`, { method: 'POST' }) as Promise<{ run: any }>,
 
+  // Security (SUPER_ADMIN only)
+  getSecurityOverview: () => request('/api/security/overview') as Promise<any>,
+  getSecurityGate: () => request('/api/security/gate') as Promise<any>,
+  getSecurityAudits: (params: { limit?: number; offset?: number; scanner?: string; category?: string } = {}) => {
+    const qs = new URLSearchParams();
+    qs.set('limit', String(params.limit ?? 50));
+    qs.set('offset', String(params.offset ?? 0));
+    if (params.scanner) qs.set('scanner', params.scanner);
+    if (params.category) qs.set('category', params.category);
+    return request(`/api/security/audits?${qs.toString()}`) as Promise<{ items: any[]; total: number }>;
+  },
+  getSecurityFindings: (params: { limit?: number; offset?: number; severity?: string; status?: string; category?: string; product?: string; scanner?: string; cve?: string } = {}) => {
+    const qs = new URLSearchParams();
+    qs.set('limit', String(params.limit ?? 50));
+    qs.set('offset', String(params.offset ?? 0));
+    for (const k of ['severity', 'status', 'category', 'product', 'scanner', 'cve'] as const) {
+      if (params[k]) qs.set(k, params[k]!);
+    }
+    return request(`/api/security/findings?${qs.toString()}`) as Promise<{ items: any[]; total: number }>;
+  },
+  getSecurityFinding: (id: string) => request(`/api/security/findings/${id}`) as Promise<any>,
+  updateSecurityFinding: (id: string, data: { status: string; remediationNote?: string }) =>
+    request(`/api/security/findings/${id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }) as Promise<any>,
+  getSecurityDependencies: (params: { limit?: number; offset?: number; name?: string; ecosystem?: string } = {}) => {
+    const qs = new URLSearchParams();
+    qs.set('limit', String(params.limit ?? 100));
+    qs.set('offset', String(params.offset ?? 0));
+    if (params.name) qs.set('name', params.name);
+    if (params.ecosystem) qs.set('ecosystem', params.ecosystem);
+    return request(`/api/security/dependencies?${qs.toString()}`) as Promise<{ items: any[]; total: number }>;
+  },
+  getSecurityEvents: (params: { limit?: number; offset?: number; category?: string; level?: string } = {}) => {
+    const qs = new URLSearchParams();
+    qs.set('limit', String(params.limit ?? 100));
+    qs.set('offset', String(params.offset ?? 0));
+    if (params.category) qs.set('category', params.category);
+    if (params.level) qs.set('level', params.level);
+    return request(`/api/security/events?${qs.toString()}`) as Promise<{ items: any[]; total: number }>;
+  },
+
   // Settings
   saveSettings: (siteId: string, data: any) => request(`/api/cms/sites/${siteId}/settings`, {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data)

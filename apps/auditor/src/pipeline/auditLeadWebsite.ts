@@ -139,6 +139,24 @@ export async function auditLeadWebsite(input: {
           tlsMessage: 'Certificate is expired or invalid',
           currentUrl: website
         });
+        await prisma.securityEvent.create({
+          data: {
+            level: 'HIGH',
+            category: 'tls_insecure_fallback',
+            source: 'auditor',
+            actorType: 'lead',
+            actorId: leadId,
+            target: website,
+            message: `TLS certificate invalid for ${website} (${certCode}). Insecure fallback attempted.`,
+            details: { certCode, runId, website },
+          },
+        }).catch(() => {});
+
+        // Insecure TLS fallback is only allowed when explicitly enabled.
+        // It must run in the same disposable sandboxed browser context with the same SSRF policy.
+        if (process.env.ALLOW_INSECURE_TLS !== 'true') {
+          throw new Error(`TLS validation failed for ${website} (${certCode}). Insecure TLS fallback is disabled. Set ALLOW_INSECURE_TLS=true only in a disposable audit environment.`);
+        }
 
         // Retry with HTTPS errors ignored, scoped to this audit context only.
         await context.close().catch(() => {});

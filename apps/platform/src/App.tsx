@@ -6,6 +6,7 @@ import Hub from "./Hub";
 import Factory from "./Factory";
 import RadarConfiguration from './radar/RadarConfiguration';
 import { ActivityConsole } from './activity/ActivityConsole';
+import SecurityCenter from './security/SecurityCenter';
 
 type Status =
   | "DRAFT"
@@ -1177,6 +1178,7 @@ export default function App({ user }: { user?: any }) {
     if (p === '/radar' || p.startsWith('/radar/')) return { view: 'radar' as ProductArea };
     if (p === '/factory' || p.startsWith('/factory/')) return { view: 'factory' as ProductArea };
     if (p === '/forge' || p.startsWith('/forge/')) return { view: 'forge' as ProductArea };
+    if (p === '/security' || p.startsWith('/security/')) return { view: 'security' as ProductArea };
     if (p.startsWith('/studio/')) return { view: 'studio' as ProductArea, siteId: p.split('/')[2] };
     return { view: 'hub' as ProductArea };
   };
@@ -1230,7 +1232,8 @@ export default function App({ user }: { user?: any }) {
       radar: 'Radar — WebsiteLeadAgent',
       factory: 'Factory — WebsiteLeadAgent',
       forge: 'Forge — WebsiteLeadAgent',
-      studio: 'Studio — WebsiteLeadAgent'
+      studio: 'Studio — WebsiteLeadAgent',
+      security: 'Security — WebsiteLeadAgent'
     };
     document.title = titles[view] || 'WebsiteLeadAgent';
   }, [view]);
@@ -1246,6 +1249,8 @@ export default function App({ user }: { user?: any }) {
         return <div className={common}><Factory onNavigate={navigate} /></div>;
       case 'forge':
         return <div className={`${common} overflow-y-auto`}><ForgeView /></div>;
+      case 'security':
+        return <SecurityCenter user={user} />;
       case 'hub':
       default:
         return isSuperAdmin ? <div className={common}><Hub onNavigate={navigate} /></div> : <div className={`${common} overflow-y-auto`}><ForgeView /></div>;

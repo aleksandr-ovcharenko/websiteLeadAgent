@@ -579,3 +579,177 @@ findings re-scanned → status RESOLVED only after verification
 - **Safety:** do not use offensive skills (red-team exploitation, C2, phishing) against third-party sites discovered by Radar.
 - **Integration:** create `scripts/security-review.mjs` that loads relevant `SKILL.md` files and prints checklists for a given product area; run before manual/agent review.
 - **Do not:** replace `npm audit`, `semgrep`, `trivy` or `ZAP` with skill-based reasoning.
+
+---
+
+## P1 Continuous Security Implementation (current)
+
+### Important: stale historical sections
+
+Sections 1–12 above are the **original threat-model baseline** captured before P0/P1 implementation. They describe risks that existed at the start of the hardening work. The authoritative current state is in the **P0 Implementation Status** table and in this section. Where a later section appears to conflict with the P0/P1 status (e.g., "no rate limiting"), the P0/P1 status controls.
+
+### Persistence model
+
+Prisma schema extended with:
+
+- `SecurityAudit` — deterministic scanner execution record (scanner, category, status, commit/build, raw result, summary).
+- `SecurityFinding` — deduplicated, fingerprinted finding (severity, status, category, scanner, rule, evidence, first/last detected, accepted-by tracking).
+- `SecurityAffect` — normalized affect map (assetType x assetId) so one finding can affect many apps/templates/Showcases.
+- `SecurityEvent` — runtime security events (login rate limiting, TLS fallback, scanner failure, etc.).
+- `SecurityDependency` — `ecosystem/name/version` unique dependency with CVE JSON.
+- `SecurityDependencySnapshot` + `DependencyInSnapshot` — SBOM provenance for WLA builds and template/Showcase builds.
+- `SecurityGate` — latest gate evaluation with counts.
+- `SecurityScannerConfig` — on/off, schedule, config per scanner.
+
+`SiteBuild` gained `dependencySnapshotId` for generated Showcase provenance.
+
+### Scanner execution model
+
+Location: `apps/dashboard/src/security/audit.ts` (`SecurityAuditService`)
+
+- Each registered `SecurityScanner` creates a `SecurityAudit` row, runs, normalizes results into `SecurityFindingInput[]`.
+- `upsertFinding` writes `SecurityDependency` (if present) and `SecurityFinding` with a stable fingerprint (`scanner|package|version|rule` or `scanner|file|line|rule`).
+- A subsequent run marks any previous `OPEN` finding for that scanner not re-reported as `RESOLVED`.
+- Scanner failures update `SecurityAudit.status = FAILED`; they do **not** equal a pass.
+
+### Integrated scanners
+
+| Scanner | Category | Status | Evidence source |
+|---------|----------|--------|-----------------|
+| `npm-audit` | dependency | active | `npm audit --json` + `package-lock.json` for installed versions and paths |
+| `wla-sast` | sast | active | `git grep` patterns for `eval(`, `new Function(`, command execution, `ignoreHTTPSErrors`, raw HTML insertion |
+| `regex-secrets` | secrets | active | `git grep` high-confidence patterns (Google, OpenAI, GitHub, Slack, AWS, npm tokens) |
+| `osv-scanner` | dependency | configured/disabled | Planned OSV `querybatch` integration (not enabled by default to respect API limits) |
+| `trivy` | container | configured/disabled | Planned container/image scan (no containers deployed yet) |
+
+Scanner configurations are seeded on dashboard startup and persisted in `SecurityScannerConfig`.
+
+### Current live findings (representative, will change on the next scan)
+
+As of the most recent `npm run security:audit`:
+
+- `npm-audit`: 12 dependency findings (1 CRITICAL, 5 HIGH, 4 MEDIUM, 2 LOW).
+- `wla-sast`: 9 findings (mostly `ignoreHTTPSErrors` and raw HTML insertion points; some are intentional and can be marked `FALSEPOSITIVE` or `ACCEPTEDRISK` with evidence).
+- `regex-secrets`: 0 findings.
+
+Live counts are available via `GET /api/security/gate` and `GET /api/security/overview`.
+
+### Security Gate
+
+Location: `apps/dashboard/src/security/gate.ts`
+
+Policy:
+
+- `BLOCKED` if any `OPEN` `CRITICAL` finding.
+- `HIGH_RISK` if any `OPEN` `HIGH` finding.
+- `ATTENTION` if any `OPEN` `MEDIUM` finding.
+- `HEALTHY` otherwise.
+
+Manual status changes (`ACCEPTEDRISK`, `FALSEPOSITIVE`) require actor/timestamp and must not hide unresolved vulnerabilities. The gate is evaluated after every audit run.
+
+### Security Center API
+
+Location: `apps/dashboard/src/security/api.ts` mounted at `/api/security/*`.
+
+SUPERADMIN-only endpoints:
+
+- `GET /api/security/overview`
+- `GET /api/security/gate`
+- `GET /api/security/audits`
+- `POST /api/security/audits/run`
+- `GET /api/security/findings` (filterable)
+- `GET /api/security/findings/:id`
+- `PATCH /api/security/findings/:id`
+- `GET /api/security/dependencies`
+- `GET /api/security/dependencies/:id`
+- `GET /api/security/events`
+- `GET /api/security/scanner-configs`
+
+### Security Center UI
+
+Location: `apps/platform/src/security/SecurityCenter.tsx` integrated into Hub navigation.
+
+First version includes:
+
+- Overview with gate status, severity counts, products affected, recent audits.
+- Findings table with filtering (severity, status, product, scanner) and detail panel.
+- Dependencies/CVE table.
+- Events table.
+- Audit history.
+
+Only `SUPER_ADMIN` can see the Security nav and content.
+
+### `ignoreHTTPSErrors` decision
+
+Implemented in `apps/auditor/src/pipeline/auditLeadWebsite.ts`:
+
+- Normal TLS validation is attempted first.
+- On certificate failure, a `SecurityEvent` (`tls_insecure_fallback`, `HIGH`) is created.
+- The insecure retry is performed **only** if `ALLOW_INSECURE_TLS=true` is explicitly set.
+- The fallback uses the same sandboxed browser and SSRF URL policy; no credentials or cookies are transferred.
+- If the env var is not set, the audit fails with a clear message and the lead is marked invalid-TLS.
+
+This retains the business value of auditing broken sites in controlled environments without making insecure validation the default crawler behavior.
+
+### Worker isolation / containerization
+
+P0 established:
+
+- `sanitizeWorkerEnv` for worker process env (no full `process.env`).
+- `launchSandboxedBrowser` (reject `--no-sandbox` in production).
+- SSRF URL policy on all browser navigation.
+
+P1 open gap:
+
+- In-process workers still run inside the dashboard process.
+- No OS-level containerization for Lighthouse/Factory yet.
+- The architecture is ready: `SecurityAffect` tracks `WORKER` assets; the worker protocol and env allowlist are defined.
+- Next step (P2): run Lighthouse and Factory in ephemeral, unprivileged containers with seccomp, no host mounts, network egress allowlist, and no Docker socket.
+
+### Test runner cleanup
+
+`vitest.config.ts` now targets TypeScript Vitest suites:
+
+```
+include: ['apps/**/*.{test,spec}.{ts,tsx}', 'packages/**/*.{test,spec}.{ts,tsx}', 'tests/**/*.{test,spec}.{ts,tsx}', 'scripts/**/*.test.ts']
+exclude: ['tests/platform-auth.spec.ts']
+```
+
+New scripts:
+
+- `npm run test:unit` — all Vitest suites
+- `npm run test:security` — `tests/security-regression.spec.ts`
+- `npm run test:auth` — `tests/platform-auth.spec.ts` (requires running services)
+- `npm run test:node` — `node --test packages/redesign-engine/test/*.test.mjs`
+- `npm run test:e2e` — `node apps/platform/e2e/*.mjs`
+- `npm run security:audit` — `tsx scripts/security-audit.ts`
+
+### Continuous schedules
+
+Implemented as repository scripts and API; not yet a cron. Schedule is documented in `SecurityScannerConfig`:
+
+- `npm-audit`: `every-pr`
+- `wla-sast`: `every-pr`
+- `regex-secrets`: `every-pr`
+- `osv-scanner`: `hourly` (disabled until API usage is budgeted)
+- `trivy`: `on-deploy` (disabled until container builds exist)
+
+### Dynamic state demonstration
+
+The `SecurityFinding` fingerprint and `lastDetectedAt` reconcile across runs. A new CVE feed can be simulated or integrated (OSV, `npm-audit`) and will:
+
+1. Create `SecurityDependency`/`SecurityFinding` rows.
+2. Map to affected products/templates via `SecurityAffect`.
+3. Update `SecurityGate` status without any WLA code commit.
+4. Reflect immediately in `GET /api/security/overview` and the Security Center UI.
+
+The `security:audit` script is the deterministic mechanism that turns a CVE feed into persisted WLA security state.
+
+### Remaining P1 / P2 blockers
+
+- OSV `querybatch` integration not enabled.
+- Container scanning requires containerized workers.
+- SUPERADMIN WebAuthn/passkey step-up auth not implemented.
+- Generated Showcase dependency snapshots are not yet populated at build time.
+- Full templated `SecurityDependencySnapshot` per template build.
+- Security event-driven anomaly detection and email alerting not implemented.

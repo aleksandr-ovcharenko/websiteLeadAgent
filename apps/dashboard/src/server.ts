@@ -11,6 +11,7 @@ import { apiSecurityHeaders } from './security/headers.js';
 import { originRefererCheck, requireJsonContentType } from './security/csrf.js';
 import { sanitizeWorkerEnv } from '@minsk/security';
 import { platformRouter } from './platform.js';
+import { securityRouter, seedSecurityScannerConfigs } from './security/api.js';
 import { generateSite } from '@minsk/redesign-engine';
 import { DiscoveryService, listDiscoveryProviders, getDiscoveryProvider, DISCOVERY_PRESETS } from './discovery/index.js';
 import { OperationService } from './operations/index.js';
@@ -936,10 +937,12 @@ app.get('/api/activity/stream', requireSuperAdmin, async (req: Request, res: Res
 
 app.use('/api/auth', authRouter);
 app.use(platformRouter);
+app.use('/api/security', securityRouter({ prisma, repoRoot: process.cwd() }));
 
 app.listen(PORT, async () => {
   // eslint-disable-next-line no-console
   console.log(`[CORE] ready on http://localhost:${PORT}`);
+  await seedSecurityScannerConfigs(prisma).catch((e) => logger.error(e, 'security.seed.failed'));
   await operations.reconcileAll();
   const { checkBrowserReadiness } = await import('./activity/browserCheck.js');
   const browser = await checkBrowserReadiness();

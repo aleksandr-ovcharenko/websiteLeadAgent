@@ -695,14 +695,17 @@ model SiteBuild {
   contentHash String?
   themeHash String?
   outputPath String?
+  dependencySnapshotId String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
   demoVariant DemoVariant? @relation(fields: [demoVariantId], references: [id], onDelete: SetNull)
+  dependencySnapshot SecurityDependencySnapshot? @relation(fields: [dependencySnapshotId], references: [id], onDelete: SetNull)
 
   @@index([siteId])
   @@index([demoVariantId])
+  @@index([dependencySnapshotId])
 }
 
 model SitePreviewScreenshot {
@@ -846,4 +849,206 @@ model ActivityEvent {
   @@index([leadId])
   @@index([siteId])
   @@index([demoVariantId])
+}
+
+// ---------- P1 Security persistence ----------
+
+enum SecurityFindingSeverity {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+  INFO
+}
+
+enum SecurityFindingStatus {
+  OPEN
+  FIXING
+  RESOLVED
+  FALSEPOSITIVE
+  ACCEPTEDRISK
+}
+
+enum SecurityFindingCategory {
+  AUTHN
+  AUTHZ
+  INJECTION
+  SSRF
+  XSS
+  CSRF
+  SECRETS
+  DEPENDENCY
+  CONFIG
+  PRIVACY
+  AIAGENT
+  WORKER
+  SHOWCASE
+  UNKNOWN
+}
+
+enum SecurityAuditStatus {
+  PENDING
+  RUNNING
+  SUCCESS
+  FAILED
+}
+
+enum SecurityEventLevel {
+  CRITICAL
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum SecurityAssetType {
+  APP
+  TEMPLATE
+  SITEBUILD
+  WORKER
+}
+
+model SecurityAudit {
+  id          String   @id @default(cuid())
+  scanner     String
+  category    String
+  startedAt   DateTime @default(now())
+  completedAt DateTime?
+  status      SecurityAuditStatus @default(PENDING)
+  statusMessage String?
+  commitSha   String?
+  buildId     String?
+  target      String?
+  rawResult   Json?
+  summary     Json?
+  findings    SecurityFinding[]
+}
+
+model SecurityFinding {
+  id              String   @id @default(cuid())
+  auditId         String?
+  product         String
+  generatedSiteId String?
+  severity        SecurityFindingSeverity
+  category        SecurityFindingCategory
+  scanner         String
+  source          String
+  ruleId          String?
+  fingerprint     String   @unique
+  title           String
+  description     String
+  evidence        Json
+  cwe             String?
+  cve             String?
+  dependencyId    String?
+  firstDetectedAt DateTime @default(now())
+  lastDetectedAt  DateTime @updatedAt
+  status          SecurityFindingStatus @default(OPEN)
+  remediationNote String?
+  fixedVersion    String?
+  assignedTo      String?
+  acceptedBy      String?
+  acceptedAt      DateTime?
+  createdBy       String?
+  affects         SecurityAffect[]
+  audit           SecurityAudit? @relation(fields: [auditId], references: [id], onDelete: SetNull)
+  dependency      SecurityDependency? @relation(fields: [dependencyId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([severity])
+  @@index([category])
+  @@index([scanner])
+  @@index([product])
+}
+
+model SecurityAffect {
+  id          String @id @default(cuid())
+  findingId   String
+  assetType   SecurityAssetType
+  assetId     String
+  assetName   String?
+  finding     SecurityFinding @relation(fields: [findingId], references: [id], onDelete: Cascade)
+
+  @@unique([findingId, assetType, assetId])
+  @@index([assetType, assetId])
+}
+
+model SecurityEvent {
+  id          String   @id @default(cuid())
+  timestamp   DateTime @default(now())
+  level       SecurityEventLevel
+  category    String
+  source      String
+  actorType   String?
+  actorId     String?
+  target      String?
+  message     String
+  details     Json?
+  dismissedAt DateTime?
+  dismissedBy String?
+
+  @@index([timestamp])
+  @@index([level])
+  @@index([category])
+}
+
+model SecurityDependency {
+  id              String   @id @default(cuid())
+  ecosystem       String
+  name            String
+  version         String
+  alias           String?
+  isDev           Boolean @default(false)
+  isDirect        Boolean @default(false)
+  cves            Json?
+  firstSeenAt     DateTime @default(now())
+  lastCheckedAt   DateTime @updatedAt
+
+  @@unique([ecosystem, name, version])
+  snapshots       DependencyInSnapshot[]
+  findings        SecurityFinding[]
+}
+
+model SecurityDependencySnapshot {
+  id              String   @id @default(cuid())
+  name            String
+  source          String
+  commitSha       String?
+  generatedAt     DateTime @default(now())
+  dependencies    DependencyInSnapshot[]
+  siteBuilds      SiteBuild[]
+}
+
+model DependencyInSnapshot {
+  id            String @id @default(cuid())
+  snapshotId    String
+  dependencyId  String
+  path          String?
+  isDirect      Boolean @default(false)
+  isDev         Boolean @default(false)
+  snapshot      SecurityDependencySnapshot @relation(fields: [snapshotId], references: [id], onDelete: Cascade)
+  dependency    SecurityDependency @relation(fields: [dependencyId], references: [id], onDelete: Cascade)
+
+  @@unique([snapshotId, dependencyId])
+}
+
+model SecurityGate {
+  id            String   @id @default(cuid())
+  evaluatedAt   DateTime @default(now())
+  status        String   // HEALTHY ATTENTION HIGH_RISK BLOCKED
+  openCritical  Int @default(0)
+  openHigh      Int @default(0)
+  openMedium    Int @default(0)
+  openLow       Int @default(0)
+  blockedReason String?
+  acceptedHigh  Int @default(0)
+}
+
+model SecurityScannerConfig {
+  id          String @id @default(cuid())
+  scanner     String @unique
+  category    String
+  enabled     Boolean @default(true)
+  schedule    String?
+  config      Json?
+  lastRunAt   DateTime?
 }

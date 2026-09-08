@@ -3,7 +3,7 @@ import { api } from './api'
 import { ThemeToggle } from '../theme/ThemeToggle'
 import { IconChevronLeft, IconChevronDown, IconExternal, IconBell } from './icons'
 
-export type ProductArea = 'hub' | 'radar' | 'factory' | 'forge' | 'studio'
+export type ProductArea = 'hub' | 'radar' | 'factory' | 'forge' | 'studio' | 'security'
 
 interface DemoVariant {
   id: string
@@ -88,6 +88,7 @@ const AREA_LABELS: { area: Exclude<ProductArea, 'hub' | 'studio'>; label: string
   { area: 'radar', label: 'Radar' },
   { area: 'factory', label: 'Factory' },
   { area: 'forge', label: 'Forge' },
+  { area: 'security', label: 'Security' },
 ]
 
 export default function ProductHeader({ productArea, siteId, user, onNavigate }: ProductHeaderProps) {
