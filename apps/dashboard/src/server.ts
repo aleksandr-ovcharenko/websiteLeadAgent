@@ -5,6 +5,7 @@ import fs from 'node:fs/promises';
 import type { Request, Response } from 'express';
 import pino from 'pino';
 import { prisma, sessionMiddleware, authRouter, requireAuth, requireSuperAdmin } from './auth.js';
+import { requirePermission } from './security/authz.js';
 import { apiRateLimiter } from './security/rateLimit.js';
 import { apiSecurityHeaders } from './security/headers.js';
 import { originRefererCheck, requireJsonContentType } from './security/csrf.js';
@@ -460,7 +461,7 @@ app.get('/api/leads/:leadId', requireAuth, async (req: Request, res: Response) =
 // Delete follows the existing data contract: lead-owned records cascade
 // (queries, reports, analyses, redesign runs); any generated Site survives —
 // Site.leadId is SetNull, CMS content is never deleted here.
-app.delete('/api/leads/:leadId', requireSuperAdmin, async (req: Request, res: Response) => {
+app.delete('/api/leads/:leadId', requireAuth, requirePermission(prisma, 'radar.manage'), async (req: Request, res: Response) => {
   const leadId = String(req.params.leadId);
   const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: { id: true, companyName: true, site: { select: { id: true } } } });
   if (!lead) { res.status(404).json({ error: 'lead_not_found' }); return; }
@@ -477,7 +478,7 @@ app.delete('/api/leads/:leadId', requireSuperAdmin, async (req: Request, res: Re
 // Bulk row actions. Per-item results: success | skipped | failed. A human
 // bulk decision uses the same review semantics as the single-lead path —
 // approve persists GOOD but technical readiness gating is never bypassed.
-app.post('/api/leads/bulk', requireSuperAdmin, async (req: Request, res: Response) => {
+app.post('/api/leads/bulk', requireAuth, requirePermission(prisma, 'radar.manage'), async (req: Request, res: Response) => {
   const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids.filter((x: any) => typeof x === 'string') : [];
   const action = typeof req.body?.action === 'string' ? req.body.action : '';
   if (!ids.length || !['reaudit', 'runAi', 'approve', 'reject', 'delete'].includes(action)) {

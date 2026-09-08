@@ -40,11 +40,15 @@ export async function getEffectivePermissions(prisma: PrismaClient, userId: stri
 }
 
 export async function hasPermission(prisma: PrismaClient, userId: string, permissionName: string): Promise<boolean> {
+  const user = await (prisma as any).user.findUnique({ where: { id: userId }, select: { globalRole: true } });
+  if (user?.globalRole === 'SUPER_ADMIN') return true;
   const perms = await getEffectivePermissions(prisma, userId);
   return perms.some((p) => p.name === permissionName && p.scope === 'GLOBAL');
 }
 
 export async function hasSitePermission(prisma: PrismaClient, userId: string, permissionName: string, siteId: string): Promise<boolean> {
+  const user = await (prisma as any).user.findUnique({ where: { id: userId }, select: { globalRole: true } });
+  if (user?.globalRole === 'SUPER_ADMIN') return true;
   const perms = await getEffectivePermissions(prisma, userId);
   return perms.some((p) => {
     if (p.name !== permissionName) return false;

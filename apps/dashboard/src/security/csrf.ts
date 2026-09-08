@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { isTrustedOrigin } from './trustedOrigin.js';
 
 const STATE_CHANGING = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
@@ -26,29 +27,23 @@ export function originRefererCheck(req: Request, res: Response, next: NextFuncti
 
   const origin = req.get('origin');
   const referer = req.get('referer');
-  const host = req.headers.host || '';
 
-  // If the browser sends an Origin/Referer header, validate it matches the host.
-  // Same-site requests with SameSite=Strict cookies are already protected; this
-  // catches explicit cross-origin attempts and spoofed headers.
-  const check = (value: string) => {
-    try {
-      const u = new URL(value);
-      return u.host.toLowerCase() === host.toLowerCase();
-    } catch {
-      return false;
-    }
-  };
+  // A state-changing request must declare a trusted public origin.
+  // SameSite=Strict cookies already bind the session to the origin;
+  // this middleware rejects cross-origin and spoofed requests.
+  if (origin && isTrustedOrigin(origin)) {
+    return next();
+  }
+  if (referer && isTrustedOrigin(referer)) {
+    return next();
+  }
 
-  if (origin && !check(origin)) {
-    res.status(403).json({ error: 'origin_mismatch' });
+  // If neither an Origin nor a Referer is present we cannot validate the
+  // public provenance of the request. We reject rather than risk a CSRF.
+  if (!origin && !referer) {
+    res.status(403).json({ error: 'origin_missing' });
     return;
   }
 
-  if (referer && !check(referer)) {
-    res.status(403).json({ error: 'referer_mismatch' });
-    return;
-  }
-
-  next();
+  res.status(403).json({ error: 'origin_mismatch' });
 }

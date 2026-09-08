@@ -13,7 +13,7 @@ function httpCode(url: string, cookieFile?: string) {
 function login(email: string) {
   const file = `/tmp/cookie-${email.replace(/[^a-z0-9]/g, '_')}.txt`;
   execSync(
-    `curl -s -c ${file} -X POST -d '{"email":"${email}","password":"admin123"}' -H 'Content-Type: application/json' ${DASHBOARD}/api/auth/login > /dev/null`,
+    `curl -s -c ${file} -X POST -d '{"email":"${email}","password":"admin123"}' -H 'Content-Type: application/json' -H 'Origin: ${DASHBOARD}' -H 'Referer: ${DASHBOARD}/login' ${DASHBOARD}/api/auth/login > /dev/null`,
     { encoding: 'utf8' }
   );
   return file;

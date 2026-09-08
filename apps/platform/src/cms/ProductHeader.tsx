@@ -104,6 +104,13 @@ export default function ProductHeader({ productArea, siteId, user, onNavigate }:
   const showcaseRef = useRef<HTMLDivElement>(null)
 
   const isStudio = productArea === 'studio'
+  const isEditor = productArea === 'forge'
+  const isSuperAdmin = user?.globalRole === 'SUPER_ADMIN'
+  const userRole = isSuperAdmin
+    ? 'super_admin'
+    : user?.permissions?.some((p: any) => p.name === 'cms.users.manage' && (p.scope === 'GLOBAL' || p.siteId === siteId))
+      ? 'site_admin'
+      : 'editor'
   const canManageUsers = hasAnyPermission(user?.permissions, ['roles.manage', 'users.manage'])
   const canReadForge = hasAnyPermission(user?.permissions, ['forge.read', 'forge.run'])
   const areas = visibleAreas(user?.permissions)
