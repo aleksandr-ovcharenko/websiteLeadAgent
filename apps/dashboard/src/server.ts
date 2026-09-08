@@ -6,6 +6,10 @@ import fs from 'node:fs/promises';
 import type { Request, Response } from 'express';
 import pino from 'pino';
 import { sessionMiddleware, authRouter, requireAuth, requireSuperAdmin } from './auth.js';
+import { apiRateLimiter } from './security/rateLimit.js';
+import { apiSecurityHeaders } from './security/headers.js';
+import { originRefererCheck, requireJsonContentType } from './security/csrf.js';
+import { sanitizeWorkerEnv } from '@minsk/security';
 import { platformRouter } from './platform.js';
 import { generateSite } from '@minsk/redesign-engine';
 import { DiscoveryService, listDiscoveryProviders, getDiscoveryProvider, DISCOVERY_PRESETS } from './discovery/index.js';
@@ -16,15 +20,26 @@ import { getBulkAiEligibility } from './qualification/bulkAiEligibility.js';
 const prisma = new PrismaClient();
 const app = express();
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
+const workerEnv = sanitizeWorkerEnv(process.env);
 const activity = new ActivityService({ prisma, logger });
-const discovery = new DiscoveryService({ prisma, logger, env: process.env, activity });
-const operations = new OperationService({ prisma, logger, env: process.env, discovery, activity });
+const discovery = new DiscoveryService({ prisma, logger, env: workerEnv, activity });
+const operations = new OperationService({ prisma, logger, env: workerEnv, discovery, activity });
 discovery.setQualificationOrchestrator(operations.qualification);
 
 app.use(sessionMiddleware);
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+app.use(originRefererCheck);
+app.use(requireJsonContentType);
 
 const PORT = Number(process.env.PLATFORM_API_PORT ?? process.env.PORT ?? 3333);
+
+// Trust the gateway only when it is the immediate proxy on a loopback interface.
+// In production the gateway should be the only inbound path; direct public access
+// to this port must be firewalled.
+app.set('trust proxy', 'loopback');
+
+app.use(apiSecurityHeaders());
+app.use(apiRateLimiter);
 
 function numParam(v: unknown, fallback: number) {
   const n = typeof v === 'string' ? Number(v) : NaN;

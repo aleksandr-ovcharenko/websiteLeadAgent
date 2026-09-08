@@ -1,4 +1,4 @@
-import { runLighthouseOnce } from './runLighthouse.js';
+import { runLighthouseOnce, type RunOnceInput } from './runLighthouse.js';
 
 async function readInput(): Promise<Record<string, any>> {
   return new Promise((resolve) => {
@@ -15,7 +15,15 @@ async function readInput(): Promise<Record<string, any>> {
 }
 
 async function main() {
-  const input = await readInput();
+  const raw = await readInput();
+  const input: RunOnceInput = {
+    url: raw.url,
+    leadId: raw.leadId,
+    attempt: raw.attempt ?? 1,
+    maxTimeMs: raw.maxTimeMs,
+    maxWaitForLoad: raw.maxWaitForLoad,
+    maxWaitForFcp: raw.maxWaitForLoad,
+  };
   try {
     const result = await runLighthouseOnce(input);
     process.stdout.write(JSON.stringify({ ok: true, result }) + '\n');

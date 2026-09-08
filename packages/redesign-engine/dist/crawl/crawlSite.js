@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { assertAllowedUrl, isAllowedUrl, launchSandboxedBrowser } from '@minsk/security';
 import { resolveSiteRoot, resolvedHomepageUrl, canonicalKey } from './rootResolution.js';
 import { CrawlFrontier } from './frontier.js';
 function normalizeUrl(base, href) {
@@ -50,6 +50,44 @@ const BLOCKED_FILE_EXTENSIONS = new Set([
     '.mp3', '.mp4', '.avi', '.mov', '.css', '.js', '.xml', '.rss', '.json'
 ]);
 const BLOCKED_QUERY_KEYS = ['fbclid', 'gclid', 'action', 'feed', 'share', 'replytocom'];
+async function attachRoutePolicy(page) {
+    await page.route('**/*', async (route) => {
+        const url = route.request().url();
+        const result = await isAllowedUrl(url);
+        if (!result.allowed) {
+            // eslint-disable-next-line no-console
+            console.warn(`[SECURITY] crawl blocked ${route.request().resourceType()} request to ${url}: ${result.reason || 'blocked'}`);
+            await route.abort('aborted');
+        }
+        else {
+            await route.continue();
+        }
+    });
+}
+async function safeFetchText(url, maxRedirects = 5) {
+    let current = url;
+    for (let i = 0; i < maxRedirects; i++) {
+        try {
+            await assertAllowedUrl(current);
+        }
+        catch (err) {
+            // eslint-disable-next-line no-console
+            console.warn(`[SECURITY] sitemap fetch blocked by URL policy: ${current} - ${err?.message || 'blocked'}`);
+            return { ok: false, text: '', finalUrl: current };
+        }
+        const res = await fetch(current, { headers: { 'User-Agent': 'Mozilla/5.0' }, redirect: 'manual' });
+        if ([301, 302, 303, 307, 308].includes(res.status)) {
+            const loc = res.headers.get('location');
+            if (!loc)
+                return { ok: false, text: '', finalUrl: current };
+            current = new URL(loc, current).toString();
+            continue;
+        }
+        const text = await res.text();
+        return { ok: res.ok, text, finalUrl: current };
+    }
+    return { ok: false, text: '', finalUrl: current };
+}
 export function shouldCrawlUrl(nu) {
     try {
         const u = new URL(nu);
@@ -154,11 +192,10 @@ function mergeHeaderAndFooter(header, footer) {
 }
 async function fetchSitemapUrls(sitemapUrl) {
     try {
-        const res = await fetch(sitemapUrl, { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const res = await safeFetchText(sitemapUrl);
         if (!res.ok)
             return [];
-        const text = await res.text();
-        return [...text.matchAll(/<loc>([^<]+)<\/loc>/gi)].map((m) => m[1]).filter(Boolean);
+        return [...res.text.matchAll(/<loc>([^<]+)<\/loc>/gi)].map((m) => m[1]).filter(Boolean);
     }
     catch {
         return [];
@@ -168,10 +205,9 @@ async function fetchSitemap(baseUrl) {
     const candidates = ['/sitemap.xml', '/sitemap_index.xml'];
     // robots.txt may reference additional sitemap locations.
     try {
-        const res = await fetch(new URL('/robots.txt', baseUrl).toString(), { headers: { 'User-Agent': 'Mozilla/5.0' } });
+        const res = await safeFetchText(new URL('/robots.txt', baseUrl).toString());
         if (res.ok) {
-            const text = await res.text();
-            for (const m of text.matchAll(/^sitemap:\s*(\S+)/gim))
+            for (const m of res.text.matchAll(/^sitemap:\s*(\S+)/gim))
                 candidates.push(m[1]);
         }
     }
@@ -225,10 +261,11 @@ export async function crawlSite(options) {
     const rootTimeoutMs = options.rootTimeoutMs ?? Math.max(timeoutMs * 2, 60000);
     const rootRetries = options.rootRetries ?? 1;
     const baseUrl = normalizeUrl(options.baseUrl, options.baseUrl) ?? options.baseUrl;
-    const browser = await chromium.launch({
+    await assertAllowedUrl(baseUrl);
+    const browser = await launchSandboxedBrowser({
         headless: true,
         executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
-        args: ['--ignore-certificate-errors', '--ignore-certificate-errors-spki-list', '--no-sandbox', '--disable-gpu']
+        args: ['--ignore-certificate-errors', '--ignore-certificate-errors-spki-list', '--disable-gpu'],
     });
     const pages = [];
     const allHeaderLinks = [];
@@ -244,6 +281,7 @@ export async function crawlSite(options) {
     const rootFetch = async (url, t) => {
         const context = await browser.newContext({ userAgent: 'Mozilla/5.0' });
         const page = await context.newPage();
+        await attachRoutePolicy(page);
         const started = Date.now();
         try {
             const resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: t });
@@ -348,6 +386,7 @@ export async function crawlSite(options) {
             frontier.mark(url, { attempted: true });
             const context = await browser.newContext({ userAgent: 'Mozilla/5.0' });
             const page = await context.newPage();
+            await attachRoutePolicy(page);
             try {
                 await page.addInitScript({ content: 'window.__name = function __name(x){ return x; }; globalThis.__name = window.__name;' });
                 const resp = await page.goto(url, { waitUntil: 'networkidle', timeout: timeoutMs }).catch((e) => {

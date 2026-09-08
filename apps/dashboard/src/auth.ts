@@ -2,22 +2,15 @@ import { PrismaClient } from '@prisma/client';
 import express, { type Request, type Response, type NextFunction } from 'express';
 import cookieSession from 'cookie-session';
 import bcrypt from 'bcryptjs';
+import { getCookieSessionOptions } from '@minsk/security';
+import { getClientIp, loginRateLimiter } from './security/rateLimit.js';
 
 export const prisma = new PrismaClient();
 
 process.on('SIGINT', async () => { await prisma.$disconnect(); process.exit(0); });
 process.on('SIGTERM', async () => { await prisma.$disconnect(); process.exit(0); });
 
-const SESSION_SECRET = process.env.SESSION_SECRET ?? 'dev-secret-change-me';
-
-export const sessionMiddleware = cookieSession({
-  name: 'pla.sid',
-  keys: [SESSION_SECRET],
-  httpOnly: true,
-  secure: false,
-  sameSite: 'lax',
-  maxAge: 1000 * 60 * 60 * 24
-});
+export const sessionMiddleware = cookieSession(getCookieSessionOptions());
 
 export interface PlatformUser {
   id: string;
@@ -77,17 +70,41 @@ export function requireSiteAccess(siteIdParam: string = 'siteId') {
   };
 }
 
+export function requireSiteRole(...roles: string[]) {
+  return async (req: Request, res: Response, next: NextFunction) => {
+    const user = (req as any).user;
+    const siteId = req.params.siteId || req.query.siteId || req.body?.siteId;
+    if (!siteId) { res.status(400).json({ error: 'missing_site' }); return; }
+    const role = await getSiteRole(user, String(siteId));
+    if (!role || !roles.includes(role)) { res.status(403).json({ error: 'forbidden' }); return; }
+    next();
+  };
+}
+
+async function getSiteRole(user: any, siteId: string): Promise<string | null> {
+  if (user?.globalRole === 'SUPER_ADMIN') return 'ADMIN';
+  const su = await (prisma as any).siteUser.findUnique({
+    where: { siteId_userId: { siteId, userId: user?.id } },
+    select: { role: true }
+  });
+  return su?.role ?? null;
+}
+
 export const authRouter = express.Router();
 authRouter.use(express.json());
 
-authRouter.post('/login', async (req: Request, res: Response) => {
+authRouter.post('/login', loginRateLimiter, async (req: Request, res: Response) => {
   const { email, password } = req.body || {};
   if (!email || !password) { res.status(400).json({ error: 'missing_credentials' }); return; }
   const user = await (prisma as any).user.findUnique({ where: { email } });
-  if (!user) { res.status(401).json({ error: 'invalid_credentials' }); return; }
-  const ok = await bcrypt.compare(password, user.passwordHash);
-  if (!ok) { res.status(401).json({ error: 'invalid_credentials' }); return; }
-  req.session.userId = user.id;
+  const dummyHash = '$2b$10$zDQBsWUx.F78DBoMeu.1Q.mSSuydjq4IPclYyE2bqsFjmJa2QVpfe';
+  const ok = await bcrypt.compare(password, user?.passwordHash || dummyHash);
+  if (!user || !ok) { res.status(401).json({ error: 'invalid_credentials' }); return; }
+
+  // Regenerate session identifier on login to prevent session fixation.
+  (req as any).session = null;
+  (req as any).session = { userId: user.id };
+
   res.json({ ok: true, user: { id: user.id, email: user.email, globalRole: user.globalRole } });
 });
 
@@ -101,3 +118,5 @@ authRouter.get('/me', async (req: Request, res: Response) => {
   if (!user) { res.status(401).json({ error: 'unauthorized' }); return; }
   res.json({ user });
 });
+
+export { getClientIp };

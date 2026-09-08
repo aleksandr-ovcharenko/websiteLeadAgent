@@ -1,10 +1,33 @@
 # WLA Security Architecture & Continuous Security Design
 
-**Status:** design / pre-implementation  
+**Status:** P0 immediate controls implemented; P1/P2 continuous security infrastructure remains planned.  
 **Scope:** Hub, Radar, Discovery, CMS, Factory, Forge, Studio, Showcase, APIs, workers, dependencies, containers, infrastructure/configuration.  
-**Constraint:** This document describes architecture, threat models and a roadmap. No production security behavior has been changed.
+**Constraint:** This document describes architecture, threat models and a roadmap. P0 behavior changes are now in code; P1/P2 scanning/Security Center infrastructure is not implemented. The historical findings in this document are preserved and annotated with their current status.
 
 ---
+
+## P0 Implementation Status (current)
+
+| Finding / Threat | Status | Notes |
+|------------------|--------|-------|
+| Weak/default `SESSION_SECRET` | **FIXED** | `getSessionSecret()` rejects `dev-secret-change-me` and secrets < 32 chars in production. Cookies use `__Host-` prefix, `secure`, `httpOnly`, `sameSite: 'strict'` in production. |
+| Session fixation | **FIXED** | `auth/login` resets `req.session` before writing `userId`. |
+| No login rate limiting | **FIXED** | `loginRateLimiter` (per-IP + per-email, `max: 20` / 15 min) on `/api/auth/login`; generic `invalid_credentials` error; constant-time compare to reduce user enumeration. |
+| Default credentials in UI | **FIXED** | `Login.tsx` no longer pre-fills or hints at default credentials. |
+| No SUPERADMIN auth/authorization audit | **PARTIALLY MITIGATED** | `requireSuperAdmin` / `requireSiteRole` enforced server-side; `platform-auth.spec.ts` passes. Site user creation limited to `ADMIN`/`EDITOR`, forces `globalRole: USER`. Privileged-endpoint inventory not fully documented yet. |
+| SSRF to internal services (Radar/crawl/audit/Lighthouse) | **FIXED** | `@minsk/security` URL policy blocks non-HTTP(S), loopback, private/link-local/cloud-metadata IPs; hostname DNS resolution checked where feasible. Integrated into `auditLeadWebsite`, `crawlSite` (page routing + sitemap fetch), `runLighthouse`, and the Lighthouse worker. |
+| Browser `--no-sandbox` in production | **FIXED** | `launchSandboxedBrowser` rejects `--no-sandbox` in production unless explicitly allowed only in dev/test. `auditLeadWebsite` and `runLighthouse` use it; `packages/screenshot` migrated. |
+| Prompt injection from external content | **PARTIALLY MITIGATED** | Gemini/OpenAI visual analysis and `geminiSemanticProvider` wrap untrusted website data in `<UNTRUSTED-WEBSITE-DATA>` markers and prefix system prompts. Zod schema validation remains. No LLM tool-call sandbox yet. |
+| Worker `process.env` exposure | **PARTIALLY MITIGATED** | `sanitizeWorkerEnv` filters environment passed to `OperationService`, `DiscoveryService`, and the Lighthouse worker. Full container isolation not implemented. |
+| Missing CSRF protection | **FIXED** | `originRefererCheck` validates Origin/Referer for state-changing methods; `sameSite: 'strict'` in production; `requireJsonContentType` enforces JSON on API mutations. |
+| Missing security headers | **FIXED** | `apiSecurityHeaders` (Helmet) on dashboard/CMS; `showcaseSecurityHeaders` on site-renderer; gateway adds X-Frame-Options, X-Content-Type-Options, Referrer-Policy, HSTS in production. |
+| Stored XSS in generated sites | **FIXED** | `dangerouslySetInnerHTML` in `construction-industrial-v1` now uses `DOMPurify.sanitize`. Template placeholders and JSON-in-script escaped with `@minsk/security` helpers. |
+| Secrets in logs | **PARTIALLY MITIGATED** | `redactMetadata` scrubs keys matching `api[_-]?key|token|secret|password|credential|auth` in operation metadata. Full secret-scanning not implemented. |
+| Gateway hardening | **PARTIALLY MITIGATED** | Security headers added via `proxyRes`; `xfwd` retained for trusted-gateway setup. No request-size rate limiting at gateway. |
+| MFA | **DEFERRED** | Architecture verified; cookie-session does not block WebAuthn/passkey. SUPERADMIN MFA tracked as HIGH. |
+| Dependency CVE monitoring / SBOM | **DEFERRED** | `npm audit` still reports 5 unresolved (4 moderate, 1 high). P1 continuous scanning/SBOM not built. |
+| Full container/worker sandbox | **DEFERRED** | In-process workers; OS-level/container sandbox is P1. |
+
 
 ## 1. Complete WLA Security Architecture Map
 

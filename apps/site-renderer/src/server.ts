@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
+import { showcaseSecurityHeaders } from '../../dashboard/src/security/headers.js';
 // @ts-expect-error no declaration file for built templates
 import { templates } from '../../../packages/templates/dist/index.js';
 
@@ -13,6 +14,7 @@ const prisma = new PrismaClient();
 const app = express();
 const PORT = Number(process.env.RENDERER_PORT ?? process.env.SITE_RENDERER_PORT ?? 3336);
 
+app.use(showcaseSecurityHeaders());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 

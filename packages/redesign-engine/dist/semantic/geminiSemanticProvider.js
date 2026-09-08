@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile, appendFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { UNTAINTED_SYSTEM_PREFIX, wrapUntrustedData } from '@minsk/security';
 import { RuleBasedSemanticProvider, pageCategoryAndSubType } from './ruleBasedProvider.js';
 import { geminiCollectionDecisionSchema, geminiPageDecisionSchema, } from './schema.js';
 const CONFIDENCE_THRESHOLDS = {
@@ -538,7 +539,8 @@ export class HybridGeminiProvider {
             breadcrumb: breadcrumbs(doc),
             navAncestry: navAncestry(doc.url, doc),
         };
-        const prompt = `You are a strict website semantic page classifier. You are given structured evidence extracted from a single web page.
+        const prompt = `${UNTAINTED_SYSTEM_PREFIX}
+You are a strict website semantic page classifier. You are given structured evidence extracted from a single web page.
 Rule-based classifier suggested: ${ruleResult.type} (confidence ${(ruleResult.confidence * 100).toFixed(0)}%).
 
 Choose the single most appropriate page type from this exact list:
@@ -558,7 +560,7 @@ Definitions:
 - LEGAL: privacy, terms, cookies, agreements
 - OTHER: none of the above
 
-${textParts.join('\n\n')}
+${wrapUntrustedData(textParts.join('\n\n'), 'page-evidence')}
 
 Return ONLY a valid JSON object with no markdown, no commentary:
 {
@@ -613,7 +615,8 @@ Return ONLY a valid JSON object with no markdown, no commentary:
             navAncestry: navAncestry(firstDoc.url, firstDoc),
             collections,
         };
-        const prompt = `You are a semantic interpreter for website content. You receive several structured collections extracted from a single web page.
+        const prompt = `${UNTAINTED_SYSTEM_PREFIX}
+You are a semantic interpreter for website content. You receive several structured collections extracted from a single web page.
 For each collection, the rule-based classifier gave a medium-confidence guess. Decide what each collection represents.
 
 Classify using one of these exact values:
@@ -638,7 +641,7 @@ CRITICAL:
 3. A "PROJECT" is a concrete object/address/case, not a category or status label. A "PRODUCT" is a repeatable catalog item with price/model/selection signals.
 
 Input:
-${JSON.stringify(input, null, 2)}
+${wrapUntrustedData(input, 'collections-input')}
 
 Return ONLY a valid JSON object with no markdown, no commentary. It must contain a "decisions" array with one object per collection:
 {

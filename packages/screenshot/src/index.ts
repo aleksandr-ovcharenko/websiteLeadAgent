@@ -1,4 +1,4 @@
-import { chromium } from 'playwright';
+import { launchSandboxedBrowser } from '@minsk/security';
 import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 
@@ -31,10 +31,9 @@ export async function captureSitePreview(site: SiteLike, prisma: any): Promise<{
   const storagePath = getScreenshotStoragePath(site.id);
   await mkdir(path.dirname(storagePath), { recursive: true });
 
-  const browser = await chromium.launch({
-    executablePath: '/usr/bin/google-chrome',
+  const browser = await launchSandboxedBrowser({
     headless: true,
-    args: ['--no-sandbox']
+    executablePath: process.env.PLAYWRIGHT_CHROMIUM_PATH || undefined,
   });
 
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });

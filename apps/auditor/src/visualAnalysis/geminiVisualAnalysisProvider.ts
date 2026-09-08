@@ -1,5 +1,6 @@
 import type { VisualAnalysisProvider } from './visualAnalysisProvider.js';
 import { visualAnalysisProviderResultSchema, type VisualAnalysisInput } from './visualAnalysisSchema.js';
+import { UNTAINTED_SYSTEM_PREFIX, wrapUntrustedData } from '@minsk/security';
 
 function extractJson(text: string): unknown {
   const trimmed = text.trim();
@@ -19,6 +20,7 @@ export class GeminiVisualAnalysisProvider implements VisualAnalysisProvider {
 
   async analyze(input: VisualAnalysisInput) {
     const system =
+      UNTAINTED_SYSTEM_PREFIX +
       'You are a senior UX/UI reviewer. You analyze ONLY visual/UX quality and redesign potential of a company website. ' +
       'Do NOT evaluate performance/SEO (already provided separately). Do NOT invent facts. ' +
       'Return ONLY a valid JSON object matching the requested schema. Keep it concise. ' +
@@ -56,7 +58,7 @@ export class GeminiVisualAnalysisProvider implements VisualAnalysisProvider {
       {
         role: 'user',
         parts: [
-          { text: `${system}\n\nINPUT:\n${JSON.stringify(user)}` },
+          { text: `${system}\n\nAnalyze the following website data and return JSON only.\n${wrapUntrustedData(user, 'visual-analysis-input')}` },
           {
             inline_data: {
               mime_type: 'image/png',

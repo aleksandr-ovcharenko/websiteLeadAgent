@@ -3,6 +3,7 @@
   "private": true,
   "type": "module",
   "dependencies": {
+    "@minsk/security": "0.1.0",
     "@prisma/client": "^5.22.0",
     "dotenv": "^16.4.5",
     "pino": "^9.3.2",

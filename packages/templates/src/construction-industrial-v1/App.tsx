@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react';
+import DOMPurify from 'isomorphic-dompurify';
 import {
   ArrowRight,
   ArrowUpRight,
@@ -450,7 +451,7 @@ function PageView({ slug }: { slug: string }) {
       <PageHero eyebrow="Страница" title={page.title} text={page.seoDescription || ''} />
       <main className="generic-page">
         <div className="container narrow-copy">
-          <div dangerouslySetInnerHTML={{ __html: page.content || '' }} />
+          <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(page.content || '') }} />
         </div>
       </main>
       <ContactStrip />

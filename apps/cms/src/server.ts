@@ -4,16 +4,25 @@ import { PrismaClient } from '@prisma/client';
 import multer from 'multer';
 import bcrypt from 'bcryptjs';
 import path from 'node:path';
-import { sessionMiddleware, getSessionUser, requireSiteAccess, requireSuperAdmin } from '../../dashboard/src/auth.js';
+import { sessionMiddleware, getSessionUser, requireSiteAccess } from '../../dashboard/src/auth.js';
+import { apiSecurityHeaders } from '../../dashboard/src/security/headers.js';
+import { apiRateLimiter } from '../../dashboard/src/security/rateLimit.js';
+import { originRefererCheck, requireJsonContentType } from '../../dashboard/src/security/csrf.js';
 import { LocalFilesystemMediaStorage } from '../../../packages/media-storage/dist/index.js';
 
 const prisma = new PrismaClient();
 const app = express();
 const PORT = Number(process.env.CMS_PORT ?? 3335);
 
+// Trust the gateway only when it is the immediate loopback proxy.
+app.set('trust proxy', 'loopback');
+
+app.use(apiSecurityHeaders());
+app.use(apiRateLimiter);
 app.use(sessionMiddleware);
 app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(originRefererCheck);
+app.use(requireJsonContentType);
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
 
@@ -401,7 +410,9 @@ app.get('/api/cms/sites/:siteId/users', requireSiteAccess('siteId'), requireSite
 
 app.post('/api/cms/sites/:siteId/users', requireSiteAccess('siteId'), requireSiteRole('ADMIN'), async (req: Request, res: Response) => {
   const { siteId } = req.params;
-  const { email, role = 'EDITOR' } = req.body;
+  const email = typeof req.body?.email === 'string' ? req.body.email : '';
+  const rawRole = req.body?.role;
+  const role = rawRole === 'ADMIN' ? 'ADMIN' : 'EDITOR';
   if (!email) { res.status(400).json({ error: 'missing_email' }); return; }
   let user = await (prisma as any).user.findUnique({ where: { email } });
   if (!user) {
@@ -419,7 +430,7 @@ app.post('/api/cms/sites/:siteId/users', requireSiteAccess('siteId'), requireSit
 
 app.put('/api/cms/sites/:siteId/users/:userId', requireSiteAccess('siteId'), requireSiteRole('ADMIN'), async (req: Request, res: Response) => {
   const { siteId, userId } = req.params;
-  const { role } = req.body;
+  const role = req.body?.role === 'ADMIN' ? 'ADMIN' : 'EDITOR';
   const siteUser = await (prisma as any).siteUser.update({ where: { siteId_userId: { siteId, userId } }, data: { role } });
   res.json({ ok: true, user: siteUser });
 });

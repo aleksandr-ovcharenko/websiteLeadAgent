@@ -2,7 +2,7 @@ import { mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PrismaClient } from '@prisma/client';
 import type pino from 'pino';
-import { chromium } from 'playwright';
+import { assertAllowedUrl, isAllowedUrl, launchSandboxedBrowser } from '@minsk/security';
 import { crawlPage } from '../crawl/crawlPage.js';
 import { handleCookieConsent } from '../cookies/handleCookieConsent.js';
 
@@ -49,13 +49,43 @@ export async function auditLeadWebsite(input: {
   const outDir = join('data', 'audit', leadId);
   await mkdir(outDir, { recursive: true });
 
+  await emit('INFO', 'URL_POLICY', 'Validating external URL', { website });
+  try {
+    await assertAllowedUrl(website);
+  } catch (err: any) {
+    const reason = err?.message || 'blocked';
+    await emit('ERROR', 'URL_POLICY_REJECTED', `URL rejected by SSRF policy: ${reason}`, { website, reason });
+    await prisma.lead.update({
+      where: { id: leadId },
+      data: { auditStatus: 'FAILED', auditErrorMessage: reason }
+    });
+    return { ok: false, reason };
+  }
+
   await emit('INFO', 'BROWSER_LAUNCH', 'Launching browser');
-  const browser = await chromium.launch();
+  const browser = await launchSandboxedBrowser();
 
   try {
     await prisma.lead.update({ where: { id: leadId }, data: { auditErrorMessage: null } });
     let context = await browser.newContext();
     let page = await context.newPage();
+
+    // Intercept all network requests to enforce the URL policy on every redirect
+    // and sub-resource, not just the initial navigation target.
+    const attachRoutePolicy = async (p: typeof page) => {
+      await p.route('**/*', async (route) => {
+        const req = route.request();
+        const url = req.url();
+        const result = await isAllowedUrl(url);
+        if (!result.allowed) {
+          await emit('WARN', 'URL_POLICY_BLOCKED_REQUEST', `Blocked ${req.resourceType()} request to ${url}: ${result.reason || 'blocked'}`, { url, reason: result.reason });
+          await route.abort('aborted');
+        } else {
+          await route.continue();
+        }
+      });
+    };
+    await attachRoutePolicy(page);
     page.setDefaultTimeout(30000);
     page.setDefaultNavigationTimeout(30000);
 
@@ -114,6 +144,7 @@ export async function auditLeadWebsite(input: {
         await context.close().catch(() => {});
         context = await browser.newContext({ ignoreHTTPSErrors: true });
         page = await context.newPage();
+        await attachRoutePolicy(page);
         page.setDefaultTimeout(30000);
         page.setDefaultNavigationTimeout(30000);
         await page.setViewportSize({ width: 1440, height: 1000 });

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import * as chromeLauncher from 'chrome-launcher';
+import { assertAllowedUrl, sanitizeWorkerEnv } from '@minsk/security';
 
 // tsx/esbuild keepNames injects __name calls into lighthouse page functions, but the
 // evaluated browser string is missing the esbuild wrapper definition. Patch the
@@ -142,7 +143,7 @@ function classifyError(err: any, url: string, attempt: number, durationMs: numbe
   });
 }
 
-interface RunOnceInput {
+export interface RunOnceInput {
   url: string;
   leadId: string;
   attempt: number;
@@ -151,28 +152,36 @@ interface RunOnceInput {
   maxWaitForFcp?: number;
 }
 
-interface RunOnceResult {
+export interface RunOnceResult {
   reportPath: string;
   summary: LighthouseSummary;
   durationMs: number;
-  attempt: number;
+  attempts: number;
 }
 
 export async function runLighthouseOnce(input: RunOnceInput): Promise<RunOnceResult> {
   const { url, leadId, attempt } = input;
+  await assertAllowedUrl(url);
   const outDir = join('data', 'lighthouse');
   await mkdir(outDir, { recursive: true });
 
-  const chrome = await chromeLauncher.launch({
-    chromeFlags: [
-      '--headless',
-      '--no-sandbox',
-      '--disable-gpu',
-      '--ignore-certificate-errors',
-      '--ignore-certificate-errors-spki-list',
-      '--allow-insecure-localhost'
-    ]
-  });
+  const isProduction = process.env.NODE_ENV === 'production';
+  const noSandboxEnv = process.env.CHROME_NO_SANDBOX === 'true';
+  if (isProduction && noSandboxEnv) {
+    throw new Error('CHROME_NO_SANDBOX=true is not allowed in production. Run Chrome as an unprivileged user or in a sandboxed container.');
+  }
+  if (noSandboxEnv) {
+    console.warn('[SECURITY] Chrome sandbox disabled. Only acceptable in local/test environments.');
+  }
+  const chromeFlags = [
+    '--headless',
+    '--disable-gpu',
+    '--ignore-certificate-errors',
+    '--ignore-certificate-errors-spki-list',
+    ...(noSandboxEnv ? ['--no-sandbox'] : []),
+  ];
+
+  const chrome = await chromeLauncher.launch({ chromeFlags });
 
   const start = Date.now();
   const maxTimeMs = input.maxTimeMs ?? 120000;
@@ -236,7 +245,7 @@ export async function runLighthouseOnce(input: RunOnceInput): Promise<RunOnceRes
     await writeFile(reportPath, typeof reportJson === 'string' ? reportJson : JSON.stringify(reportJson), 'utf-8');
 
     const durationMs = Date.now() - start;
-    return { reportPath, summary, durationMs, attempt };
+    return { reportPath, summary, durationMs, attempts: attempt };
   } catch (err: any) {
     if (watchdog) clearTimeout(watchdog);
     throw classifyError(err, url, attempt, Date.now() - start);
@@ -275,6 +284,7 @@ async function runWorkerOnce(input: RunOnceInput): Promise<RunOnceResult> {
     const child = spawn(process.execPath, ['--import', 'tsx', workerPath()], {
       detached: true,
       stdio: ['pipe', 'pipe', 'pipe'],
+      env: sanitizeWorkerEnv(process.env),
     });
 
     let stdout = '';

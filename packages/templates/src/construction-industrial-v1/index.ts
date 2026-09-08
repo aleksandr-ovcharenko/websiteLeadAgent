@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { escapeHtml, escapeHtmlAttribute, escapeJsonForScript } from '@minsk/security';
 import type { RenderContext } from '../types.js';
 import { constructionIndustrialV1Manifest } from './manifest.js';
 
@@ -368,22 +369,22 @@ export function constructionIndustrialV1(ctx: RenderContext): string {
     PROCESS_STEPS: []
   };
 
-  const scriptBlock = `<script>window.__CMS__=${JSON.stringify(cmsPayload)};window.__CMS_ROUTE__=${JSON.stringify({ route: ctx.route, subRoute: ctx.subRoute })};</script>`;
+  const scriptBlock = `<script>window.__CMS__=${escapeJsonForScript(cmsPayload)};window.__CMS_ROUTE__=${escapeJsonForScript({ route: ctx.route, subRoute: ctx.subRoute })};</script>`;
 
   let result = html
     .replace(/<head>/, `<head>\n    ${themeStyle}`)
     .replace('<title>', `<meta name="robots" content="noindex, nofollow" />\n    <title>`)
-    .replace(/<title>[^<]*<\/title>/, `<title>${company.name}</title>`)
-    .replace(/{{COMPANY_NAME}}/g, company.name)
-    .replace(/{{COMPANY_NAME_LEGAL}}/g, company.legalName)
-    .replace(/{{DOMAIN}}/g, company.domain)
-    .replace(/{{EMAIL}}/g, company.contacts.email)
-    .replace(/{{PHONE}}/g, company.phone)
-    .replace(/{{ADDRESS}}/g, company.address.street)
+    .replace(/<title>[^<]*<\/title>/, `<title>${escapeHtml(company.name)}</title>`)
+    .replace(/{{COMPANY_NAME}}/g, escapeHtml(company.name))
+    .replace(/{{COMPANY_NAME_LEGAL}}/g, escapeHtml(company.legalName))
+    .replace(/{{DOMAIN}}/g, escapeHtml(company.domain))
+    .replace(/{{EMAIL}}/g, escapeHtml(company.contacts.email))
+    .replace(/{{PHONE}}/g, escapeHtml(company.phone))
+    .replace(/{{ADDRESS}}/g, escapeHtml(company.address.street))
     .replace(/<script type="module"/, `${scriptBlock}\n    <script type="module"`);
 
   if (faviconUrl) {
-    result = result.replace('</head>', `<link rel="icon" type="image/png" href="${faviconUrl}" />\n  </head>`);
+    result = result.replace('</head>', `<link rel="icon" type="image/png" href="${escapeHtmlAttribute(faviconUrl)}" />\n  </head>`);
   }
 
   return result;

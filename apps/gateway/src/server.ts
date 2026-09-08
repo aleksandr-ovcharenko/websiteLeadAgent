@@ -4,10 +4,29 @@ import httpProxy from 'http-proxy';
 import { selectTarget } from './selectTarget.js';
 
 const PORT = Number(process.env.GATEWAY_PORT ?? 3000);
+const isProduction = process.env.NODE_ENV === 'production';
 
 const proxy = httpProxy.createProxyServer({
   changeOrigin: true,
   xfwd: true
+});
+
+const securityHeaders: Record<string, string> = {
+  'X-Content-Type-Options': 'nosniff',
+  'X-Frame-Options': 'SAMEORIGIN',
+  'Referrer-Policy': 'strict-origin-when-cross-origin',
+  'Permissions-Policy': 'accelerometer=(), camera=(), geolocation=(), gyroscope=(), magnetometer=(), microphone=(), payment=(), usb=()',
+};
+
+if (isProduction) {
+  securityHeaders['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains; preload';
+}
+
+proxy.on('proxyRes', (_proxyRes, _req, res) => {
+  for (const [k, v] of Object.entries(securityHeaders)) {
+    const existing = res.getHeader(k);
+    if (existing == null) res.setHeader(k, v);
+  }
 });
 
 proxy.on('error', (err: any, _req: any, res: any) => {
