@@ -65,6 +65,7 @@ const LEAD_SELECT =  {
       auditStatus: true,
       auditErrorMessage: true,
       redesignStage: true,
+      updatedAt: true,
       site: {
         select: {
           id: true,
@@ -397,6 +398,15 @@ app.get('/api/discovery/runs/:runId/stats', requireSuperAdmin, async (req: Reque
   res.json(await discovery.getRunFunnel(run.id));
 });
 
+// Delta recovery for SSE gaps: returns only entities changed since the
+// client's cursor — never the whole view.
+app.get('/api/leads/changes', requireAuth, async (req: Request, res: Response) => {
+  const since = Number(req.query.since);
+  const where: any = Number.isFinite(since) && since > 0 ? { updatedAt: { gt: new Date(since) } } : {};
+  const items = await prisma.lead.findMany({ where, select: LEAD_SELECT, take: 200, orderBy: { updatedAt: 'asc' } });
+  res.json({ items });
+});
+
 app.get('/api/leads/:leadId', requireAuth, async (req: Request, res: Response) => {
   const leadId = String(req.params.leadId);
   const lead = await prisma.lead.findUnique({ where: { id: leadId }, select: LEAD_SELECT });
@@ -432,7 +442,8 @@ app.delete('/api/leads/:leadId', requireSuperAdmin, async (req: Request, res: Re
   await activity.log({
     level: 'INFO', module: 'RADAR', eventType: 'lead_deleted',
     message: `Lead deleted: ${lead.companyName}`,
-    details: { leadId, hadSite: !!lead.site },
+    leadId,
+    details: { hadSite: !!lead.site },
   }).catch(() => {});
   res.json({ ok: true, detachedSiteId: lead.site?.id ?? null });
 });
@@ -854,6 +865,7 @@ app.get('/api/activity/stream', requireSuperAdmin, async (req: Request, res: Res
   res.setHeader('Connection', 'keep-alive');
 
   const send = (event: any) => {
+    if (event?.id) res.write(`id: ${event.id}\n`);
     res.write(`data: ${JSON.stringify(event)}\n\n`);
   };
 
@@ -861,6 +873,12 @@ app.get('/api/activity/stream', requireSuperAdmin, async (req: Request, res: Res
   if (!last) {
     const { items } = await activity.history({ limit: 50 });
     for (const event of items) send(event);
+  } else {
+    // Resume: replay persisted events after the client's last cursor.
+    const { items } = await activity.history({ limit: 200 });
+    const seen = items.findIndex((e: any) => e.id === last);
+    const replay = seen >= 0 ? items.slice(seen + 1) : items; // cursor lost → replay window; client filters by revision
+    for (const event of replay) send(event);
   }
 
   const unsubscribe = activity.subscribe(send);

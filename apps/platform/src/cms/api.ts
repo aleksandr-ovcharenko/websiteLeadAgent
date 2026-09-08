@@ -52,6 +52,7 @@ export const api = {
     if (params.discoveryRunId) qs.set('discoveryRunId', params.discoveryRunId);
     return request(`/api/leads?${qs.toString()}`) as Promise<{ items: any[]; meta: any }>;
   },
+  getLeadChanges: (since: number) => request(`/api/leads/changes?since=${since}`) as Promise<{ items: any[] }>,
   getLead: (leadId: string) => request(`/api/leads/${leadId}`) as Promise<{ lead: any }>,
   deleteLead: (leadId: string) => request(`/api/leads/${leadId}`, { method: 'DELETE' }) as Promise<{ ok: boolean }>,
   bulkLeads: (ids: string[], action: 'reaudit' | 'approve' | 'reject' | 'delete') =>

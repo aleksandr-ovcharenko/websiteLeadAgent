@@ -789,21 +789,41 @@ the viability state. Rejected/failed leads never become READY_FOR_REVIEW or
 READY_FOR_GENERATION; a human GOOD decision on a technically blocked lead is
 persisted but never bypasses the gate.
 
+## RADAR VIEW IS A SNAPSHOT
+
+`RadarStore` (`apps/platform/src/radar/radarStore.ts`) owns three separated
+regions: `leadById` entity store, immutable `visibleLeadIds` view snapshot,
+and pending-view tracking. `loadView` is the ONLY writer of
+`visibleLeadIds` and runs exclusively at explicit user boundaries (open,
+filter, sort, view, Refresh). There is NO background full-list refresh —
+no polling, no reconciliation, no merge of the visible rows.
+
 ## BACKGROUND UPDATES PATCH ENTITIES, NOT VIEWS
 
-SSE events and polls patch lead data by stable ID
-(`LeadSelectionStore.applyLeadData` / per-row merge). They never replace the
-table as a unit, never change selection, and never trigger a loading state.
-`GET /api/leads/:id` is the targeted fetch for event-driven updates.
+SSE `/api/activity/stream` events carry `leadId` (and `id:` cursors for
+Last-Event-ID replay); a lead event triggers `GET /api/leads/:id` →
+`patchEntity` — one entity, one row rerender. `GET /api/leads/changes?since=`
+is the delta recovery path for stream gaps. Full-list requests happen only
+at user boundaries. Entity revisions (`updatedAt`) drop stale deliveries.
 
-## TABLE ORDER IS USER VIEW STATE
+## ENTITY DATA AND VIEW MEMBERSHIP ARE DIFFERENT STATE
 
-Background score/status changes patch cells in place and never reorder or
-re-sort the table. Rebuilds happen only at explicit user boundaries: sort,
-filter, view switch, or manual Refresh.
+A patched lead that stops matching the current filter stays in place with a
+"drifted" marker and a "N view changes available — Refresh view" notice.
+New leads (`LEAD_CREATED`) never auto-insert. External deletions mark the
+row pending rather than removing it silently.
+
+## ROWS SUBSCRIBE BY ID
+
+`LeadRow` uses `useSyncExternalStore(store.subscribe, () => getLead(id))`.
+`RadarTable` (memoized) consumes `visibleIds` only; an entity patch gives
+table +0 renders, unrelated rows +0. `data-rc` attributes expose render
+counts for regression tests. Selection and checkedIds are isolated UI
+state (`LeadSelectionStore` / `Set<LeadId>`), never mutated by entity data.
 
 ## BULK SELECTION IS IDENTITY-BASED
 
 Checkbox selection stores Lead IDs, never row indices. Bulk results are
 per-item (success / skipped / failed); failed or skipped items stay selected
-for correction. Select-all covers only the currently visible rows.
+for correction. Select-all covers only the currently visible rows. One bulk
+action produces N entity patches, not N view rebuilds.

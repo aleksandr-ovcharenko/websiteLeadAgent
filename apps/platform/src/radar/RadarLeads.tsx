@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { api } from '../cms/api';
 import { Button } from '../cms/ui';
 import { OperationConsole } from './OperationConsole';
@@ -7,7 +7,8 @@ import RadarFilters, { Filters, PrimaryView, defaultFilters } from './RadarFilte
 import LeadDetail from './LeadDetail';
 import { LeadScoreRing } from './RadarScoreRing';
 import { LeadSelectionStore } from './selection';
-import { mergeLeadsPreserveOrder } from './leadMerge';
+import { createRadarStore, RadarStore } from './radarStore';
+import { leadMatchesFilters } from './leadMerge';
 
 type Mode = 'all' | 'audit' | 'selected';
 
@@ -38,20 +39,40 @@ function statusBadge(status?: string | null, type: 'audit' | 'lighthouse' | 'ai'
   return <span className={`inline-flex items-center px-1.5 py-0.5 rounded border text-[10px] font-mono ${color}`}>{(label as any)[s] || s}</span>;
 }
 
-// Memoized: an unchanged lead object (identity-preserved by the merge) never
-// re-renders — background updates touch only the rows that actually changed.
-const LeadRow = memo(function LeadRow({ lead, checked, onCheck, onSelect, onQualify }: {
-  lead: any; checked: boolean; onCheck: (id: string, v: boolean) => void;
-  onSelect: (lead: any) => void; onQualify: (lead: any) => void;
+function buildParams(filters: Filters, discoveryRunId: string) {
+  const p: any = { limit: 200, sort: filters.sort, qualificationStatus: filters.qualificationStatus || 'ALL' };
+  if (filters.q) p.q = filters.q;
+  if (filters.websiteStatus) p.websiteStatus = filters.websiteStatus;
+  if (filters.manual) p.manual = filters.manual;
+  if (filters.generationStatus) p.generationStatus = filters.generationStatus;
+  if (discoveryRunId) p.discoveryRunId = discoveryRunId;
+  return p;
+}
+
+/**
+ * Row subscribes to its own entity by ID. An entity patch for lead B
+ * rerenders only this row — the table shell and every other row get +0
+ * renders. data-rc exposes the render count for dev verification.
+ */
+const LeadRow = memo(function LeadRow({ store, leadId, checked, stale, onCheck, onSelect, onQualify }: {
+  store: RadarStore; leadId: string; checked: boolean; stale: boolean;
+  onCheck: (id: string, v: boolean) => void; onSelect: (lead: any) => void; onQualify: (lead: any) => void;
 }) {
+  const lead = useSyncExternalStore(store.subscribe, () => store.getLead(leadId));
+  const rc = useRef(0);
+  rc.current++;
+  if (!lead) return null;
   return (
-    <tr data-testid="radar-lead-row" data-lead-id={lead.id} className="hover:bg-surface-raised cursor-pointer" onClick={() => onSelect(lead)}>
+    <tr data-testid="radar-lead-row" data-lead-id={leadId} data-rc={rc.current} className="hover:bg-surface-raised cursor-pointer" onClick={() => onSelect(lead)}>
       <td className="px-2 py-2 w-8" onClick={(e) => e.stopPropagation()}>
-        <input type="checkbox" data-testid="lead-check" checked={checked} onChange={(e) => onCheck(lead.id, e.target.checked)} />
+        <input type="checkbox" data-testid="lead-check" checked={checked} onChange={(e) => onCheck(leadId, e.target.checked)} />
       </td>
       <td className="px-3 py-2">
         <div className="text-text font-medium truncate max-w-[180px]">{lead.companyName}</div>
-        <div className="text-[10px] text-text-subtle font-mono">{lead.categories?.[0] || '—'}</div>
+        <div className="text-[10px] text-text-subtle font-mono flex items-center gap-1">
+          {lead.categories?.[0] || '—'}
+          {stale && <span data-testid="view-drift" title="This row's data no longer matches the current view — Refresh view to reconcile" className="text-warning">· drifted</span>}
+        </div>
       </td>
       <td className="px-3 py-2">
         {lead.website ? (
@@ -86,29 +107,93 @@ const LeadRow = memo(function LeadRow({ lead, checked, onCheck, onSelect, onQual
   );
 });
 
+/**
+ * The table shell consumes only the immutable view snapshot. Entity patches
+ * never reach this component — it rerenders only on explicit view rebuilds
+ * or checked/selected UI-state changes.
+ */
+const RadarTable = memo(function RadarTable({ store, ids, checkedIds, pendingIds, onCheck, onSelect, onQualify, onCheckAll }: {
+  store: RadarStore; ids: string[]; checkedIds: Set<string>; pendingIds: Set<string>;
+  onCheck: (id: string, v: boolean) => void; onSelect: (lead: any) => void; onQualify: (lead: any) => void;
+  onCheckAll: (v: boolean) => void;
+}) {
+  const rc = useRef(0);
+  rc.current++;
+  const allChecked = ids.length > 0 && ids.every((id) => checkedIds.has(id));
+  return (
+    <div data-rc={rc.current} data-testid="radar-table" className="bg-surface border border-border rounded-md overflow-hidden">
+      <table className="w-full text-left text-[12px] table-fixed">
+        <thead className="bg-surface-raised border-b border-border">
+          <tr>
+            <th className="px-2 py-2 w-8">
+              <input type="checkbox" data-testid="lead-check-all" checked={allChecked} onChange={(e) => onCheckAll(e.target.checked)} />
+            </th>
+            <th className="px-3 py-2 font-medium text-text">Company</th>
+            <th className="px-3 py-2 font-medium text-text w-[140px]">Website</th>
+            <th className="px-3 py-2 font-medium text-text w-[60px]">Score</th>
+            <th className="px-3 py-2 font-medium text-text w-[70px]">Visual</th>
+            <th className="px-3 py-2 font-medium text-text w-[70px]">Tech</th>
+            <th className="px-3 py-2 font-medium text-text w-[70px]">Business</th>
+            <th className="px-3 py-2 font-medium text-text w-[70px]">Audit</th>
+            <th className="px-3 py-2 font-medium text-text w-[60px]">AI</th>
+            <th className="px-3 py-2 font-medium text-text w-[110px]">Review</th>
+            <th className="px-3 py-2 font-medium text-text w-[110px]">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {ids.map((leadId) => (
+            <LeadRow
+              key={leadId}
+              store={store}
+              leadId={leadId}
+              checked={checkedIds.has(leadId)}
+              stale={pendingIds.has(leadId)}
+              onCheck={onCheck}
+              onSelect={onSelect}
+              onQualify={onQualify}
+            />
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+});
+
 export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
   const initial = getInitialState(mode);
-  const [leads, setLeads] = useState<any[]>([]);
+  // Entity store + immutable view snapshot. There is intentionally NO
+  // leads[] React state — background paths cannot touch the view.
+  const storeRef = useRef<RadarStore | null>(null);
+  if (!storeRef.current) storeRef.current = createRadarStore();
+  const store = storeRef.current;
+  const visibleIds = useSyncExternalStore(store.subscribe, store.getVisibleIds);
+  const pendingIds = useSyncExternalStore(store.subscribe, store.getPending);
+
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [discoveryRunId, setDiscoveryRunId] = useState('');
   const [view, setView] = useState<PrimaryView>(initial.view);
   const [filters, setFilters] = useState<Filters>(initial.filters);
   const [stats, setStats] = useState<any>(null);
-  // ONE authoritative selection identity. Background data can only patch
-  // lead records — it can never change which lead the user is viewing.
+  const [sseLive, setSseLive] = useState(true);
+
+  // Selection: single authoritative identity, isolated from entity data.
   const selectionRef = useRef<LeadSelectionStore | null>(null);
   if (!selectionRef.current) selectionRef.current = new LeadSelectionStore();
   const selection = selectionRef.current;
   const [, setSelectionTick] = useState(0);
-  const selectLead = (lead: any | null, source: Parameters<LeadSelectionStore['select']>[1]) => {
+  const selectLead = useCallback((lead: any | null, source: Parameters<LeadSelectionStore['select']>[1]) => {
     selection.select(lead, source);
     setSelectionTick((t) => t + 1);
-  };
+  }, [selection]);
   const selectedLeadId = selection.selectedId;
-  const selectedLead = selection.currentLead(leads);
-  // Bulk selection is identity-based — never row indices.
+  // Detail data follows the entity store by ID; snapshot survives the lead
+  // leaving the current view.
+  const selectedEntity = useSyncExternalStore(store.subscribe, () => (selectedLeadId ? store.getLead(selectedLeadId) : null));
+  if (selectedEntity && !selectedEntity.__deleted) selection.applyLeadData([selectedEntity]);
+  const selectedLead = selectedEntity && !selectedEntity.__deleted ? selectedEntity : selection.currentLead([]);
+
+  // Bulk selection: identity-based, isolated from entity patches.
   const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set());
   const [bulkBusy, setBulkBusy] = useState<string | null>(null);
   const [bulkResult, setBulkResult] = useState<string | null>(null);
@@ -120,112 +205,86 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
     ? { all: stats.total ?? 0, review: stats.readyForReview ?? 0, generation: stats.readyForGeneration ?? 0, failed: stats.failed ?? 0 }
     : { all: 0, review: 0, generation: 0, failed: 0 };
 
-  // Rows are patched by stable identity: an unchanged lead keeps its object
-  // reference so the memoized row is never re-rendered. Order is preserved;
-  // background data can never resort or rebuild the user's view.
-  const patchLead = useCallback((lead: any) => {
-    setLeads((prev) => {
-      const i = prev.findIndex((l) => l.id === lead.id);
-      if (i < 0) return prev; // not in the current view — next explicit refresh admits it
-      if (JSON.stringify(prev[i]) === JSON.stringify(lead)) return prev;
-      const next = prev.slice();
-      next[i] = lead;
-      return next;
-    });
-    selection.applyLeadData([lead]);
-  }, []);
+  // Keep the store's filter predicate current so membership drift is
+  // detected — rows are never removed by background data, only flagged.
+  store.setViewSpec({ matches: (lead: any) => leadMatchesFilters(lead, filters, view) });
 
-  const getParams = () => {
-    const p: any = { limit: 200, sort: filters.sort, qualificationStatus: filters.qualificationStatus || 'ALL' };
-    if (filters.q) p.q = filters.q;
-    if (filters.websiteStatus) p.websiteStatus = filters.websiteStatus;
-    if (filters.manual) p.manual = filters.manual;
-    if (filters.generationStatus) p.generationStatus = filters.generationStatus;
-    if (discoveryRunId) p.discoveryRunId = discoveryRunId;
-    return p;
-  };
-
-  const refresh = async (isBackground = false) => {
-    if (isBackground) setRefreshing(true);
-    else setLoading(true);
+  // ---- EXPLICIT VIEW BOUNDARY: the only code path that rebuilds the ----
+  // ---- snapshot. Never invoked by timers, SSE, or entity patches.    ----
+  const loadView = useCallback(async (f: Filters, runId: string) => {
+    setLoading(true);
     try {
-      const res = await api.getLeads(getParams());
-      const items = res.items || [];
-      // A transient empty background payload must not flash an empty table.
-      // mergePreserves order AND object identity for unchanged rows.
-      const byId = (prev: any[]) => new Map(prev.map((l) => [l.id, l]));
-      setLeads((prev) => {
-        if (!isBackground) return items;
-        if (prev.length > 0 && items.length === 0) return prev;
-        const prevById = byId(prev);
-        const same = items.map((l) => {
-          const old = prevById.get(l.id);
-          return old && JSON.stringify(old) === JSON.stringify(l) ? old : l;
-        });
-        return mergeLeadsPreserveOrder(prev, same);
-      });
+      const res = await api.getLeads(buildParams(f, runId));
+      store.loadView(res.items || []);
       setError(null);
-      // Data-only update: refreshes the selected lead's snapshot if present.
-      // Can never change selection identity.
-      selection.applyLeadData(items);
     } catch (e: any) {
       setError(e.message || 'Failed to load leads');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
-  };
-
-  const refreshRef = useRef(refresh);
-  refreshRef.current = refresh;
+  }, [store]);
 
   useEffect(() => {
-    let mounted = true;
-    const load = async () => { if (mounted) await refreshRef.current(false); };
-    load();
-    // Resilience fallback only — SSE provides timely per-lead patching.
-    const interval = setInterval(() => { if (mounted) refreshRef.current(true); }, 15000);
-    return () => { mounted = false; clearInterval(interval); };
+    loadView(filters, discoveryRunId);
   }, [view, discoveryRunId, filters.q, filters.websiteStatus, filters.qualificationStatus, filters.manual, filters.generationStatus, filters.sort]);
 
-  // SSE drives targeted per-lead updates: an event for lead B patches B's
-  // data via GET /api/leads/:id — never a full-list refetch, never selection.
+  // ---- SSE: LEAD_PATCH-style events patch entities by ID only. -------
+  // EventSource sends Last-Event-ID on reconnect; the server replays missed
+  // events, so gaps self-heal. A dead stream falls back to a delta fetch.
   useEffect(() => {
     let es: EventSource | null = null;
+    let dead = false;
     const pending = new Map<string, ReturnType<typeof setTimeout>>();
-    try {
-      es = new EventSource('/api/activity/stream', { withCredentials: true });
-      es.onmessage = (msg) => {
-        try {
-          const ev = JSON.parse(msg.data);
-          const leadId = ev?.leadId;
-          if (!leadId || typeof leadId !== 'string') return;
-          if (pending.has(leadId)) return;
-          pending.set(leadId, setTimeout(() => {
-            pending.delete(leadId);
-            api.getLead(leadId).then((r) => r?.lead && patchLead(r.lead)).catch(() => {});
-          }, 400));
-        } catch { /* malformed event */ }
-      };
-    } catch { /* SSE unsupported — poll fallback covers updates */ }
-    return () => {
-      es?.close();
-      pending.forEach((t) => clearTimeout(t));
+    const fetchLead = (id: string) => {
+      api.getLead(id).then((r) => r?.lead && store.patchEntity(r.lead)).catch(() => {});
     };
-  }, [patchLead]);
+    const schedulePatch = (leadId: string) => {
+      if (pending.has(leadId)) return;
+      pending.set(leadId, setTimeout(() => { pending.delete(leadId); fetchLead(leadId); }, 250));
+    };
+    const connect = () => {
+      try {
+        es = new EventSource('/api/activity/stream', { withCredentials: true });
+        es.onopen = () => {
+          setSseLive(true);
+          // After a reconnect, replayed events cover missed patches; as a
+          // belt-and-suspenders recovery, pull the entity delta since our
+          // newest revision — entities only, never the view.
+          if (dead) {
+            dead = false;
+            const since = store.getSinceCursor();
+            api.getLeadChanges?.(since).then((r: any) => {
+              for (const l of r?.items || []) store.patchEntity(l);
+            }).catch(() => {});
+          }
+        };
+        es.onmessage = (msg) => {
+          try {
+            const ev = JSON.parse(msg.data);
+            const leadId = ev?.leadId;
+            if (typeof leadId !== 'string') return;
+            if (ev?.eventType === 'lead_deleted') { store.noteExternalDelete(leadId); return; }
+            schedulePatch(leadId);
+          } catch { /* malformed event */ }
+        };
+        es.onerror = () => { setSseLive(false); dead = true; };
+      } catch { setSseLive(false); dead = true; }
+    };
+    connect();
+    return () => { es?.close(); pending.forEach((t) => clearTimeout(t)); };
+  }, [store]);
 
+  // ---- Stats: an independent store region — cannot touch the table. ---
   useEffect(() => {
     let mounted = true;
     const loadStats = async () => {
       try {
         const s = await api.getLeadStats(discoveryRunId || undefined);
         if (mounted) setStats(s);
-      } catch (e: any) {
-        // stats are non-fatal; the list fetch will surface real errors
-      }
+      } catch { /* stats are non-fatal */ }
     };
     loadStats();
-    const interval = setInterval(loadStats, 5000);
+    const interval = setInterval(loadStats, 15000);
     return () => { mounted = false; clearInterval(interval); };
   }, [discoveryRunId]);
 
@@ -251,12 +310,15 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
     setQualifying(true);
     setActiveTitle('Qualify discovery run');
     api.startOperation({ operationId: 'QUALIFY_DISCOVERY_RUN', input: { discoveryRunId, concurrency: 2 }, entityType: 'DiscoveryRun', entityId: discoveryRunId })
-      .then(({ run }) => {
-        setActiveRunId(run.id);
-      })
+      .then(({ run }) => setActiveRunId(run.id))
       .catch((e) => setError(e.message || 'Qualify discovery run failed'))
       .finally(() => setQualifying(false));
   }
+
+  // User action: patches the affected entity — never rebuilds the view.
+  const patchAfterAction = (leadId: string) => {
+    api.getLead(leadId).then((r) => r?.lead && store.patchEntity(r.lead)).catch(() => {});
+  };
 
   async function runBulk(action: 'reaudit' | 'approve' | 'reject' | 'delete') {
     const ids = [...checkedIds];
@@ -271,15 +333,17 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
       const failedIds = results.filter((r) => r.result === 'failed').map((r) => r.id);
       const skippedIds = results.filter((r) => r.result === 'skipped').map((r) => r.id);
       setBulkResult(`${action}: ${ok} succeeded${skipped ? `, ${skipped} skipped` : ''}${failedIds.length ? `, ${failedIds.length} failed` : ''}`);
-      // Failed/skipped items stay checked for correction; successful ones uncheck.
       const keep = new Set([...failedIds, ...skippedIds]);
       setCheckedIds((prev) => new Set([...prev].filter((id) => keep.has(id))));
       if (action === 'delete') {
-        const deleted = new Set(results.filter((r) => r.result === 'success').map((r) => r.id));
-        setLeads((prev) => prev.filter((l) => !deleted.has(l.id)));
-        if (selectedLeadId && deleted.has(selectedLeadId)) selectLead(null, 'USER_CLEAR');
+        // User-requested destructive change: rows leave the view explicitly.
+        const deleted = results.filter((r) => r.result === 'success').map((r) => r.id);
+        store.removeEntities(deleted);
+        if (selectedLeadId && deleted.includes(selectedLeadId)) selectLead(null, 'USER_CLEAR');
+      } else {
+        // One action → N entity patches; the view snapshot is untouched.
+        for (const id of ids) patchAfterAction(id);
       }
-      await refreshRef.current(true);
     } catch (e: any) {
       setBulkResult(`${action} failed: ${e?.message || 'error'}`);
     } finally {
@@ -290,28 +354,46 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
   function reviewLead(status: string, note?: string) {
     if (!selectedLead) return Promise.reject(new Error('No lead selected'));
     return api.reviewLead(selectedLead.id, status, note)
-      .then(() => refreshRef.current(true))
+      .then(() => patchAfterAction(selectedLead.id))
       .catch((e) => { setError(e.message || 'Review failed'); throw e; });
   }
 
   function selectForRedesign(selected: boolean) {
     if (!selectedLead) return Promise.reject(new Error('No lead selected'));
     return api.setRedesignStage(selectedLead.id, selected ? 'SELECTED_FOR_REDESIGN' : 'NOT_SELECTED')
-      .then(() => refreshRef.current(true))
+      .then(() => patchAfterAction(selectedLead.id))
       .catch((e) => { setError(e.message || 'Select failed'); throw e; });
   }
+
+  const onCheck = useCallback((id: string, v: boolean) => {
+    setCheckedIds((prev) => { const n = new Set(prev); if (v) n.add(id); else n.delete(id); return n; });
+  }, []);
+  const onCheckAll = useCallback((v: boolean) => {
+    setCheckedIds(v ? new Set(visibleIds) : new Set());
+  }, [visibleIds]);
+  const onSelectRow = useCallback((lead: any) => selectLead(lead, 'USER_ROW_CLICK'), [selectLead]);
+  const onQualifyRow = useCallback((lead: any) => startOperation('RUN_FULL_QUALIFICATION', { leadId: lead.id }), []);
 
   return (
     <div className="flex-1 flex flex-col min-w-0 overflow-y-auto">
       <div className="bg-surface border-b border-border px-6 h-[52px] flex items-center justify-between shrink-0">
         <h1 className="text-[14px] font-semibold text-text">Leads</h1>
         <div className="flex items-center gap-2">
-          <span className={`text-[11px] text-text-subtle font-mono w-[64px] text-right transition-opacity duration-200 ${refreshing ? 'opacity-100' : 'opacity-0'}`}>Updating…</span>
-          <Button size="sm" variant="secondary" onClick={() => refresh(false)}>Refresh</Button>
+          {!sseLive && <span className="text-[11px] text-warning font-mono">Live updates reconnecting…</span>}
+          <Button size="sm" variant="secondary" onClick={() => loadView(filters, discoveryRunId)}>Refresh</Button>
         </div>
       </div>
 
       <div className={`p-6 ${selectedLead ? 'pr-[420px]' : ''}`}>
+        {error && <div className="mb-4 text-[12px] text-danger bg-danger-subtle border border-danger-subtle rounded px-3 py-2">{error}</div>}
+
+        {pendingIds.size > 0 && (
+          <div data-testid="view-pending" className="mb-4 flex items-center gap-3 bg-warning-subtle border border-border rounded-md px-4 py-2 text-[12px]">
+            <span className="text-text">{pendingIds.size} view change{pendingIds.size === 1 ? '' : 's'} available</span>
+            <Button size="sm" variant="secondary" onClick={() => loadView(filters, discoveryRunId)}>Refresh view</Button>
+          </div>
+        )}
+
         {checkedIds.size > 0 && (
           <div data-testid="bulk-bar" className="mb-4 flex items-center gap-2 bg-surface border border-border rounded-md px-4 py-2">
             <span className="text-[12px] font-mono text-text">{checkedIds.size} selected</span>
@@ -323,7 +405,7 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
             {bulkResult && <span data-testid="bulk-result" className="text-[11px] font-mono text-text-muted ml-2">{bulkResult}</span>}
           </div>
         )}
-        {error && <div className="mb-4 text-[12px] text-danger bg-danger-subtle border border-danger-subtle rounded px-3 py-2">{error}</div>}
+
         <RadarStats discoveryRunId={discoveryRunId} onRunChange={setDiscoveryRunId} onQualify={qualifyRun} qualifying={qualifying} />
         <RadarFilters
           filters={filters}
@@ -334,47 +416,19 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
         />
 
         {loading && <div className="text-[13px] text-text-subtle">Loading leads…</div>}
-        {!loading && leads.length === 0 && <div className="text-[13px] text-text-subtle">No leads match the filter.</div>}
+        {!loading && visibleIds.length === 0 && <div className="text-[13px] text-text-subtle">No leads match the filter.</div>}
 
-        {!loading && leads.length > 0 && (
-          <div className="bg-surface border border-border rounded-md overflow-hidden">
-            <table className="w-full text-left text-[12px]">
-              <thead className="bg-surface-raised border-b border-border">
-                <tr>
-                  <th className="px-2 py-2 w-8">
-                    <input
-                      type="checkbox"
-                      data-testid="lead-check-all"
-                      checked={leads.length > 0 && leads.every((l) => checkedIds.has(l.id))}
-                      onChange={(e) => setCheckedIds(e.target.checked ? new Set(leads.map((l) => l.id)) : new Set())}
-                    />
-                  </th>
-                  <th className="px-3 py-2 font-medium text-text">Company</th>
-                  <th className="px-3 py-2 font-medium text-text">Website</th>
-                  <th className="px-3 py-2 font-medium text-text">Score</th>
-                  <th className="px-3 py-2 font-medium text-text">Visual</th>
-                  <th className="px-3 py-2 font-medium text-text">Tech</th>
-                  <th className="px-3 py-2 font-medium text-text">Business</th>
-                  <th className="px-3 py-2 font-medium text-text">Audit</th>
-                  <th className="px-3 py-2 font-medium text-text">AI</th>
-                  <th className="px-3 py-2 font-medium text-text">Review</th>
-                  <th className="px-3 py-2 font-medium text-text">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {leads.map((lead) => (
-                  <LeadRow
-                    key={lead.id}
-                    lead={lead}
-                    checked={checkedIds.has(lead.id)}
-                    onCheck={(id, v) => setCheckedIds((prev) => { const n = new Set(prev); v ? n.add(id) : n.delete(id); return n; })}
-                    onSelect={(l) => selectLead(l, 'USER_ROW_CLICK')}
-                    onQualify={(l) => startOperation('RUN_FULL_QUALIFICATION', { leadId: l.id })}
-                  />
-                ))}
-              </tbody>
-            </table>
-          </div>
+        {!loading && visibleIds.length > 0 && (
+          <RadarTable
+            store={store}
+            ids={visibleIds}
+            checkedIds={checkedIds}
+            pendingIds={pendingIds}
+            onCheck={onCheck}
+            onCheckAll={onCheckAll}
+            onSelect={onSelectRow}
+            onQualify={onQualifyRow}
+          />
         )}
 
         {activeRunId && (
