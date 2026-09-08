@@ -753,3 +753,56 @@ The `security:audit` script is the deterministic mechanism that turns a CVE feed
 - Generated Showcase dependency snapshots are not yet populated at build time.
 - Full templated `SecurityDependencySnapshot` per template build.
 - Security event-driven anomaly detection and email alerting not implemented.
+
+---
+
+## P1.5 RBAC and scoped permissions (current)
+
+### Model
+
+Prisma schema now includes:
+
+- `Permission` — canonical permission names (`cms.edit`, `security.read`, etc.) with optional `product` tag.
+- `Role` — permission bundles such as `SUPER_ADMIN`, `LEAD_MANAGER`, `SITE_ADMIN`, `SITE_EDITOR`.
+- `RolePermission` — many-to-many with `scope` (`GLOBAL` | `PRODUCT` | `SITE`).
+- `UserRole` — user-to-role assignment with optional `siteId` for site-scoped roles.
+
+`User.globalRole` and `SiteUser` are preserved for backward compatibility; `UserRole` is the authoritative source for access checks.
+
+### Authorization helpers
+
+`apps/dashboard/src/security/authz.ts`:
+
+- `hasPermission(prisma, userId, permission)`
+- `hasSitePermission(prisma, userId, permission, siteId)`
+- `hasAnyPermission(prisma, userId, permissions)`
+- `requirePermission(prisma, permission)`
+- `requireSitePermission(prisma, permission, siteIdParam)`
+- `requireSiteAccess(prisma, siteIdParam)`
+- `getEffectivePermissions(prisma, userId)`
+
+### Seeding and migration
+
+`apps/dashboard/src/security/rbacSeed.ts` defines the permission catalog and role bundles.
+`scripts/migrate-rbac.ts` seeds roles and migrates existing users.
+`apps/dashboard/src/server.ts` runs `seedRbac` and `migrateExistingUsers` at startup.
+
+### API and UI integration
+
+- `/api/auth/me` and `/api/auth/login` return `user.permissions` as an array of `{ name, scope, product?, siteId? }`.
+- CMS endpoints use `requireSitePermission(prisma, 'cms.read' | 'cms.edit' | 'cms.users.manage', 'siteId')`.
+- Security Center endpoints use `requirePermission(prisma, 'security.read')` and `requirePermission(prisma, 'security.manage')`.
+- `ProductHeader` and `App.tsx` build visible navigation from `user.permissions`.
+- Site-only users are redirected from `/hub` to `/studio/:siteId` or `/:product`.
+
+### Regression coverage
+
+`tests/rbac-regression.spec.ts` verifies:
+
+- SITE_ADMIN Site A → Site A CMS allow, Site B CMS deny.
+- SITE_EDITOR → edit allow, user manage deny.
+- LEAD_MANAGER → Radar allow, Security deny.
+- SHOWCASE_MANAGER → Showcase/Studio allow, Radar config deny.
+- SECURITY_ADMIN → Security APIs allow, CMS mutation deny (unless granted).
+- SUPER_ADMIN → all allow.
+- user with no roles → all deny.
