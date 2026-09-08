@@ -212,7 +212,7 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
   // ---- EXPLICIT VIEW BOUNDARY: the only code path that rebuilds the ----
   // ---- snapshot. Never invoked by timers, SSE, or entity patches.    ----
   const loadView = useCallback(async (f: Filters, runId: string) => {
-    setLoading(true);
+setLoading(true);
     try {
       const res = await api.getLeads(buildParams(f, runId));
       store.loadView(res.items || []);

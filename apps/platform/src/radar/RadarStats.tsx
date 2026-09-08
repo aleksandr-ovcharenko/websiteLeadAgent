@@ -21,12 +21,14 @@ export interface RadarStatsData {
 }
 
 export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qualifying }: { discoveryRunId: string; onRunChange: (id: string) => void; onQualify?: () => void; qualifying?: boolean }) {
-  const [stats, setStats] = useState<RadarStatsData | null>(null);
+  // Stats are an isolated display region: they never block/unblock the
+  // table, never change height, and never set themselves to null on a
+  // background refresh. The grid stays mounted with stable geometry.
+  const [stats, setStats] = useState<Partial<RadarStatsData>>({});
   const [runs, setRuns] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState(0);
 
   const load = () => {
-    setLoading(true);
     Promise.all([
       api.getLeadStats(discoveryRunId || undefined),
       api.getDiscoveryRuns()
@@ -34,9 +36,9 @@ export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qua
       .then(([s, r]) => {
         setStats(s);
         setRuns(r.items || []);
+        setLastUpdate(Date.now());
       })
-      .catch((e) => console.error('Radar stats failed', e))
-      .finally(() => setLoading(false));
+      .catch((e) => console.error('Radar stats failed', e));
   };
 
   useEffect(() => {
@@ -84,20 +86,19 @@ export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qua
           </button>
         )}
       </div>
-      {loading ? (
-        <div className="text-[12px] text-text-subtle font-mono">Loading stats…</div>
-      ) : stats ? (
-        <div className="grid grid-cols-10 gap-2">
-          {cards.map(({ label, value, positive, warn }) => (
-            <div key={label} className="bg-surface-raised border border-border rounded p-2 text-center">
-              <div className={`text-[16px] font-mono font-semibold tabular-nums ${positive ? 'text-accent' : warn ? 'text-danger' : 'text-text'}`}>
-                {stats[value]}
-              </div>
-              <div className="text-[9px] font-mono text-text-subtle uppercase tracking-wider mt-0.5">{label}</div>
+      <div className="grid grid-cols-10 gap-2 min-h-[60px]">
+        {cards.map(({ label, value, positive, warn }) => (
+          <div key={label} className="bg-surface-raised border border-border rounded p-2 text-center">
+            <div className={`text-[16px] font-mono font-semibold tabular-nums ${positive ? 'text-accent' : warn ? 'text-danger' : 'text-text'}`}>
+              {value in (stats as any) ? (stats as any)[value] : '—'}
             </div>
-          ))}
-        </div>
-      ) : null}
+            <div className="text-[9px] font-mono text-text-subtle uppercase tracking-wider mt-0.5">{label}</div>
+          </div>
+        ))}
+      </div>
+      {lastUpdate > 0 && (
+        <div data-testid="stats-timestamp" className="sr-only" aria-live="polite">Stats updated</div>
+      )}
     </div>
   );
 }
