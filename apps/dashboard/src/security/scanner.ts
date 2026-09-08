@@ -4,9 +4,12 @@ export interface SecurityFindingInput {
   product: string; // e.g. 'dashboard', 'cms', 'template:construction-industrial-v1'
   severity: 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFO';
   category: string;
+  environment?: 'RUNTIME' | 'DEV' | 'BUILD' | 'UNKNOWN';
+  reachability?: 'REACHABLE' | 'NOT_REACHABLE' | 'UNKNOWN';
   scanner: string;
   source: string;
   ruleId?: string;
+  canonicalId?: string;
   fingerprint: string;
   title: string;
   description: string;

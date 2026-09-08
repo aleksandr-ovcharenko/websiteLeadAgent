@@ -1186,6 +1186,7 @@ export default function App({ user }: { user?: any }) {
   const initial = parse();
   const areas = visibleAreas(user?.permissions);
   const canSeeHub = hasAnyPermission(user?.permissions, ['settings.read', 'users.read', 'roles.manage']);
+  const isSuperAdmin = hasAnyPermission(user?.permissions, ['roles.manage']);
   const [view, setView] = useState<ProductArea>(initial.view);
   const [studioSiteId, setStudioSiteId] = useState<string | undefined>(initial.siteId);
   const consoleRef = useRef<HTMLDivElement>(null);

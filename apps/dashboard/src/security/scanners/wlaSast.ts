@@ -1,12 +1,22 @@
 import { execFile } from 'node:child_process';
 import type { SecurityFindingInput, SecurityScanner } from '../scanner.js';
 
-const RULES: { pattern: string; title: string; severity: SecurityFindingInput['severity']; category: string; product: (file: string) => string }[] = [
-  { pattern: 'eval\\(', title: 'Potential code injection via eval()', severity: 'HIGH', category: 'INJECTION', product: productFromFile },
-  { pattern: 'new Function\\(', title: 'Potential code injection via new Function()', severity: 'HIGH', category: 'INJECTION', product: productFromFile },
-  { pattern: 'child_process\\.exec|exec\\(|execSync\\(', title: 'Potential command execution', severity: 'HIGH', category: 'INJECTION', product: productFromFile },
-  { pattern: 'ignoreHTTPSErrors', title: 'TLS certificate validation disabled', severity: 'HIGH', category: 'CONFIG', product: () => 'auditor' },
-  { pattern: 'dangerouslySetInnerHTML', title: 'Raw HTML injection point', severity: 'MEDIUM', category: 'XSS', product: productFromFile },
+interface SastRule {
+  pattern: string;
+  title: string;
+  severity: SecurityFindingInput['severity'];
+  category: string;
+  environment: SecurityFindingInput['environment'];
+  reachability: SecurityFindingInput['reachability'];
+  product: (file: string) => string;
+}
+
+const RULES: SastRule[] = [
+  { pattern: 'eval\\(', title: 'Potential code injection via eval()', severity: 'HIGH', category: 'INJECTION', environment: 'RUNTIME', reachability: 'REACHABLE', product: productFromFile },
+  { pattern: 'new Function\\(', title: 'Potential code injection via new Function()', severity: 'HIGH', category: 'INJECTION', environment: 'RUNTIME', reachability: 'REACHABLE', product: productFromFile },
+  { pattern: 'child_process\\.exec|exec\\(|execSync\\(', title: 'Potential command execution', severity: 'HIGH', category: 'INJECTION', environment: 'RUNTIME', reachability: 'REACHABLE', product: productFromFile },
+  { pattern: 'ignoreHTTPSErrors', title: 'TLS certificate validation disabled', severity: 'HIGH', category: 'CONFIG', environment: 'RUNTIME', reachability: 'REACHABLE', product: () => 'auditor' },
+  { pattern: 'dangerouslySetInnerHTML', title: 'Raw HTML injection point', severity: 'MEDIUM', category: 'XSS', environment: 'RUNTIME', reachability: 'REACHABLE', product: productFromFile },
 ];
 
 function productFromFile(file: string): string {
@@ -52,9 +62,12 @@ export class WlaSastScanner implements SecurityScanner {
           product,
           severity: rule.severity,
           category: rule.category as any,
+          environment: rule.environment,
+          reachability: rule.reachability,
           scanner: this.id,
           source: 'wla-sast',
           ruleId: rule.title,
+          canonicalId: fingerprint,
           fingerprint,
           title: rule.title,
           description: `${rule.title} in ${file}:${ln}`,

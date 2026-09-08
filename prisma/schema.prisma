@@ -871,6 +871,19 @@ enum SecurityFindingStatus {
   ACCEPTEDRISK
 }
 
+enum SecurityFindingEnvironment {
+  RUNTIME
+  DEV
+  BUILD
+  UNKNOWN
+}
+
+enum SecurityFindingReachability {
+  REACHABLE
+  NOT_REACHABLE
+  UNKNOWN
+}
+
 enum SecurityFindingCategory {
   AUTHN
   AUTHZ
@@ -932,9 +945,12 @@ model SecurityFinding {
   generatedSiteId String?
   severity        SecurityFindingSeverity
   category        SecurityFindingCategory
+  environment     SecurityFindingEnvironment @default(UNKNOWN)
+  reachability    SecurityFindingReachability @default(UNKNOWN)
   scanner         String
   source          String
   ruleId          String?
+  canonicalId     String?
   fingerprint     String   @unique
   title           String
   description     String
@@ -956,6 +972,8 @@ model SecurityFinding {
   dependency      SecurityDependency? @relation(fields: [dependencyId], references: [id], onDelete: SetNull)
 
   @@index([status])
+  @@index([canonicalId])
+  @@index([scanner, canonicalId])
   @@index([severity])
   @@index([category])
   @@index([scanner])
@@ -1043,6 +1061,7 @@ model SecurityGate {
   openLow       Int @default(0)
   blockedReason String?
   acceptedHigh  Int @default(0)
+  details       Json?    // classification breakdown and reasoning
 }
 
 model SecurityScannerConfig {

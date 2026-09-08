@@ -12,9 +12,12 @@ import { requireSitePermission } from '../../dashboard/src/security/authz.js';
 import { LocalFilesystemMediaStorage } from '../../../packages/media-storage/dist/index.js';
 
 const prisma = new PrismaClient();
-const canReadCms = requireSitePermission(prisma, 'cms.read', 'siteId');
-const canEditCms = requireSitePermission(prisma, 'cms.edit', 'siteId');
-const canManageCmsUsers = requireSitePermission(prisma, 'cms.users.manage', 'siteId');
+const _canReadCms = requireSitePermission(prisma, 'cms.read', 'siteId');
+const _canEditCms = requireSitePermission(prisma, 'cms.edit', 'siteId');
+const _canManageCmsUsers = requireSitePermission(prisma, 'cms.users.manage', 'siteId');
+const canReadCms = (req: Request, res: Response, next: NextFunction) => requireAuth(req, res, () => _canReadCms(req, res, next));
+const canEditCms = (req: Request, res: Response, next: NextFunction) => requireAuth(req, res, () => _canEditCms(req, res, next));
+const canManageCmsUsers = (req: Request, res: Response, next: NextFunction) => requireAuth(req, res, () => _canManageCmsUsers(req, res, next));
 const app = express();
 const PORT = Number(process.env.CMS_PORT ?? 3335);
 
@@ -49,12 +52,21 @@ app.get('/admin', requireAuth, (_req: Request, res: Response) => {
   res.redirect('/forge');
 });
 
+const CMS_READ_PERMISSIONS = ['cms.read', 'cms.edit', 'studio.read', 'studio.edit', 'cms.users.manage'];
+
+function isGlobalCmsAccess(user: any): boolean {
+  return (user?.permissions || []).some((p: any) => p.scope === 'GLOBAL' && CMS_READ_PERMISSIONS.includes(p.name));
+}
+
 app.get('/api/cms/sites', requireAuth, async (req: Request, res: Response) => {
   const user = (req as any).user;
   const where: any = {};
-  if (user.globalRole !== 'SUPER_ADMIN') {
-    const userSites = await (prisma as any).userRole.findMany({ where: { userId: user.id, siteId: { not: null } }, select: { siteId: true } });
-    where.id = { in: userSites.map((s: any) => s.siteId) };
+  if (!isGlobalCmsAccess(user)) {
+    const siteIds = (user?.permissions || [])
+      .filter((p: any) => p.scope === 'SITE' && CMS_READ_PERMISSIONS.includes(p.name))
+      .map((p: any) => p.siteId)
+      .filter(Boolean);
+    where.id = { in: siteIds };
   }
   const sites = await (prisma as any).site.findMany({
     where,
@@ -394,11 +406,14 @@ app.get('/api/cms/sites/:siteId/users', canManageCmsUsers, async (req: Request, 
   res.json({ users });
 });
 
+const SITE_ROLE_MAP: Record<string, string> = { ADMIN: 'SITE_ADMIN', EDITOR: 'SITE_EDITOR' };
+
 app.post('/api/cms/sites/:siteId/users', canManageCmsUsers, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const email = typeof req.body?.email === 'string' ? req.body.email : '';
   const rawRole = req.body?.role;
-  const role = rawRole === 'ADMIN' ? 'ADMIN' : 'EDITOR';
+  const legacyRole: 'ADMIN' | 'EDITOR' = rawRole === 'ADMIN' ? 'ADMIN' : 'EDITOR';
+  const rbacRoleName = SITE_ROLE_MAP[legacyRole];
   if (!email) { res.status(400).json({ error: 'missing_email' }); return; }
   let user = await (prisma as any).user.findUnique({ where: { email } });
   if (!user) {
@@ -408,22 +423,38 @@ app.post('/api/cms/sites/:siteId/users', canManageCmsUsers, async (req: Request,
   }
   const siteUser = await (prisma as any).siteUser.upsert({
     where: { siteId_userId: { siteId, userId: user.id } },
-    create: { siteId, userId: user.id, role },
-    update: { role }
+    create: { siteId, userId: user.id, role: legacyRole },
+    update: { role: legacyRole }
   });
+  const role = await (prisma as any).role.findUnique({ where: { name: rbacRoleName } });
+  if (role) {
+    await (prisma as any).userRole.upsert({
+      where: { userId_roleId_siteId: { userId: user.id, roleId: role.id, siteId } },
+      create: { userId: user.id, roleId: role.id, siteId },
+      update: {}
+    });
+  }
   res.json({ ok: true, user: siteUser });
 });
 
 app.put('/api/cms/sites/:siteId/users/:userId', canManageCmsUsers, async (req: Request, res: Response) => {
   const { siteId, userId } = req.params;
-  const role = req.body?.role === 'ADMIN' ? 'ADMIN' : 'EDITOR';
-  const siteUser = await (prisma as any).siteUser.update({ where: { siteId_userId: { siteId, userId } }, data: { role } });
+  const legacyRole: 'ADMIN' | 'EDITOR' = req.body?.role === 'ADMIN' ? 'ADMIN' : 'EDITOR';
+  const rbacRoleName = SITE_ROLE_MAP[legacyRole];
+  const siteUser = await (prisma as any).siteUser.update({ where: { siteId_userId: { siteId, userId } }, data: { role: legacyRole } });
+  const role = await (prisma as any).role.findUnique({ where: { name: rbacRoleName } });
+  if (role) {
+    // Remove any other site role for this user at this site to keep one role per membership.
+    await (prisma as any).userRole.deleteMany({ where: { userId, siteId } });
+    await (prisma as any).userRole.create({ data: { userId, roleId: role.id, siteId } });
+  }
   res.json({ ok: true, user: siteUser });
 });
 
 app.delete('/api/cms/sites/:siteId/users/:userId', canManageCmsUsers, async (req: Request, res: Response) => {
   const { siteId, userId } = req.params;
   await (prisma as any).siteUser.delete({ where: { siteId_userId: { siteId, userId } } });
+  await (prisma as any).userRole.deleteMany({ where: { userId, siteId } });
   res.json({ ok: true });
 });
 

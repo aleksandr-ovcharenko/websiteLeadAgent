@@ -47,8 +47,13 @@ export function formatBytes(b?: number) {
   return `${size.toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
-export function siteRole(user: StudioUser | null, siteUsers: any[]): StudioData['role'] {
-  if (user?.globalRole === 'SUPER_ADMIN') return 'SUPER_ADMIN';
+export function siteRole(user: StudioUser | null, siteUsers: any[], siteId?: string): StudioData['role'] {
+  const perms = user?.permissions || [];
+  if (perms.some((p) => p.scope === 'GLOBAL' && p.name === 'roles.manage')) return 'SUPER_ADMIN';
+  if (siteId) {
+    const sitePerms = perms.filter((p) => p.scope === 'SITE' && p.siteId === siteId);
+    if (sitePerms.some((p) => p.name === 'cms.edit' || p.name === 'cms.users.manage')) return 'ADMIN';
+  }
   const su = siteUsers.find((s: any) => s.userId === user?.id);
   if (su?.role === 'ADMIN') return 'ADMIN';
   return 'EDITOR';
@@ -94,7 +99,7 @@ export function StudioProvider({ siteId, user, children }: { siteId: string; use
 
   useEffect(() => { load(); }, [load]);
 
-  const role = siteRole(user, users);
+  const role = siteRole(user, users, siteId);
 
   const value: StudioData = {
     siteId, site, settings, pages, news, projects, services, products, media, menu, vacancies, users,

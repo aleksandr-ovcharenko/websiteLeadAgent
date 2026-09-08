@@ -24,7 +24,7 @@
     "test": "vitest run",
     "test:unit": "vitest run",
     "test:security": "vitest run tests/security-regression.spec.ts",
-    "test:auth": "vitest run tests/platform-auth.spec.ts",
+    "test:auth": "vitest run --config tests/vitest.auth.config.ts",
     "test:node": "node --test packages/redesign-engine/test/*.test.mjs",
     "test:e2e": "node apps/platform/e2e/*.mjs",
     "test:watch": "vitest",

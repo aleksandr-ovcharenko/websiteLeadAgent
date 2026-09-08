@@ -75,10 +75,8 @@ export function securityRouter(opts: SecurityApiOptions): Router {
 
   r.post('/audits/run', canManageSecurity, async (req: Request, res: Response) => {
     const { scanner, category } = req.body || {};
-    const commitSha = (await prisma.$queryRaw`SELECT pg_catalog.version()`) as any; // placeholder, use git later
     try {
-      const results = await audit.runAll({ scanner, category, commitSha: '' });
-      const gate = await evaluateSecurityGate(prisma);
+      const { results, gate } = await audit.runAll({ scanner, category, commitSha: '' });
       await events.log({
         level: 'MEDIUM',
         category: 'audit_run',
@@ -89,7 +87,7 @@ export function securityRouter(opts: SecurityApiOptions): Router {
         message: `Manual security audit run completed with ${results.length} scanner(s)`,
         details: { scanner, category, gate },
       });
-      res.json({ results: results.map((r) => ({ id: r.id, scanner: r.scanner, status: r.status, completedAt: r.completedAt })), gate });
+      res.json({ results: results.map((r: any) => ({ id: r.id, scanner: r.scanner, status: r.status, completedAt: r.completedAt })), gate });
     } catch (err: any) {
       res.status(500).json({ error: err.message });
     }

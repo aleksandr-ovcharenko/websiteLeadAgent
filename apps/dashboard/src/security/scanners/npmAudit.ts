@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
+import { classifyNpmDependency } from '@minsk/security';
 import type { SecurityFindingInput, SecurityScanner } from '../scanner.js';
 
 interface NpmAuditAdvisory {
@@ -59,24 +60,39 @@ function severityOf(s: NpmAuditVuln['severity']): SecurityFindingInput['severity
   return map[s] || 'INFO';
 }
 
-async function buildVersionMap(repoRoot: string): Promise<Record<string, string>> {
-  const map: Record<string, string> = {};
+interface LockfileInfo {
+  versionMap: Record<string, string>;
+  devMap: Record<string, boolean>;
+  packageDetails: Record<string, { dev?: boolean; optional?: boolean }>;
+}
+
+async function loadLockfileInfo(repoRoot: string): Promise<LockfileInfo> {
+  const info: LockfileInfo = { versionMap: {}, devMap: {}, packageDetails: {} };
   try {
     const raw = await readFile(join(repoRoot, 'package-lock.json'), 'utf-8');
     const lock = JSON.parse(raw);
     const pkgs = lock.packages || {};
-    for (const [nodePath, info] of Object.entries(pkgs)) {
-      const dep = info as any;
-      if (dep && dep.version) {
+    for (const [nodePath, pkg] of Object.entries(pkgs)) {
+      const p = pkg as any;
+      if (p && p.version) {
         const name = nodePath.split('/node_modules/').pop() || nodePath;
-        map[name] = dep.version;
-        map[nodePath.replace('node_modules/', '')] = dep.version;
+        info.versionMap[name] = p.version;
+        info.versionMap[nodePath.replace('node_modules/', '')] = p.version;
+        info.packageDetails[nodePath] = { dev: !!p.dev, optional: !!p.optional };
+        if (nodePath.startsWith('node_modules/')) {
+          info.devMap[nodePath] = !!p.dev;
+        }
       }
     }
   } catch {
     // ignore; fall back to audit nodes
   }
-  return map;
+  return info;
+}
+
+function isAllDev(nodes: string[], devMap: Record<string, boolean>): boolean {
+  if (nodes.length === 0) return false;
+  return nodes.every((n) => devMap[n] === true);
 }
 
 export class NpmAuditScanner implements SecurityScanner {
@@ -84,7 +100,7 @@ export class NpmAuditScanner implements SecurityScanner {
   readonly category = 'dependency';
 
   async run(ctx: { repoRoot: string; commitSha?: string }): Promise<any> {
-    const versionMap = await buildVersionMap(ctx.repoRoot);
+    const lock = await loadLockfileInfo(ctx.repoRoot);
     const raw = await new Promise<string>((resolve, reject) => {
       execFile('npm', ['audit', '--json'], { cwd: ctx.repoRoot, maxBuffer: 50 * 1024 * 1024 }, (err, stdout, stderr) => {
         // npm audit exits non-zero when vulnerabilities are present, but still prints JSON on stdout
@@ -106,7 +122,7 @@ export class NpmAuditScanner implements SecurityScanner {
     const findings: SecurityFindingInput[] = [];
 
     for (const [pkg, v] of Object.entries(vulns)) {
-      const installedVersion = versionMap[pkg] || v.range;
+      const installedVersion = lock.versionMap[pkg] || v.range;
       const fixedVersion = typeof v.fixAvailable === 'object' ? v.fixAvailable.version : undefined;
       const advisory = v.via?.find((x: any) => typeof x === 'object' && x.title) || v.via?.[0];
       const adv = cleanAdvisory(advisory);
@@ -129,19 +145,26 @@ export class NpmAuditScanner implements SecurityScanner {
         affects.push({ type: assetType, id: assetId, name: prod });
       }
 
+      const ruleId = cveMatch?.[1] || ghsaMatch?.[1] || adv.title;
+      const allDev = isAllDev(v.nodes || [], lock.devMap);
+      const classification = classifyNpmDependency({ packageName: pkg, nodes: v.nodes || [], isDev: allDev });
       const primaryProduct = products.values().next().value || 'wla-platform';
-      const fingerprint = [this.id, pkg, installedVersion, adv.title].join('|');
+      const fingerprint = [this.id, pkg, installedVersion, ruleId].join('|');
+      const canonicalId = ['npm', pkg, installedVersion, ruleId].join('|');
       findings.push({
         product: primaryProduct,
         severity: severityOf(v.severity),
         category: 'DEPENDENCY',
+        environment: classification.environment,
+        reachability: classification.reachability,
         scanner: this.id,
         source: 'npm-audit',
-        ruleId: cveMatch?.[1] || ghsaMatch?.[1] || adv.title,
+        ruleId,
+        canonicalId,
         fingerprint,
         title: adv.title,
         description: `Vulnerable dependency ${pkg}@${installedVersion} (${v.range}). ${adv.title}`,
-        evidence: { package: pkg, installedVersion, range: v.range, fixAvailable: v.fixAvailable, via: v.via, nodes: v.nodes },
+        evidence: { package: pkg, installedVersion, range: v.range, fixAvailable: v.fixAvailable, via: v.via, nodes: v.nodes, classification, scanner: this.id },
         cve: cveMatch?.[1],
         fixedVersion,
         dependencyEcosystem: 'npm',
@@ -155,7 +178,7 @@ export class NpmAuditScanner implements SecurityScanner {
       status: 'SUCCESS' as const,
       findings,
       raw: audit,
-      summary: { counts, packagesScanned: Object.keys(versionMap).length },
+      summary: { counts, packagesScanned: Object.keys(lock.versionMap).length },
     };
   }
 }

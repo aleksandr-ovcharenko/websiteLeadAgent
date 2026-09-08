@@ -4,7 +4,6 @@ import pino from 'pino';
 import { PrismaClient } from '@prisma/client';
 import { fileURLToPath } from 'node:url';
 import { SecurityAuditService } from '../apps/dashboard/src/security/audit.js';
-import { evaluateSecurityGate } from '../apps/dashboard/src/security/gate.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
@@ -14,11 +13,10 @@ const prisma = new PrismaClient({ log: ['error'] });
 
 async function main() {
   const service = new SecurityAuditService({ prisma, logger, repoRoot });
-  const result = await service.runAll();
-  logger.info({ scans: result.length, last: result[0]?.status }, 'security.audit.run');
-  const gate = await evaluateSecurityGate(prisma);
+  const { results, gate } = await service.runAll();
+  logger.info({ scans: results.length, last: results[results.length - 1]?.status }, 'security.audit.run');
   logger.info(gate, 'security.gate');
-  console.log(JSON.stringify({ scans: result.length, gate }, null, 2));
+  console.log(JSON.stringify({ scans: results.length, gate }, null, 2));
 }
 
 main()

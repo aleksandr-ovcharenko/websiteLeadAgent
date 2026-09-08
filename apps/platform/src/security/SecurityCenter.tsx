@@ -31,6 +31,19 @@ const GATE_CLS: Record<string, string> = {
   BLOCKED: 'bg-danger text-text-inverse ring-danger',
 }
 
+const ENV_CLS: Record<string, string> = {
+  RUNTIME: 'bg-danger-subtle text-danger ring-danger-subtle',
+  DEV: 'bg-warning-subtle text-warning ring-warning-subtle',
+  BUILD: 'bg-info-subtle text-info ring-info-subtle',
+  UNKNOWN: 'bg-surface-hover text-text-muted ring-border',
+}
+
+const REACH_CLS: Record<string, string> = {
+  REACHABLE: 'bg-danger-subtle text-danger ring-danger-subtle',
+  NOT_REACHABLE: 'bg-success-subtle text-success ring-success',
+  UNKNOWN: 'bg-surface-hover text-text-muted ring-border',
+}
+
 const STATUS_CLS: Record<string, string> = {
   OPEN: 'bg-danger-subtle text-danger ring-danger-subtle',
   FIXING: 'bg-warning-subtle text-warning ring-warning-subtle',
@@ -137,16 +150,29 @@ function Overview({ onGoFindings }: { onGoFindings: (sev?: string) => void }) {
         </div>
       </div>
 
-      <div className="bg-surface border border-border rounded-lg px-5 py-3 flex items-center gap-6">
-        <span className="text-[11px] font-mono font-medium text-text-subtle uppercase tracking-wider">Open findings</span>
-        {SEVERITIES.map((s) => (
-          <button key={s} onClick={() => onGoFindings(s)} className="flex items-baseline gap-1.5 group">
-            <span className={`text-base font-semibold font-mono tabular-nums ${s === 'CRITICAL' || s === 'HIGH' ? 'text-danger' : s === 'MEDIUM' ? 'text-warning' : 'text-text'}`}>
-              {openBySev[s] || 0}
-            </span>
-            <span className="text-[11px] text-text-subtle group-hover:text-text">{s}</span>
-          </button>
-        ))}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-surface border border-border rounded-lg px-5 py-3 flex items-center gap-6">
+          <span className="text-[11px] font-mono font-medium text-text-subtle uppercase tracking-wider">Open findings</span>
+          {SEVERITIES.map((s) => (
+            <button key={s} onClick={() => onGoFindings(s)} className="flex items-baseline gap-1.5 group">
+              <span className={`text-base font-semibold font-mono tabular-nums ${s === 'CRITICAL' || s === 'HIGH' ? 'text-danger' : s === 'MEDIUM' ? 'text-warning' : 'text-text'}`}>
+                {openBySev[s] || 0}
+              </span>
+              <span className="text-[11px] text-text-subtle group-hover:text-text">{s}</span>
+            </button>
+          ))}
+        </div>
+        <div className="bg-surface border border-border rounded-lg px-5 py-3 flex items-center gap-6">
+          <span className="text-[11px] font-mono font-medium text-text-subtle uppercase tracking-wider">Production impact</span>
+          {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map((s) => (
+            <button key={s} onClick={() => onGoFindings(s)} className="flex items-baseline gap-1.5 group">
+              <span className={`text-base font-semibold font-mono tabular-nums ${s === 'CRITICAL' || s === 'HIGH' ? 'text-danger' : s === 'MEDIUM' ? 'text-warning' : 'text-text'}`}>
+                {(gate as any)?.[`production${s}`] ?? 0}
+              </span>
+              <span className="text-[11px] text-text-subtle group-hover:text-text">{s}</span>
+            </button>
+          ))}
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-4">
@@ -235,18 +261,20 @@ function Findings({ initialSeverity }: { initialSeverity?: string }) {
 
       <div className="flex gap-3 items-start">
         <div className="flex-1 min-w-0">
-          <Table head={['Severity', 'Title', 'Product', 'Scanner', 'Status', 'Last seen']}>
+          <Table head={['Severity', 'Title', 'Env', 'Reach', 'Product', 'Scanner', 'Status', 'Last seen']}>
             {loading ? (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-xs text-text-subtle">Loading…</td></tr>
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-xs text-text-subtle">Loading…</td></tr>
             ) : data.items.length === 0 ? (
-              <tr><td colSpan={6} className="px-4 py-10 text-center text-xs text-text-subtle">No findings</td></tr>
+              <tr><td colSpan={8} className="px-4 py-10 text-center text-xs text-text-subtle">No findings</td></tr>
             ) : data.items.map((f) => (
               <tr key={f.id} onClick={() => setSelected(f)} className={`cursor-pointer hover:bg-surface-raised/70 transition-colors ${selected?.id === f.id ? 'bg-surface-raised' : ''}`}>
                 <td className={td}><Badge v={f.severity} map={SEV_CLS} /></td>
-                <td className={`${td} max-w-[280px]`}>
+                <td className={`${td} max-w-[240px]`}>
                   <div className="text-text font-medium truncate">{f.title}</div>
                   {f.cve && <div className="text-[10px] font-mono text-text-subtle">{f.cve}</div>}
                 </td>
+                <td className={td}><Badge v={f.environment} map={ENV_CLS} /></td>
+                <td className={td}><Badge v={f.reachability} map={REACH_CLS} /></td>
                 <td className={`${td} font-mono text-text-muted`}>{f.product}</td>
                 <td className={`${td} font-mono text-text-muted`}>{f.scanner}</td>
                 <td className={td}><Badge v={f.status} map={STATUS_CLS} /></td>
@@ -273,6 +301,8 @@ function Findings({ initialSeverity }: { initialSeverity?: string }) {
               {[
                 ['Scanner', detail?.scanner || selected.scanner],
                 ['Category', detail?.category || selected.category],
+                ['Environment', detail?.environment || selected.environment],
+                ['Reachability', detail?.reachability || selected.reachability],
                 ['Product', detail?.product || selected.product],
                 ['Rule', detail?.ruleId],
                 ['CWE', detail?.cwe],

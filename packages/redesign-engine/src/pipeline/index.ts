@@ -7,6 +7,7 @@ import { extractFromCrawl } from '../extract/extractFromCrawl.js';
 import { importToCms } from '../import/importToCms.js';
 import { validateGeneratedSite } from './validateSite.js';
 import { buildSourceContentGraph } from '../semantic/graph.js';
+import { ensureDependencySnapshot, linkSiteBuildSnapshot } from '../security/snapshot.js';
 import type { CrawlResult } from '../types.js';
 
 function slugify(input: string): string {
@@ -320,7 +321,7 @@ export async function generateSite(options: GenerateOptions) {
       data: { redesignStage: 'DEMO_GENERATED' } as any
     });
 
-    await (prisma as any).siteBuild.create({
+    const siteBuild = await (prisma as any).siteBuild.create({
       data: {
         siteId,
         demoVariantId,
@@ -329,6 +330,14 @@ export async function generateSite(options: GenerateOptions) {
         outputPath: `data/generated/sites/${siteId}`
       } as any
     });
+
+    const snapshotId = await ensureDependencySnapshot(prisma, templateId, process.cwd(), { commitSha: process.env.GIT_SHA }).catch((err: any) => {
+      console.error(`[FACTORY] dependency snapshot failed for ${siteId}:`, err.message);
+      return undefined;
+    });
+    if (snapshotId) {
+      await linkSiteBuildSnapshot(prisma, siteBuild.id, snapshotId);
+    }
 
     await (prisma as any).redesignRun.update({
       where: { id: run.id },

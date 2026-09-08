@@ -1,0 +1,29 @@
+{
+  "results": [
+    {
+      "vulns": [
+        {
+          "id": "GHSA-abc1-def2-ghi3",
+          "aliases": ["CVE-2023-12345"],
+          "summary": "Prototype pollution in lodash",
+          "details": "A vulnerability in lodash allows prototype pollution.",
+          "severity": [{ "type": "CVSS_V3", "score": "9.8" }],
+          "affected": [
+            {
+              "package": { "name": "lodash", "ecosystem": "npm" },
+              "ranges": [
+                {
+                  "type": "SEMVER",
+                  "events": [
+                    { "introduced": "0" },
+                    { "fixed": "4.17.21" }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

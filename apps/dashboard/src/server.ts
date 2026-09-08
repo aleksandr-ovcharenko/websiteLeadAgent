@@ -12,6 +12,7 @@ import { sanitizeWorkerEnv } from '@minsk/security';
 import { platformRouter } from './platform.js';
 import { securityRouter, seedSecurityScannerConfigs } from './security/api.js';
 import { seedRbac, migrateExistingUsers } from './security/rbacSeed.js';
+import { SecurityScheduleService } from './security/schedule.js';
 import { generateSite } from '@minsk/redesign-engine';
 import { DiscoveryService, listDiscoveryProviders, getDiscoveryProvider, DISCOVERY_PRESETS } from './discovery/index.js';
 import { OperationService } from './operations/index.js';
@@ -25,6 +26,7 @@ const activity = new ActivityService({ prisma, logger });
 const discovery = new DiscoveryService({ prisma, logger, env: workerEnv, activity });
 const operations = new OperationService({ prisma, logger, env: workerEnv, discovery, activity });
 discovery.setQualificationOrchestrator(operations.qualification);
+const securitySchedule = new SecurityScheduleService({ prisma, logger, repoRoot: process.cwd() });
 
 app.use(sessionMiddleware);
 app.use(express.json({ limit: '10mb' }));
@@ -944,6 +946,9 @@ app.listen(PORT, async () => {
   await seedRbac(prisma).catch((e) => logger.error(e, 'rbac.seed.failed'));
   await migrateExistingUsers(prisma).catch((e) => logger.error(e, 'rbac.migrate.failed'));
   await seedSecurityScannerConfigs(prisma).catch((e) => logger.error(e, 'security.seed.failed'));
+  if (process.env.DISABLE_SECURITY_SCHEDULE !== 'true') {
+    securitySchedule.start();
+  }
   await operations.reconcileAll();
   const { checkBrowserReadiness } = await import('./activity/browserCheck.js');
   const browser = await checkBrowserReadiness();

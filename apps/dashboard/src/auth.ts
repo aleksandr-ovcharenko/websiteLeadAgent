@@ -17,7 +17,7 @@ export interface PlatformUser {
   id: string;
   email: string;
   globalRole: 'SUPER_ADMIN' | 'USER';
-  permissions?: EffectivePermission[];
+  permissions: EffectivePermission[];
 }
 
 export async function getSessionUser(req: Request): Promise<PlatformUser | null> {
@@ -27,7 +27,9 @@ export async function getSessionUser(req: Request): Promise<PlatformUser | null>
     where: { id: userId },
     select: { id: true, email: true, globalRole: true }
   });
-  return user ?? null;
+  if (!user) return null;
+  const permissions = await getEffectivePermissions(prisma, user.id);
+  return { ...user, permissions };
 }
 
 export function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -46,51 +48,6 @@ export function requireSuperAdmin(req: Request, res: Response, next: NextFunctio
     (req as any).user = user;
     next();
   }).catch((e) => next(e));
-}
-
-export async function canAccessSite(user: PlatformUser, siteId: string): Promise<boolean> {
-  if (user.globalRole === 'SUPER_ADMIN') return true;
-  const su = await (prisma as any).siteUser.findUnique({
-    where: { siteId_userId: { siteId, userId: user.id } },
-    select: { role: true }
-  });
-  return !!su;
-}
-
-export function requireSiteAccess(siteIdParam: string = 'siteId') {
-  return (req: Request, res: Response, next: NextFunction) => {
-    getSessionUser(req).then(async (user) => {
-      if (!user) { res.status(401).json({ error: 'unauthorized' }); return; }
-      const siteId = req.params[siteIdParam] || req.query.siteId || req.body?.siteId;
-      if (!siteId) { res.status(400).json({ error: 'missing_site' }); return; }
-      if (await canAccessSite(user, String(siteId))) {
-        (req as any).user = user;
-        next();
-      } else {
-        res.status(403).json({ error: 'forbidden' });
-      }
-    }).catch((e) => next(e));
-  };
-}
-
-export function requireSiteRole(...roles: string[]) {
-  return async (req: Request, res: Response, next: NextFunction) => {
-    const user = (req as any).user;
-    const siteId = req.params.siteId || req.query.siteId || req.body?.siteId;
-    if (!siteId) { res.status(400).json({ error: 'missing_site' }); return; }
-    const role = await getSiteRole(user, String(siteId));
-    if (!role || !roles.includes(role)) { res.status(403).json({ error: 'forbidden' }); return; }
-    next();
-  };
-}
-
-async function getSiteRole(user: any, siteId: string): Promise<string | null> {
-  if (user?.globalRole === 'SUPER_ADMIN') return 'ADMIN';
-  const su = await (prisma as any).siteUser.findUnique({
-    where: { siteId_userId: { siteId, userId: user?.id } },
-    select: { role: true }
-  });
-  return su?.role ?? null;
 }
 
 export const authRouter = express.Router();
@@ -120,8 +77,7 @@ authRouter.post('/logout', (req: Request, res: Response) => {
 authRouter.get('/me', async (req: Request, res: Response) => {
   const user = await getSessionUser(req);
   if (!user) { res.status(401).json({ error: 'unauthorized' }); return; }
-  const permissions = await getEffectivePermissions(prisma, user.id);
-  res.json({ user: { ...user, permissions } });
+  res.json({ user });
 });
 
 export { getClientIp };

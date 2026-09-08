@@ -1,7 +1,8 @@
 export interface StudioUser {
   id: string;
   email: string;
-  globalRole: 'SUPER_ADMIN' | 'USER';
+  globalRole?: 'SUPER_ADMIN' | 'USER';
+  permissions?: Array<{ name: string; scope: 'GLOBAL' | 'PRODUCT' | 'SITE'; siteId?: string | null }>;
 }
 
 export type PubStatus = 'DRAFT' | 'PUBLISHED' | 'ARCHIVED';
