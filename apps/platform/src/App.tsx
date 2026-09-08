@@ -1219,6 +1219,7 @@ export default function App({ user }: { user?: any }) {
       return;
     }
     window.history.pushState(null, '', url);
+    window.dispatchEvent(new Event('pushstate'));
     setView(v);
     if (siteId) setStudioSiteId(siteId);
   }

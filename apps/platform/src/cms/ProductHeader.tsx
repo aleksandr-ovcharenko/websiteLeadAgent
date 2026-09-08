@@ -148,9 +148,9 @@ export default function ProductHeader({ productArea, siteId, user, onNavigate }:
     <>
       <header className="h-[48px] flex-shrink-0 bg-surface border-b border-border flex items-center px-4 gap-3 z-30">
         <button
-          onClick={() => (isSuperAdmin ? onNavigate('hub') : undefined)}
-          className={`flex-shrink-0 ${isSuperAdmin ? 'cursor-pointer hover:opacity-80 transition-opacity' : 'cursor-default'}`}
-          title={isSuperAdmin ? 'WebsiteLeadAgent Hub' : undefined}
+          onClick={() => onNavigate('radar')}
+          className="flex-shrink-0 cursor-pointer hover:opacity-80 transition-opacity"
+          title="Back to Radar"
         >
           <WLALogo />
         </button>

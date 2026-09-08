@@ -31,9 +31,13 @@ export default function RadarConfiguration() {
   const sidebarRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    const onPop = () => setView(getView(window.location.pathname));
-    window.addEventListener('popstate', onPop);
-    return () => window.removeEventListener('popstate', onPop);
+    const update = () => setView(getView(window.location.pathname));
+    window.addEventListener('popstate', update);
+    window.addEventListener('pushstate', update);
+    return () => {
+      window.removeEventListener('popstate', update);
+      window.removeEventListener('pushstate', update);
+    };
   }, []);
 
   useEffect(() => {
@@ -70,8 +74,6 @@ export default function RadarConfiguration() {
 
   const reload = () => {};
 
-  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024;
-
   return (
     <div className="min-h-full bg-surface-raised flex relative overflow-x-hidden">
       {/* Persistent toggle — same anchored control on all viewports */}
@@ -94,6 +96,8 @@ export default function RadarConfiguration() {
           <div className="text-[13px] font-semibold text-text mt-0.5">Super Admin</div>
         </div>
         <nav className="p-2.5 space-y-px min-w-[216px]">
+          <NavItem label="← Back to leads" active={view === 'leads'} onClick={() => go('/radar')} />
+          <div className="pt-2 pb-1 px-3 text-[10px] font-mono font-medium text-text-subtle uppercase tracking-wider">Discovery</div>
           <NavItem label="New discovery" active={false} onClick={() => openNew()} cta />
           <NavItem label="Discovery history" active={view === 'history'} onClick={() => go('/radar/discoveries')} />
           <NavItem label="Discovery providers" active={view === 'providers'} onClick={() => go('/radar/providers')} />
@@ -116,6 +120,8 @@ export default function RadarConfiguration() {
               <div className="text-[13px] font-semibold text-text mt-0.5">Super Admin</div>
             </div>
             <nav className="p-2.5 space-y-px overflow-y-auto">
+              <NavItem label="← Back to leads" active={view === 'leads'} onClick={() => go('/radar')} />
+              <div className="pt-2 pb-1 px-3 text-[10px] font-mono font-medium text-text-subtle uppercase tracking-wider">Discovery</div>
               <NavItem label="New discovery" active={false} onClick={() => openNew()} cta />
               <NavItem label="Discovery history" active={view === 'history'} onClick={() => go('/radar/discoveries')} />
               <NavItem label="Discovery providers" active={view === 'providers'} onClick={() => go('/radar/providers')} />
