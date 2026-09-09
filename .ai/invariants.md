@@ -869,3 +869,30 @@ fabricate tokens.
 Meaningful actions are stored in the database and survive browser/server
 restarts. Notifications are user-visible product events, not raw operational
 noise.
+
+
+## DISCOVERY QUALITY GATE
+
+### PROVIDER RESULT IS NOT A LEAD
+
+Provider results become Leads only after the discovery eligibility gate.
+
+### DISCOVERY INTENT DEFINES RELEVANCE
+
+Relevance is evaluated against the current DiscoveryRun intent.
+
+### CANONICAL IDENTITY PRECEDES PERSISTENCE
+
+Equivalent website identities are deduplicated before Lead creation.
+
+### ONE ORGANISATION SHOULD NOT BECOME MULTIPLE LEADS
+
+Strong grounded organisation identity evidence collapses duplicate observations.
+
+### DISCOVERY HISTORY PRESERVES WHAT WAS ADDED
+
+Every future DiscoveryRun can truthfully list the Leads/websites it created.
+
+### CHEAP CHECKS PRECEDE EXPENSIVE AI
+
+Deterministic relevance/dedupe evidence is used before semantic classification.

@@ -171,65 +171,63 @@ export default function NewDiscovery({ open, onClose, onStarted, initialData }: 
               </div>
             )}
 
+            <label className="block text-[12px] font-medium text-text">Topic preset</label>
+            <select
+              name="topic"
+              className="w-full h-9 px-2 text-[13px] border border-border rounded"
+              value={topic}
+              onChange={(e) => { setTopic(e.target.value); }}
+            >
+              <option value="">— none —</option>
+              {presets.map((s) => (
+                <option key={s.id} value={s.id}>{s.name}</option>
+              ))}
+            </select>
+
+            <label className="block text-[12px] font-medium text-text">Search query</label>
+            <input
+              type="text"
+              name="query"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className="w-full h-9 px-3 text-[13px] border border-border rounded"
+              placeholder="строительные компании"
+            />
+
+            <label className="block text-[12px] font-medium text-text">Location</label>
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              className="w-full h-9 px-3 text-[13px] border border-border rounded"
+              placeholder="Минск"
+            />
+
             {provider !== 'manual' && (
-              <>
-                <label className="block text-[12px] font-medium text-text">Topic preset</label>
-                <select
-                  name="topic"
-                  className="w-full h-9 px-2 text-[13px] border border-border rounded"
-                  value={topic}
-                  onChange={(e) => { setTopic(e.target.value); }}
-                >
-                  <option value="">— none —</option>
-                  {presets.map((s) => (
-                    <option key={s.id} value={s.id}>{s.name}</option>
-                  ))}
-                </select>
-
-                <label className="block text-[12px] font-medium text-text">Search query</label>
-                <input
-                  type="text"
-                  name="query"
-                  value={query}
-                  onChange={(e) => setQuery(e.target.value)}
-                  className="w-full h-9 px-3 text-[13px] border border-border rounded"
-                  placeholder="строительные компании"
-                />
-
-                <label className="block text-[12px] font-medium text-text">Location</label>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="w-full h-9 px-3 text-[13px] border border-border rounded"
-                  placeholder="Минск"
-                />
-
-                <div className="flex gap-3">
-                  <div className="flex-1">
-                    <label className="block text-[12px] font-medium text-text">Limit</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={200}
-                      value={limit}
-                      onChange={(e) => setLimit(Math.max(1, Math.min(200, Number(e.target.value) || 1)))}
-                      className="w-full h-9 px-3 text-[13px] border border-border rounded"
-                    />
-                  </div>
-                  <div className="flex-1">
-                    <label className="block text-[12px] font-medium text-text">Max pages</label>
-                    <input
-                      type="number"
-                      min={1}
-                      max={20}
-                      value={maxPages}
-                      onChange={(e) => setMaxPages(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
-                      className="w-full h-9 px-3 text-[13px] border border-border rounded"
-                    />
-                  </div>
+              <div className="flex gap-3">
+                <div className="flex-1">
+                  <label className="block text-[12px] font-medium text-text">Limit</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={200}
+                    value={limit}
+                    onChange={(e) => setLimit(Math.max(1, Math.min(200, Number(e.target.value) || 1)))}
+                    className="w-full h-9 px-3 text-[13px] border border-border rounded"
+                  />
                 </div>
-              </>
+                <div className="flex-1">
+                  <label className="block text-[12px] font-medium text-text">Max pages</label>
+                  <input
+                    type="number"
+                    min={1}
+                    max={20}
+                    value={maxPages}
+                    onChange={(e) => setMaxPages(Math.max(1, Math.min(20, Number(e.target.value) || 1)))}
+                    className="w-full h-9 px-3 text-[13px] border border-border rounded"
+                  />
+                </div>
+              </div>
             )}
 
             {provider === 'manual' && (

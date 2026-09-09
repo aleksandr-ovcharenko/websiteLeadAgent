@@ -425,6 +425,12 @@ app.get('/api/discovery/runs/:runId/stats', requireSuperAdmin, async (req: Reque
   res.json(await discovery.getRunFunnel(run.id));
 });
 
+app.get('/api/discovery/runs/:runId/candidates', requireSuperAdmin, async (req: Request, res: Response) => {
+  const result = await discovery.getRunCandidates(String(req.params.runId));
+  if (!result) { res.status(404).json({ error: 'not_found' }); return; }
+  res.json(result);
+});
+
 // Delta recovery for SSE gaps: returns only entities changed since the
 // client's cursor — never the whole view.
 app.get('/api/leads/changes', requireAuth, async (req: Request, res: Response) => {

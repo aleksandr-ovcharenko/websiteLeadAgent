@@ -4,6 +4,7 @@ import type pino from 'pino';
 import { getDiscoveryProvider, listDiscoveryProviders } from './registry.js';
 import { DISCOVERY_PRESETS } from './presets.js';
 import type { DiscoveryRequest, DiscoveryContext } from './types.js';
+import { DiscoveryGatingService } from './gate.js';
 import { enrichLeads } from '../../../collector/src/enrichment/enrichLeads.js';
 import { createRegistry } from '../operations/registry.js';
 import { ActivityService } from '../activity/ActivityService.js';
@@ -51,11 +52,13 @@ export class DiscoveryService {
 
     const provider = input.provider || preset?.defaultProvider || 'dgis';
     const query = input.query ?? preset?.defaultQuery ?? '';
+    const intent = input.query ?? preset?.name ?? '';
     const limit = input.limit ?? preset?.defaultLimit ?? 50;
 
     return {
       provider,
       query,
+      intent,
       topic: input.topic,
       location: input.location,
       limit,
@@ -82,6 +85,7 @@ export class DiscoveryService {
         provider: request.provider,
         requestedProvider: input.requestedProvider ?? request.provider,
         query: request.query,
+        intent: request.intent,
         topic: request.topic,
         location: request.location,
         limit: request.limit,
@@ -92,6 +96,8 @@ export class DiscoveryService {
         collected: 0,
         createdCount: 0,
         duplicateCount: 0,
+        rejectedCount: 0,
+        uncertainCount: 0,
       },
     });
 
@@ -103,49 +109,34 @@ export class DiscoveryService {
         onProgress,
       });
 
-      const leadIds: string[] = [];
-      let created = 0;
-      let duplicates = 0;
+      const gating = new DiscoveryGatingService({ prisma: this.prisma, logger: this.logger, env: this.env });
 
-      for (const candidate of result.candidates) {
-        const existing = await this.prisma.lead.findUnique({
-          where: { source_sourceId: { source: candidate.data.source, sourceId: candidate.sourceId } },
-          select: { id: true },
-        });
+      const gatedCandidates = result.candidates.map((candidate) => ({
+        source: candidate.source,
+        sourceId: candidate.sourceId,
+        companyName: candidate.data.companyName,
+        city: candidate.data.city,
+        address: candidate.data.address,
+        categories: candidate.data.categories,
+        phone: candidate.data.phone,
+        website: candidate.data.website,
+        sourceUrl: candidate.data.sourceUrl,
+        latitude: candidate.data.latitude,
+        longitude: candidate.data.longitude,
+      }));
 
-        const lead = await this.prisma.lead.upsert({
-          where: { source_sourceId: { source: candidate.data.source, sourceId: candidate.sourceId } },
-          create: candidate.data,
-          update: candidate.data,
-          select: { id: true },
-        });
-
-        leadIds.push(lead.id);
-
-        if (existing) duplicates++;
-        else created++;
-
-        await this.prisma.leadQuery.upsert({
-          where: { leadId_query: { leadId: lead.id, query: request.query } },
-          create: { leadId: lead.id, query: request.query },
-          update: {},
-        });
-      }
+      const gateResult = await gating.process(run as any, gatedCandidates);
 
       await this.prisma.discoveryRun.update({
         where: { id: run.id },
         data: {
           status: 'ENRICHING',
-          leadIds,
-          collected: leadIds.length,
-          createdCount: created,
-          duplicateCount: duplicates,
           errorMessage: result.warning || null,
         },
       });
 
-      if (leadIds.length) {
-        await enrichLeads({ prisma: this.prisma, logger: this.logger, runId: run.id, leadIds });
+      if (gateResult.leadIds.length) {
+        await enrichLeads({ prisma: this.prisma, logger: this.logger, runId: run.id, leadIds: gateResult.leadIds });
       }
 
       await this.prisma.discoveryRun.update({
@@ -508,6 +499,71 @@ export class DiscoveryService {
       selected,
       generated,
       failed
+    };
+  }
+
+  async getRunCandidates(runId: string) {
+    const run = await this.prisma.discoveryRun.findUnique({ where: { id: runId } });
+    if (!run) return null;
+    const candidates = await this.prisma.discoveryCandidate.findMany({
+      where: { runId },
+      include: { lead: { select: { id: true, companyName: true, website: true, websiteDomain: true } } },
+      orderBy: { createdAt: 'asc' },
+    });
+
+    const byDecision = (d: string) => candidates.filter((c) => c.decision === d);
+    const accept = byDecision('ACCEPT');
+    const reject = byDecision('REJECT');
+    const uncertain = byDecision('UNCERTAIN');
+
+    return {
+      runId: run.id,
+      query: run.query,
+      location: run.location,
+      intent: run.intent,
+      counts: {
+        found: run.collected,
+        added: run.createdCount,
+        duplicates: run.duplicateCount,
+        filtered: run.rejectedCount,
+        uncertain: run.uncertainCount,
+      },
+      added: accept.map((c) => ({
+        id: c.id,
+        companyName: c.companyName,
+        canonicalUrl: c.canonicalUrl,
+        canonicalDomain: c.canonicalDomain,
+        reason: c.reason,
+        leadId: c.leadId,
+        lead: c.lead,
+      })),
+      filtered: reject
+        .filter((c) => !c.reason?.startsWith('DUPLICATE'))
+        .map((c) => ({
+          id: c.id,
+          companyName: c.companyName,
+          canonicalUrl: c.canonicalUrl,
+          canonicalDomain: c.canonicalDomain,
+          reason: c.reason,
+        })),
+      duplicates: reject
+        .filter((c) => c.reason?.startsWith('DUPLICATE'))
+        .map((c) => ({
+          id: c.id,
+          companyName: c.companyName,
+          canonicalUrl: c.canonicalUrl,
+          canonicalDomain: c.canonicalDomain,
+          reason: c.reason,
+          leadId: c.leadId,
+          lead: c.lead,
+        })),
+      uncertain: uncertain.map((c) => ({
+        id: c.id,
+        companyName: c.companyName,
+        canonicalUrl: c.canonicalUrl,
+        canonicalDomain: c.canonicalDomain,
+        reason: c.reason,
+      })),
     };
   }
 }

@@ -171,6 +171,7 @@ model Lead {
   visualAnalysis VisualAnalysis?
   site           Site?
   redesignRuns   RedesignRun[]
+  candidates     DiscoveryCandidate[]
 
   @@unique([source, sourceId])
   @@index([city])
@@ -724,6 +725,12 @@ model SitePreviewScreenshot {
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
 }
 
+enum DiscoveryDecision {
+  ACCEPT
+  REJECT
+  UNCERTAIN
+}
+
 model DiscoveryRun {
   id        String   @id @default(cuid())
   provider  String
@@ -731,6 +738,7 @@ model DiscoveryRun {
   query     String
   topic     String?
   location  String?
+  intent    String?
   limit     Int      @default(50)
   maxPages  Int?
   providerOptions Json?    @default("{}")
@@ -739,13 +747,51 @@ model DiscoveryRun {
   collected Int      @default(0)
   createdCount Int   @default(0)
   duplicateCount Int @default(0)
+  rejectedCount Int @default(0)
+  uncertainCount Int @default(0)
   errorMessage String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  candidates DiscoveryCandidate[]
+
   @@index([provider])
   @@index([status])
   @@index([createdAt])
+}
+
+model DiscoveryCandidate {
+  id              String   @id @default(cuid())
+  runId           String
+  source          String
+  sourceId        String?
+  companyName     String
+  canonicalUrl    String?
+  canonicalDomain String?
+  registrableDomain String?
+  website         String?
+  websiteDomain   String?
+  phone           String?
+  address         String?
+  categories      String[]
+  latitude        Float?
+  longitude       Float?
+  sourceUrl       String?
+  decision        DiscoveryDecision @default(UNCERTAIN)
+  reason          String?
+  confidence      Float?
+  matchedConcepts String[]
+  leadId          String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  run  DiscoveryRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+  lead Lead?        @relation(fields: [leadId], references: [id])
+
+  @@index([runId])
+  @@index([leadId])
+  @@index([canonicalDomain])
+  @@index([decision])
 }
 
 model DiscoveryProviderConfig {

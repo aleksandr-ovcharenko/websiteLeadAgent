@@ -63,6 +63,7 @@ export const api = {
     return request(`/api/leads/stats${qs}`) as Promise<any>;
   },
   getDiscoveryRunStats: (runId: string) => request(`/api/discovery/runs/${runId}/stats`) as Promise<any>,
+  getDiscoveryRunCandidates: (runId: string) => request(`/api/discovery/runs/${runId}/candidates`) as Promise<any>,
   reviewLead: (leadId: string, status: string, note?: string) => request(`/api/leads/${leadId}/review`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, note }) }) as Promise<{ ok: boolean; lead: any }>,
   setRedesignStage: (leadId: string, stage: string) => request(`/api/leads/${leadId}/redesign`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ stage }) }) as Promise<{ ok: boolean; lead: any }>,
 

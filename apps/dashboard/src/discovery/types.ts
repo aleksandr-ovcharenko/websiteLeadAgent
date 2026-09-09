@@ -27,6 +27,7 @@ export interface DiscoveryProviderMeta {
 export interface DiscoveryRequest {
   provider: string;
   query: string;
+  intent?: string;
   topic?: string;
   location?: string;
   limit: number;

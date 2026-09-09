@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../cms/api';
 import { Button } from '../cms/ui';
+import DiscoveryRunDetail from './DiscoveryRunDetail';
 
 interface DiscoveryRun {
   id: string;
@@ -12,6 +13,8 @@ interface DiscoveryRun {
   collected: number;
   createdCount: number;
   duplicateCount: number;
+  rejectedCount: number;
+  uncertainCount: number;
   errorMessage?: string;
   createdAt: string;
 }
@@ -26,6 +29,7 @@ export default function RadarHistory({ onNewDiscovery, onDuplicate }: RadarHisto
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
 
   const refresh = async () => {
     setLoading(true);
@@ -110,7 +114,11 @@ export default function RadarHistory({ onNewDiscovery, onDuplicate }: RadarHisto
               </thead>
               <tbody>
                 {runs.map((run) => (
-                  <tr key={run.id} className="border-b border-border last:border-0">
+                  <tr
+                    key={run.id}
+                    className={`border-b border-border last:border-0 cursor-pointer ${selected === run.id ? 'bg-surface-raised' : 'hover:bg-surface-raised'}`}
+                    onClick={() => setSelected(selected === run.id ? null : run.id)}
+                  >
                     <td className="py-2.5 px-3 text-[13px] font-medium text-text">{run.provider}</td>
                     <td className="py-2.5 px-3 text-[12px] text-text">
                       <div className="truncate max-w-[200px]">{run.query}</div>
@@ -120,7 +128,7 @@ export default function RadarHistory({ onNewDiscovery, onDuplicate }: RadarHisto
                       <span className={`text-[10px] px-1.5 py-0.5 rounded ${statusClass(run.status)}`}>{run.status}</span>
                     </td>
                     <td className="py-2.5 px-3 text-[12px] text-text">
-                      {run.collected} found · {run.createdCount} new leads · {run.duplicateCount} known
+                      {run.collected} found · {run.createdCount} added · {run.duplicateCount} dup · {run.rejectedCount} filtered · {run.uncertainCount} uncertain
                     </td>
                     <td className="py-2.5 px-3 text-[12px] text-text-subtle">
                       {new Date(run.createdAt).toLocaleString()}
@@ -138,6 +146,7 @@ export default function RadarHistory({ onNewDiscovery, onDuplicate }: RadarHisto
                 ))}
               </tbody>
             </table>
+            {selected && <DiscoveryRunDetail runId={selected} />}
           </div>
         )}
       </div>
