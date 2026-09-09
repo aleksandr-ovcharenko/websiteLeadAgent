@@ -25,10 +25,14 @@ export function getBulkAiEligibility(lead: {
   if (activeOperations.some((o) => o.operationId === 'RUN_VISUAL_ANALYSIS')) {
     return { result: 'SKIPPED', reason: 'ai_running' };
   }
-  // If already success, force=true produces a rerun; otherwise first run.
+  // If already success, force=true produces a rerun;
+  // a previous FAILED visual analysis is an explicit retry path.
   const already = lead.visualAnalysis?.status;
+  let reason = 'first_run';
+  if (already === 'SUCCESS') reason = 'rerun';
+  else if (already === 'FAILED') reason = 'retry';
   return {
     result: 'STARTED',
-    reason: already === 'SUCCESS' ? 'rerun' : 'first_run',
+    reason,
   };
 }

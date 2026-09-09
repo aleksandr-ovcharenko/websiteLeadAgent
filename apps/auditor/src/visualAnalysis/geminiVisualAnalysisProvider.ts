@@ -1,4 +1,4 @@
-import type { VisualAnalysisProvider } from './visualAnalysisProvider.js';
+import { type VisualAnalysisProvider, VisualAnalysisError } from './visualAnalysisProvider.js';
 import { visualAnalysisProviderResultSchema, type VisualAnalysisInput } from './visualAnalysisSchema.js';
 import { UNTAINTED_SYSTEM_PREFIX, wrapUntrustedData } from '@minsk/security';
 
@@ -91,7 +91,10 @@ export class GeminiVisualAnalysisProvider implements VisualAnalysisProvider {
 
     if (!resp.ok) {
       const t = await resp.text().catch(() => '');
-      throw new Error(`Gemini error: ${resp.status} ${t}`);
+      const retryable = resp.status === 429 || resp.status >= 503 || (resp.status >= 500 && resp.status < 600);
+      const code = resp.status === 429 ? 'GEMINI_QUOTA' : `GEMINI_${resp.status}`;
+      const message = resp.status === 429 ? `Gemini quota temporarily unavailable: ${resp.status} ${t}` : `Gemini error: ${resp.status} ${t}`;
+      throw new VisualAnalysisError(message, { retryable, code });
     }
 
     const json = (await resp.json()) as any;

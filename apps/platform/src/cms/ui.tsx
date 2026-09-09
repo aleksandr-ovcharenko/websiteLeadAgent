@@ -35,6 +35,7 @@ interface ButtonProps {
   children: ReactNode
   className?: string
   type?: 'button' | 'submit'
+  'data-testid'?: string
 }
 
 const BTN_VARIANT: Record<ButtonVariant, string> = {
@@ -49,12 +50,13 @@ const BTN_SIZE: Record<string, string> = {
   md: 'h-[30px] px-3 text-[13px] gap-1.5 font-medium',
 }
 
-export function Button({ variant = 'secondary', size = 'md', onClick, disabled, children, className = '', type = 'button' }: ButtonProps) {
+export function Button({ variant = 'secondary', size = 'md', onClick, disabled, children, className = '', type = 'button', 'data-testid': dataTestid }: ButtonProps) {
   return (
     <button
       type={type}
       onClick={onClick}
       disabled={disabled}
+      data-testid={dataTestid}
       className={`inline-flex items-center justify-center rounded transition-colors select-none cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed focus:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-1 ${BTN_VARIANT[variant]} ${BTN_SIZE[size]} ${className}`}
     >
       {children}

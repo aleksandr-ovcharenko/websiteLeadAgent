@@ -493,7 +493,7 @@ app.post('/api/leads/bulk', requireAuth, requirePermission(prisma, 'radar.manage
   }
   if (ids.length > 200) { res.status(400).json({ error: 'too_many_ids' }); return; }
 
-  const results: { id: string; result: 'success' | 'skipped' | 'failed'; reason?: string }[] = [];
+  const results: { id: string; result: 'queued' | 'started' | 'success' | 'skipped' | 'failed'; reason?: string }[] = [];
 
   for (const leadId of ids) {
     try {
@@ -538,7 +538,7 @@ app.post('/api/leads/bulk', requireAuth, requirePermission(prisma, 'radar.manage
           continue;
         }
         const { run } = await operations.execute({ operationId: 'RUN_VISUAL_ANALYSIS', input: { leadId, force: true }, leadId });
-        results.push({ id: leadId, result: 'success', reason: run?.id });
+        results.push({ id: leadId, result: 'queued', reason: run?.id });
       } else { // delete
         await prisma.lead.delete({ where: { id: leadId } });
         results.push({ id: leadId, result: 'success', reason: lead.site ? `site ${lead.site.id} detached` : undefined });

@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import type { PrismaClient } from '@prisma/client';
 import type pino from 'pino';
 import { visualAnalysisResultSchema } from './visualAnalysisSchema.js';
-import type { VisualAnalysisProvider } from './visualAnalysisProvider.js';
+import { type VisualAnalysisProvider, isRetryableVisualError } from './visualAnalysisProvider.js';
 import { computeLeadScoreV2 } from '../scoring/scoreLeadV2.js';
 
 function normalizeSummary(input: { summary: string; maxLen: number }) {
@@ -26,7 +26,8 @@ function toBase64(buf: Buffer) {
   return buf.toString('base64');
 }
 
-function formatVisualError(err: any): { message: string; details?: any } {
+function formatVisualError(err: any): { message: string; details?: any; retryable?: boolean } {
+  const retryable = isRetryableVisualError(err);
   if (err?.issues && Array.isArray(err.issues)) {
     const numeric = err.issues
       .filter((issue: any) => ['modernity', 'visualQuality', 'mobileUX', 'trust', 'ctaQuality', 'contentStructure', 'visualHierarchy', 'brandConsistency', 'redesignPotential'].includes(issue.path?.[0]))
@@ -34,15 +35,17 @@ function formatVisualError(err: any): { message: string; details?: any } {
     if (numeric.length > 0) {
       return {
         message: `AI response validation failed: expected numeric scores but received invalid values for ${numeric.map((n: any) => n.field).join(', ')}.`,
-        details: { fields: numeric }
+        details: { fields: numeric },
+        retryable,
       };
     }
     return {
       message: `AI response validation failed: ${err.issues.map((i: any) => `${i.path?.join('.') ?? 'value'}: ${i.message}`).join('; ')}`,
-      details: { issues: err.issues }
+      details: { issues: err.issues },
+      retryable,
     };
   }
-  return { message: err instanceof Error ? err.message : String(err) };
+  return { message: err instanceof Error ? err.message : String(err), retryable };
 }
 
 async function readJsonIfExists(path: string): Promise<unknown | null> {
@@ -276,7 +279,9 @@ export async function runVisualAnalysisForLead(input: {
       attemptErrors.push({ ...formatted, attempt });
       logger.warn({ runId, leadId, attempt, error: formatted.message }, 'visual.attempt_failed');
       if (attempt === maxAttempts) {
-        const summary = attemptErrors.map((a) => `Attempt ${a.attempt}: ${a.message}`).join(' | ');
+        const anyRetryable = attemptErrors.some((a) => a.retryable);
+        const baseSummary = attemptErrors.map((a) => `Attempt ${a.attempt}: ${a.message}`).join(' | ');
+        const summary = anyRetryable ? `AI temporarily unavailable; retry allowed. ${baseSummary}` : baseSummary;
         await (prisma as any).visualAnalysis.update({
           where: { leadId },
           data: {

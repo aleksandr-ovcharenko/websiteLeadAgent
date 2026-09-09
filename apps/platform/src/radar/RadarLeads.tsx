@@ -341,11 +341,12 @@ setLoading(true);
     setBulkResult(null);
     try {
       const { results } = await api.bulkLeads(ids, action);
-      const ok = results.filter((r) => r.result === 'success').length;
+      const started = results.filter((r) => r.result === 'queued' || r.result === 'started' || r.result === 'success').length;
       const skipped = results.filter((r) => r.result === 'skipped').length;
       const failedIds = results.filter((r) => r.result === 'failed').map((r) => r.id);
       const skippedIds = results.filter((r) => r.result === 'skipped').map((r) => r.id);
-      setBulkResult(`${action}: ${ok} succeeded${skipped ? `, ${skipped} skipped` : ''}${failedIds.length ? `, ${failedIds.length} failed` : ''}`);
+      const verb = action === 'runAi' ? 'started' : 'succeeded';
+      setBulkResult(`${action}: ${started} ${verb}${skipped ? `, ${skipped} skipped` : ''}${failedIds.length ? `, ${failedIds.length} failed` : ''}`);
       // Run AI: keep selection so the user can inspect results then continue.
       if (action !== 'runAi') {
         const keep = new Set([...failedIds, ...skippedIds]);

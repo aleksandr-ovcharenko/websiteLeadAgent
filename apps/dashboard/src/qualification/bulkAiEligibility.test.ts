@@ -12,6 +12,10 @@ describe('getBulkAiEligibility', () => {
     expect(getBulkAiEligibility({ ...base, visualAnalysis: { status: 'SUCCESS' } })).toEqual({ result: 'STARTED', reason: 'rerun' });
   });
 
+  it('marks retry for a lead with a previous AI failure', () => {
+    expect(getBulkAiEligibility({ ...base, visualAnalysis: { status: 'FAILED' } })).toEqual({ result: 'STARTED', reason: 'retry' });
+  });
+
   it('skips website-unreachable leads', () => {
     expect(getBulkAiEligibility({ ...base, websiteStatus: 'FAILED' })).toEqual({ result: 'SKIPPED', reason: 'no_viable_website' });
     expect(getBulkAiEligibility({ ...base, website: null })).toEqual({ result: 'SKIPPED', reason: 'no_viable_website' });
