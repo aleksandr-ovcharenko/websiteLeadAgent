@@ -37,3 +37,40 @@ packages/redesign-engine/data/
 apps/platform/dist/
 docs/screenshots/product-qa/
 apps/platform/e2e/artifacts/
+
+# Generated showcase prototypes (bundled output, videos, screenshots, node_modules)
+/generated-sites/
+
+# Local agent tooling / downloaded skill packs (not project config)
+/.agents/
+
+# One-off per-site prototyping & debug scripts
+scripts/tmp-*
+scripts/atelit-*
+scripts/mapid-*
+scripts/proekt-m-*
+
+# Local milestone verification scripts & v-generation test suites
+scripts/v3[0-9]-*
+scripts/cleanup-v3[0-9]-*
+scripts/gen2-v21-*
+packages/redesign-engine/test/v[0-9]*-*.test.mjs
+
+# Package build output (some dist files are still tracked historically;
+# new build artifacts stay untracked)
+/packages/*/dist/
+
+# Local verification artifacts: Playwright traces/videos, QA screenshots
+test-results/
+playwright-report/
+**/trace.zip
+**/*.webm
+**/*.mp4
+/screenshots/
+/apps/platform/screenshots/
+/design-reference/screenshots/
+/docs/screenshots/
+/docs/style-poc-screenshots/
+/docs/radar-evidence/
+/apps/dashboard/docs/screenshots/
+/apps/platform/e2e/screenshots/
