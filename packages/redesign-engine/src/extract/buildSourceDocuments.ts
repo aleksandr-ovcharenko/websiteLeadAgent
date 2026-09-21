@@ -184,8 +184,10 @@ function elementRegion($el: any, chrome: { header?: any[]; footer?: any[]; nav?:
 }
 
 function identifyChrome($: any) {
-  const header = $('header, [role="banner"], .site-header, .page-header, #header, .header').get();
-  const footer = $('footer, .site-footer, .page-footer, #footer, .footer').get();
+  // Builder template parts (Elementor/ekit, theme header/footer parts) are chrome
+  // even though they are plain divs. Their class names carry -header/-footer tokens.
+  const header = $('header, [role="banner"], .site-header, .page-header, #header, .header, [class*="ekit-template-content-header"], [class*="elementor-location-header"], [class*="template-header"]').get();
+  const footer = $('footer, .site-footer, .page-footer, #footer, .footer, [class*="ekit-template-content-footer"], [class*="elementor-location-footer"], [class*="template-footer"]').get();
   const nav = $('nav, .nav, .navigation, .menu, .main-menu, .site-menu, #nav, .navbar').get();
   return { header, footer, nav };
 }
@@ -755,12 +757,52 @@ function buildSourceDocument(crawledPage: CrawledPage, index: number, baseUrl: s
     }
   });
 
-  const mainCandidates = $('main, [role="main"], article, .content, .main-content, .page-content, [class*="content"]');
-  let mainEl = mainCandidates.first().get(0);
-  if (!mainEl) {
+  // Pick the element that owns the page's main content. Semantic containers
+  // (main/[role=main]/article) win; class-based candidates must not be chrome
+  // themselves, must not contain page chrome, and are ranked by clean text so a
+  // header/footer wrapper named "...-content" can never win over real content.
+  const chromeAll = [...chromeNodes.header, ...chromeNodes.footer, ...chromeNodes.nav];
+  const isChromeOrContainsChrome = (el: any): boolean => {
+    if (!el) return false;
+    if (chromeAll.includes(el)) return true;
+    const cls = ($(el).attr('class') || '').toLowerCase();
+    // Elements whose own class marks them as chrome/template parts are not content.
+    if (/(^|[^a-z])(header|footer|navbar|topbar|offcanvas|drawer|modal|popup)([^a-z]|$)/.test(cls)) return true;
+    for (const c of chromeAll) { if ($.contains(el, c)) return true; }
+    return false;
+  };
+  const textLen = (el: any) => cleanText($(el).text()).length;
+
+  let mainEl: any = undefined;
+  let mainIsFallback = false;
+  const semantic = $('main, [role="main"], article').get().filter((el: any) => !isChromeOrContainsChrome(el));
+  if (semantic.length) {
+    mainEl = semantic.sort((a: any, b: any) => textLen(b) - textLen(a))[0];
+  } else {
+    const classCandidates = $('.content, .main-content, .page-content, #content, #main, [class*="content"]')
+      .get()
+      .filter((el: any) => {
+        const t = (el.tagName || '').toLowerCase();
+        if (t === 'body' || t === 'html') return false;
+        if (isChromeOrContainsChrome(el)) return false;
+        return true;
+      });
+    if (classCandidates.length) {
+      mainEl = classCandidates.sort((a: any, b: any) => textLen(b) - textLen(a))[0];
+    }
+  }
+  {
+    // Fallback candidate: body minus chrome. Always considered — a chrome
+    // wrapper can win the class-candidate race purely by matching
+    // `[class*="content"]` (e.g. `ekit-template-content-header`), so the
+    // larger clean-text root wins regardless of the candidate's size.
     const bodyClone = $('body').clone();
-    bodyClone.find('header, footer, nav, [role="banner"], [class*="cookie"]').remove();
-    mainEl = bodyClone.get(0) || $('body').get(0);
+    bodyClone.find('script, style, noscript, svg, canvas, template, header, footer, nav, [role="banner"], [class*="cookie"], [class*="ekit-template-content-header"], [class*="ekit-template-content-footer"], [class*="elementor-location-header"], [class*="elementor-location-footer"], [class*="template-header"], [class*="template-footer"]').remove();
+    const fallback = bodyClone.get(0);
+    if (fallback && textLen(fallback) > textLen(mainEl)) {
+      mainEl = fallback;
+      mainIsFallback = true;
+    }
   }
 
   const sections: SourceDocumentSection[] = [];
@@ -787,12 +829,42 @@ function buildSourceDocument(crawledPage: CrawledPage, index: number, baseUrl: s
     const si = extractImageAttributes($, img, baseUrl, pageUrl);
     const $el = $(img);
     const region = elementRegion($el, chromeNodes);
-    si.region = region === 'unknown' && (mainEl && $.contains(mainEl as any, img as any)) ? 'main' : region;
+    si.region = region === 'unknown' && mainEl && (mainIsFallback ? !isChromeOrContainsChrome(img) : $.contains(mainEl as any, img as any)) ? 'main' : region;
     imageMap.set(src, si);
     allImages.push(si);
   });
 
+  // Non-<img> image surfaces: CSS background images and slider data-*
+  // attributes (e.g. WPR/gallery sliders that lazy-render via JS). Without
+  // these, gallery-heavy detail pages appear imageless.
+  const BG_ATTRS = ['data-back', 'data-bg', 'data-background', 'data-bg-image', 'data-lazy-background'];
+  $('[style*="background"], [data-back], [data-bg], [data-background], [data-bg-image], [data-lazy-background]').each((_: number, el: any) => {
+    const urls: string[] = [];
+    const style = $(el).attr('style') || '';
+    const bgMatch = style.match(/background(?:-image)?[^;]*url\(['"]?([^)'"]+)['"]?\)/);
+    if (bgMatch) urls.push(bgMatch[1]);
+    for (const attr of BG_ATTRS) {
+      const v = $(el).attr(attr);
+      if (v && /\.(jpe?g|png|webp|avif|gif|svg)(\?|$)/i.test(v)) urls.push(v);
+    }
+    for (const raw of urls) {
+      const src = normalizeUrl(baseUrl, raw);
+      if (!src || imageMap.has(src)) continue;
+      const region = elementRegion($(el), chromeNodes);
+      const si: SourceDocumentImage = {
+        src,
+        alt: $(el).attr('data-alt') || $(el).attr('aria-label') || undefined,
+        domPath: buildDomPath(el),
+        region: region === 'unknown' && mainEl && (mainIsFallback ? !isChromeOrContainsChrome(el) : $.contains(mainEl as any, el as any)) ? 'main' : region,
+        provenance: { sourcePageUrl: pageUrl, isBackground: true, sourceSelector: buildDomPath(el) },
+      };
+      imageMap.set(src, si);
+      allImages.push(si);
+    }
+  });
+
   // Enrich with CrawledPage image metadata (dimensions, likely logo/hero flags from browser).
+  const LOGOISH_RE = /logo|лого|логотип|icon|favicon|sprite|removebg|cropped|placeholder|avatar/i;
   for (const ci of crawledPage.images || []) {
     const key = normalizeUrl(baseUrl, ci.src) || ci.src;
     const si = imageMap.get(key);
@@ -802,6 +874,16 @@ function buildSourceDocument(crawledPage: CrawledPage, index: number, baseUrl: s
       si.provenance.isLogo = ci.likelyLogo;
       si.provenance.isHero = ci.likelyHero;
       si.alt = si.alt || ci.alt;
+    }
+  }
+  // Heuristic logo/icon detection independent of the browser pass:
+  // alt/filename markers, or a tiny square raster linked to the site root.
+  for (const si of imageMap.values()) {
+    const fname = (() => { try { return new URL(si.src).pathname.split('/').pop() || ''; } catch { return si.src; } })();
+    const haystack = `${si.alt || ''} ${fname} ${si.domPath || ''}`;
+    const tiny = (si.width || 0) > 0 && (si.height || 0) > 0 && (si.width || 0) <= 200 && (si.height || 0) <= 200;
+    if (si.provenance.isLogo !== true && (LOGOISH_RE.test(haystack) || (tiny && si.region !== 'main'))) {
+      si.provenance.isLogo = true;
     }
   }
 

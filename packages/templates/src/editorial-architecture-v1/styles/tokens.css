@@ -1,0 +1,23 @@
+:root {
+  /* Showcase CSP disallows external font hosts — use local editorial stacks. */
+  --font-display: 'Iowan Old Style', 'Palatino Linotype', Palatino, Georgia, serif;
+  --font-body: 'Inter', 'Helvetica Neue', system-ui, sans-serif;
+
+  --bg: #f2ede4;
+  --bg-2: #e8e2d6;
+  --ink: #181512;
+  --muted: #6b6257;
+  --accent: #a8451e;
+  --rule: rgba(24, 21, 18, 0.18);
+  --rule-strong: rgba(24, 21, 18, 0.4);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --duration-press: 140ms;
+  --duration-ui: 200ms;
+  --duration-reveal: 600ms;
+  --stagger-copy: 60ms;
+
+  --max-w: 1240px;
+  --header-h: 4rem;
+}

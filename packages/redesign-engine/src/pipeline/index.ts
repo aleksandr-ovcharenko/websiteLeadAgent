@@ -4,11 +4,14 @@ import { PrismaClient } from '@prisma/client';
 import { crawlSite } from '../crawl/crawlSite.js';
 import { buildSourceDocuments, sourceDocumentToCrawledPage } from '../extract/buildSourceDocuments.js';
 import { extractFromCrawl } from '../extract/extractFromCrawl.js';
+import { graphToImportContent } from '../import/graphToImportContent.js';
+import type { GraphImportProvenance } from '../import/graphToImportContent.js';
 import { importToCms } from '../import/importToCms.js';
 import { validateGeneratedSite } from './validateSite.js';
 import { buildSourceContentGraph } from '../semantic/graph.js';
 import { ensureDependencySnapshot, linkSiteBuildSnapshot } from '../security/snapshot.js';
 import type { CrawlResult } from '../types.js';
+import type { ExtractedContent } from '../../../content-schema/dist/index.js';
 
 function slugify(input: string): string {
   return input
@@ -36,11 +39,18 @@ export interface GenerateOptions {
   crawlRunId?: string;
   /** When true, build source-documents.json and source-content-graph.json and stop before legacy extraction/CMS import (Phase 2A shadow mode). */
   semanticOnly?: boolean;
+  /** Compatibility fallback for tests only: source the CMS import contract from
+   *  legacy extractFromCrawl instead of the SourceContentGraph. Canonical
+   *  generation must leave this unset. */
+  useLegacyExtraction?: boolean;
   maxPages?: number;
   maxDepth?: number;
   timeoutMs?: number;
   prisma?: PrismaClient;
   onActivity?: ActivityHandler;
+  /** Explicit test mode: produces a site marked as fixture (hidden from Forge). */
+  fixture?: boolean;
+  fixtureOwner?: string;
 }
 
 export interface RunCrawlOptions {
@@ -181,8 +191,16 @@ export async function generateSite(options: GenerateOptions) {
 
   await emit('INFO', 'FACTORY_STARTED', 'Starting site generation', { leadId: l.id });
 
-  if (l.manualReviewStatus !== 'GOOD') {
+  if (l.manualReviewStatus !== 'GOOD' && !options.fixture) {
     throw new Error(`Lead ${l.id} is not GOOD (status: ${l.manualReviewStatus})`);
+  }
+
+  // Generation gate: a customer-facing site is impossible without a real
+  // source URL + crawl artifact. Fixture mode must be explicit.
+  if (!options.fixture) {
+    if (!l.website || !/^https?:\/\//.test(l.website)) {
+      throw new Error(`Lead ${l.id} has no valid website — refusing to generate a customer site without a source URL`);
+    }
   }
 
   let run: any;
@@ -269,10 +287,27 @@ export async function generateSite(options: GenerateOptions) {
       return { leadId: l.id, runId: run.id, sourceDocumentsJsonPath, sourceContentGraphPath, sourceContentGraph };
     }
 
-    // LEGACY/V1: extract structured content for the current live generator.
-    // This path is intentionally kept multilingual and will be replaced by Phase 2 semantic generation.
-    const crawledPages = sourceDocuments.map(sourceDocumentToCrawledPage);
-    const content = extractFromCrawl(crawledPages, baseUrl, sourceDocuments[0]?.chrome.nav?.primary || crawlResult.navigation || []);
+    // CANONICAL (V3.6): the CMS import contract is derived from the
+    // SourceContentGraph — not from legacy extractFromCrawl. The legacy path
+    // remains available behind `useLegacyExtraction` for compatibility tests
+    // only; canonical generation never sources CMS entities from it.
+    const primaryNav = sourceDocuments.find((d) => d.isHomepage)?.chrome.nav?.primary
+      || sourceDocuments[0]?.chrome.nav?.primary
+      || crawlResult.navigation || [];
+    let content: ExtractedContent;
+    let graphImportProvenance: GraphImportProvenance | undefined;
+    if (options.useLegacyExtraction) {
+      const crawledPages = sourceDocuments.map(sourceDocumentToCrawledPage);
+      content = extractFromCrawl(crawledPages, baseUrl, primaryNav);
+      await emit('WARN', 'FACTORY_LEGACY_EXTRACTION', 'Legacy extractFromCrawl used (compatibility fallback — not canonical)');
+    } else {
+      const adapted = graphToImportContent({ graph: sourceContentGraph, sourceDocuments, baseUrl, navigation: primaryNav });
+      content = adapted.content;
+      graphImportProvenance = adapted.provenance;
+      const provPath = join(artifactDir, 'graph-import-provenance.json');
+      await writeFile(provPath, JSON.stringify(graphImportProvenance, null, 2));
+      await emit('INFO', 'FACTORY_GRAPH_IMPORT_ADAPTED', `Graph→import contract built (${content.services.length} services, ${content.projects.length} projects, ${content.pages.length} pages)`, { graphImportProvenancePath: provPath, dropped: graphImportProvenance.droppedEntities.length });
+    }
     const contentJsonPath = join(artifactDir, 'content.json');
     await writeFile(contentJsonPath, JSON.stringify(content, null, 2));
     await emit('INFO', 'FACTORY_CONTENT_TRANSFORMED', 'Content extracted and transformed', { pages: content?.pages?.length ?? 0 });
@@ -303,7 +338,9 @@ export async function generateSite(options: GenerateOptions) {
       artifactDir,
       storageBaseUrl: '/redesign-media',
       runId: run.id,
-      regenerateContent
+      regenerateContent,
+      fixture: options.fixture,
+      fixtureOwner: options.fixtureOwner
     }, prisma);
     await emit('INFO', 'FACTORY_CMS_IMPORT_COMPLETED', 'CMS import completed', { siteId, demoVariantId, previewSlug });
 

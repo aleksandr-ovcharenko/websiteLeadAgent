@@ -86,7 +86,7 @@ interface ProductEditorProps {
   onNavigate: (s: Screen) => void
 }
 
-const mediaUrlOf = (siteId: string, m: any) => m ? `/site-media/${siteId}/${m.filename}` : ''
+import { mediaUrlOf } from './mediaUrl'
 
 export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
   const { siteId, products, refresh, site, media } = useStudio()

@@ -26,6 +26,10 @@ export interface HomepageSection {
   limit?: number;
   displayVariant?: string;
   selectedItemIds?: string[];
+  /** Original Page.blocks payload when the section was resolved from canonical blocks. */
+  block?: Record<string, any>;
+  /** False when the active template cannot render this section type. */
+  supported?: boolean;
 }
 
 export type RenderNode = any;
@@ -60,6 +64,8 @@ export interface RenderContext {
   mediaMap: Map<string, any>;
   route: string;
   subRoute?: string;
+  /** The token the page was requested with (variant token takes precedence over site token). */
+  previewToken?: string;
   manifest?: TemplateManifest;
   stylePreset?: string;
 }

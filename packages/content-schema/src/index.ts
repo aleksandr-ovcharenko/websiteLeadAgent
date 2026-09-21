@@ -1,8 +1,15 @@
 import { z } from 'zod';
 
+// Canonical composition contract for Page.blocks.
+// - id: stable block identifier (persisted across Studio save/load round-trips)
+// - enabled: visibility toggle; disabled blocks keep their data but don't render
+// - displayVariant: optional template-level presentation variant
+// - .passthrough(): unknown fields must survive Studio/API round-trips
 export const blockBaseSchema = z.object({
   id: z.string().optional(),
-});
+  enabled: z.boolean().optional(),
+  displayVariant: z.string().optional(),
+}).passthrough();
 
 export const heroBlockSchema = blockBaseSchema.extend({
   type: z.literal('hero'),
@@ -30,22 +37,28 @@ export const galleryBlockSchema = blockBaseSchema.extend({
   imageIds: z.array(z.string()).default([]),
 });
 
+// Collection blocks select CMS entities: optional heading, limit and
+// explicit selectedItemIds (order preserved). limit is nullable because
+// Studio historically writes `null` for "all items".
+const collectionFields = {
+  limit: z.number().nullable().optional(),
+  heading: z.string().optional(),
+  selectedItemIds: z.array(z.string()).optional(),
+};
+
 export const servicesBlockSchema = blockBaseSchema.extend({
   type: z.literal('services'),
-  limit: z.number().optional(),
-  heading: z.string().optional(),
+  ...collectionFields,
 });
 
 export const projectsBlockSchema = blockBaseSchema.extend({
   type: z.literal('projects'),
-  limit: z.number().optional(),
-  heading: z.string().optional(),
+  ...collectionFields,
 });
 
 export const newsBlockSchema = blockBaseSchema.extend({
   type: z.literal('news'),
-  limit: z.number().optional(),
-  heading: z.string().optional(),
+  ...collectionFields,
 });
 
 export const reviewsBlockSchema = blockBaseSchema.extend({
@@ -68,8 +81,7 @@ export const aboutBlockSchema = blockBaseSchema.extend({
 
 export const vacanciesBlockSchema = blockBaseSchema.extend({
   type: z.literal('vacancies'),
-  heading: z.string().optional(),
-  limit: z.number().optional(),
+  ...collectionFields,
 });
 
 export const ctaBlockSchema = blockBaseSchema.extend({
@@ -85,6 +97,23 @@ export const contactsBlockSchema = blockBaseSchema.extend({
   heading: z.string().optional(),
 });
 
+// Unknown block types (e.g. legacy team/stats/map written by older Studio
+// versions) are not part of the canonical schema, but they must survive
+// open/save round-trips instead of being silently dropped or rejected.
+const KNOWN_BLOCK_TYPES: readonly string[] = [
+  'hero', 'text', 'image', 'gallery', 'services', 'projects',
+  'news', 'reviews', 'about', 'vacancies', 'cta', 'contacts',
+];
+
+export const unknownBlockSchema = z.object({
+  // Excludes canonical types so a malformed known block still fails the union.
+  type: z.string().min(1).refine((t) => !KNOWN_BLOCK_TYPES.includes(t), {
+    message: 'known block type must validate against its own schema',
+  }),
+  id: z.string().optional(),
+  enabled: z.boolean().optional(),
+}).passthrough();
+
 export const contentBlockSchema = z.union([
   heroBlockSchema,
   textBlockSchema,
@@ -98,7 +127,72 @@ export const contentBlockSchema = z.union([
   vacanciesBlockSchema,
   ctaBlockSchema,
   contactsBlockSchema,
+  unknownBlockSchema,
 ]);
+
+export const SUPPORTED_BLOCK_TYPES = KNOWN_BLOCK_TYPES;
+
+const blockTypeSchemas: Record<string, z.ZodTypeAny> = {
+  hero: heroBlockSchema,
+  text: textBlockSchema,
+  image: imageBlockSchema,
+  gallery: galleryBlockSchema,
+  services: servicesBlockSchema,
+  projects: projectsBlockSchema,
+  news: newsBlockSchema,
+  reviews: reviewsBlockSchema,
+  about: aboutBlockSchema,
+  vacancies: vacanciesBlockSchema,
+  cta: ctaBlockSchema,
+  contacts: contactsBlockSchema,
+};
+
+export interface BlockValidationResult {
+  ok: boolean;
+  errors: string[];
+  blocks: any[];
+}
+
+// Runtime validation for CMS writes. Known block types are validated against
+// their canonical schema; unknown types are preserved verbatim (with a stable
+// type/id/enabled shape) so they are never silently dropped.
+export function validateContentBlocks(input: unknown): BlockValidationResult {
+  if (!Array.isArray(input)) {
+    return { ok: false, errors: ['blocks must be an array'], blocks: [] };
+  }
+  const errors: string[] = [];
+  const blocks: any[] = [];
+  input.forEach((b, i) => {
+    if (!b || typeof b !== 'object' || Array.isArray(b)) {
+      errors.push(`blocks[${i}]: must be an object`);
+      return;
+    }
+    const type = (b as any).type;
+    if (typeof type !== 'string' || !type.trim()) {
+      errors.push(`blocks[${i}]: missing or invalid "type"`);
+      return;
+    }
+    const schema = blockTypeSchemas[type];
+    if (!schema) {
+      const res = unknownBlockSchema.safeParse(b);
+      if (!res.success) {
+        errors.push(`blocks[${i}] (${type}): ${res.error.issues.map((x) => x.message).join('; ')}`);
+        return;
+      }
+      blocks.push({ ...res.data, enabled: res.data.enabled !== false });
+      return;
+    }
+    const res = schema.safeParse(b);
+    if (!res.success) {
+      errors.push(
+        `blocks[${i}] (${type}): ${res.error.issues.map((x) => `${x.path.join('.') || 'root'} — ${x.message}`).join('; ')}`,
+      );
+      return;
+    }
+    blocks.push({ ...res.data, enabled: res.data.enabled !== false });
+  });
+  return { ok: errors.length === 0, errors, blocks };
+}
 
 export const contentMediaSchema = z.object({
   id: z.string().optional(),

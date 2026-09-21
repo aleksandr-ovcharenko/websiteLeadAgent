@@ -129,13 +129,23 @@ function SiteThumbnail({
 
   return (
     <div className={`relative group overflow-hidden bg-surface-hover ${className}`}>
-      <img
-        src={site.image}
-        alt={`${site.name} website preview`}
-        className={`w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.02] ${
-          isArchived ? "grayscale opacity-60" : ""
-        }`}
-      />
+      {site.image ? (
+        <img
+          src={site.image}
+          alt={`${site.name} website preview`}
+          className={`w-full h-full object-cover object-top transition-transform duration-300 group-hover:scale-[1.02] ${
+            isArchived ? "grayscale opacity-60" : ""
+          }`}
+        />
+      ) : (
+        <div className="w-full h-full min-h-[140px] flex flex-col items-center justify-center gap-1.5 text-text-subtle">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.25">
+            <rect x="3" y="4" width="18" height="14" rx="1.5" />
+            <path d="M3 15l5-5 4 4 3-3 6 6" />
+          </svg>
+          <span className="text-[11px]">No preview captured</span>
+        </div>
+      )}
 
       {/* failed overlay */}
       {hasFailed && (
@@ -354,6 +364,21 @@ function DetailPanel({
               <span className="w-1.5 h-1.5 rounded-full bg-warning" />
               <span className="text-xs text-warning">{site.attention}</span>
             </div>
+          </div>
+        )}
+
+        {(!site.image || site.attention === 'Screenshot missing' || site.attention === 'Preview outdated') && (
+          <div className="px-5 py-3 border-b border-border">
+            <button
+              onClick={async () => {
+                const r = await fetch(`/api/platform/sites/${site.id}/screenshot`, { method: 'POST', credentials: 'include' });
+                if (!r.ok) { alert('Screenshot capture failed'); return; }
+                window.location.reload();
+              }}
+              className="w-full h-8 border border-border text-text text-xs rounded hover:bg-surface-raised transition-colors"
+            >
+              {site.image ? 'Recapture preview' : 'Capture preview'}
+            </button>
           </div>
         )}
 
@@ -994,7 +1019,11 @@ function ForgeView() {
                             >
                               Original ↗
                             </a>
-                          ) : null}
+                          ) : (
+                            <span className="h-7 px-2.5 text-xs inline-flex items-center text-text-subtle" title="Lead has no source website URL">
+                              Original URL missing
+                            </span>
+                          )}
                           <button
                             onClick={() => openPreview(site)}
                             className="h-7 px-2.5 text-xs border border-border text-text-muted rounded hover:bg-surface-raised transition-colors"
@@ -1137,7 +1166,11 @@ function ForgeView() {
                           >
                             Original ↗
                           </a>
-                        ) : null}
+                        ) : (
+                          <span className="h-7 px-1 text-[10px] inline-flex items-center text-text-subtle" title="Lead has no source website URL">
+                            no URL
+                          </span>
+                        )}
                         <button
                           onClick={() => openPreview(site)}
                           className="h-7 px-2.5 text-xs border border-border text-text-muted rounded hover:bg-surface-raised transition-colors"

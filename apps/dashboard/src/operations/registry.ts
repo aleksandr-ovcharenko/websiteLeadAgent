@@ -11,6 +11,7 @@ import { OpenAiVisualAnalysisProvider } from '../../../auditor/src/visualAnalysi
 import { computeLeadScoreV2 } from '../../../auditor/src/scoring/scoreLeadV2.js';
 import { enrichLeads } from '../../../collector/src/enrichment/enrichLeads.js';
 import { generateSite, runCrawl } from '@minsk/redesign-engine';
+import { captureSitePreview, captureVariantPreview } from '../../../../packages/screenshot/src/index.js';
 import type { RunContext } from './OperationService.js';
 import { ActivityService } from '../activity/ActivityService.js';
 import { QualificationOrchestrator } from '../qualification/QualificationOrchestrator.js';
@@ -406,7 +407,7 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
       category: 'factory',
       description: 'Generate the demo site from a previously produced crawl artifact (crawlRunId). Mode: retry (preserve existing CMS), regenerate (replace generated content).',
       requiredRole: 'SUPER_ADMIN',
-      inputSchema: { leadId: 'string', crawlRunId: 'string', force: 'boolean', mode: 'string' },
+      inputSchema: { leadId: 'string', crawlRunId: 'string', force: 'boolean', mode: 'string', templateId: 'string' },
       supportsCancel: false,
       handler: async (ctx, input) => {
         const mode = input.mode ?? 'retry';
@@ -414,6 +415,7 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
         const result = await generateSite({
           leadId: input.leadId,
           crawlRunId: input.crawlRunId,
+          templateId: input.templateId,
           force: input.force ?? false,
           mode,
           prisma: deps.prisma,
@@ -429,6 +431,27 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
             });
           },
         });
+
+        // Best-effort: refresh Forge card + per-variant screenshots after a
+        // successful build so cards never show stale/broken images.
+        try {
+          const site = await deps.prisma.site.findUnique({
+            where: { id: result.siteId },
+            include: { demoVariants: { where: { status: 'ACTIVE' } }, builds: { orderBy: { createdAt: 'desc' }, take: 5 } }
+          });
+          if (site) {
+            const preferred = site.demoVariants.find((v: any) => v.isPreferred) ?? site.demoVariants[0];
+            for (const v of site.demoVariants) {
+              await captureVariantPreview(site as any, v, deps.prisma).catch((e: any) =>
+                deps.logger.warn({ err: e?.message }, 'variant screenshot failed'));
+            }
+            await captureSitePreview({ ...(site as any), previewTokenOverride: preferred?.previewToken }, deps.prisma).catch((e: any) =>
+              deps.logger.warn({ err: e?.message }, 'site screenshot failed'));
+          }
+        } catch (e: any) {
+          deps.logger.warn({ err: e?.message }, 'post-generate screenshot capture failed');
+        }
+
         await ctx.success(`Site generated: ${result.previewSlug}`, { stage: 'demo_generated', metadata: result });
         return result;
       },

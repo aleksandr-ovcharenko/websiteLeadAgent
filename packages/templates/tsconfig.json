@@ -13,6 +13,11 @@
     "src/construction-industrial-v1/*.tsx",
     "src/construction-industrial-v1/index.css",
     "src/construction-industrial-v1/imports/**/*",
-    "src/construction-industrial-v1/vite-env.d.ts"
+    "src/construction-industrial-v1/vite-env.d.ts",
+    "src/editorial-architecture-v1/App.tsx",
+    "src/editorial-architecture-v1/cms.ts",
+    "src/editorial-architecture-v1/main.tsx",
+    "src/editorial-architecture-v1/components/**/*",
+    "src/editorial-architecture-v1/styles/**/*"
   ]
 }

@@ -4,8 +4,7 @@ import { IconEdit, IconTrash, IconMore, IconChevronLeft, IconPlus, IconEye, Icon
 import { Badge, Button, SearchInput, FilterTabs, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
 import { useStudio, formatDate } from './context'
 import { api, uiStatus, apiStatus } from './api'
-
-const mediaUrlOf = (siteId: string, m: any) => m ? `/site-media/${siteId}/${m.filename}` : ''
+import { mediaUrlOf } from './mediaUrl'
 
 interface ProjectsListProps {
   onNavigate: (s: Screen, id?: string) => void

@@ -209,7 +209,7 @@ function extractHtmlColors(html: string): string[] {
   return [...new Set(matches)];
 }
 
-function inferTheme(homepage: CrawledPage | undefined): { primaryColor: string; secondaryColor: string; accentColor: string; backgroundColor: string; surfaceColor: string; textColor: string; mutedColor: string; borderColor: string; source: 'extracted' | 'inferred' | 'default' } {
+export function inferTheme(homepage: CrawledPage | undefined): { primaryColor: string; secondaryColor: string; accentColor: string; backgroundColor: string; surfaceColor: string; textColor: string; mutedColor: string; borderColor: string; source: 'extracted' | 'inferred' | 'default' } {
   const tc = homepage?.themeColors || {};
   const candidates = [tc.buttonBg, tc.headerBg, tc.linkColor, tc.accent].filter(Boolean) as string[];
   let primary: string | undefined;

@@ -40,7 +40,8 @@ function flatToTree(flat: any[]): MenuTreeItem[] {
       targetType,
       target: item.target || (isSectionLike ? (item.url || '').replace(/^#/, '').toUpperCase() : (item.url || '')),
       pageId: item.pageId || '',
-      isVisible: item.isVisible !== false,
+      // Schema field is `visible`; accept legacy `isVisible` too.
+      isVisible: item.visible !== false && item.isVisible !== false,
       showInHeader: item.showInHeader !== false,
       showInFooter: item.showInFooter !== false,
       showOnHomepage: item.showOnHomepage !== false,
@@ -246,7 +247,10 @@ export default function NavEditor({ onNavigate }: NavEditorProps) {
           <span className="text-right">Actions</span>
         </div>
         {items.length === 0 ? (
-          <div className="p-8 text-center text-[13px] text-text-subtle">No menu items yet. <button onClick={handleAddRoot} className="text-accent underline">Add first item</button></div>
+          <div className="p-8 text-center">
+            <p className="text-[13px] font-medium text-warning">Navigation is empty</p>
+            <p className="text-[12px] text-text-subtle mt-1">The public header and footer will render without menu links. <button onClick={handleAddRoot} className="text-accent underline">Add first item</button></p>
+          </div>
         ) : (
           items.map(item => <TreeRow key={item.id} item={item} depth={0} onChange={handleChange} onToggle={handleToggle} onDelete={handleDelete} onAddChild={handleAddChild} onMove={handleMove} />)
         )}

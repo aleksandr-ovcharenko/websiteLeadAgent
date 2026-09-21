@@ -73,6 +73,9 @@ export interface ImportOptions {
   runId?: string;
   /** If true, reconcile CMS content: remove generated records from previous runs not present in the new content set. */
   regenerateContent?: boolean;
+  /** Marks the site as a test fixture — filtered out of Forge by default. */
+  fixture?: boolean;
+  fixtureOwner?: string;
 }
 
 export interface ImportResult {
@@ -92,12 +95,14 @@ export interface ImportResult {
 }
 
 function staleGeneratedWhere(siteId: string, runId: string, keptIds: Set<string>) {
+  // keptIds — not runId — is the authority on what is current: the same
+  // crawlRunId is reused across regenerations, so a stale generated row can
+  // carry today's runId and must still be removed when nothing referenced it.
   return {
     where: {
       siteId,
       AND: [
         { generatedByRunId: { not: null } },
-        { generatedByRunId: { not: runId } },
         { id: { notIn: [...keptIds] } },
       ],
     }
@@ -128,18 +133,50 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   const previewUrl = `http://localhost:3000/showcase/${options.previewSlug}`;
   const themeConfig: any = options.content.theme ? { ...options.content.theme, homepageSections: options.content.homepageSections, hero: options.content.hero, about: options.content.about, cta: options.content.cta, dynamicSections: (options.content as any).dynamicSections || [] } : {};
 
+  const priorSite = await prisma.site.findUnique({ where: { leadId: options.leadId }, select: { settings: true } });
+  const fixtureMarker = options.fixture
+    ? { fixture: true, fixtureOwner: options.fixtureOwner || 'unknown', visibility: 'TEST' }
+    : {};
+  const mergedSettings = { ...((priorSite?.settings as any) || {}), ...fixtureMarker, previewUrl };
+
   const site = await prisma.site.upsert({
     where: { leadId: options.leadId },
-    update: { name: options.siteName, slug: options.siteSlug, previewToken: options.previewSlug, templateId: options.templateId, themeConfig, settings: { previewUrl } as any, status: 'DRAFT' },
-    create: { leadId: options.leadId, name: options.siteName, slug: options.siteSlug, previewToken: options.previewSlug, templateId: options.templateId, themeConfig: themeConfig as any, settings: { previewUrl } as any, status: 'DRAFT' }
+    update: { name: options.siteName, slug: options.siteSlug, templateId: options.templateId, themeConfig, settings: mergedSettings as any, status: 'DRAFT' },
+    create: { leadId: options.leadId, name: options.siteName, slug: options.siteSlug, previewToken: options.previewSlug, templateId: options.templateId, themeConfig: themeConfig as any, settings: mergedSettings as any, status: 'DRAFT' }
   });
   const siteId = site.id;
 
-  const demoVariant = await prisma.demoVariant.upsert({
-    where: { previewToken: options.previewSlug },
-    update: { siteId, templateId: options.templateId, name: options.templateId, isPreferred: true, status: 'ACTIVE', themeConfig, ...(runId ? { generatedByRunId: runId } : {}) },
-    create: { siteId, templateId: options.templateId, previewToken: options.previewSlug, name: options.templateId, isPreferred: true, status: 'ACTIVE', themeConfig: themeConfig as any, ...(runId ? { generatedByRunId: runId } : {}) }
+  // DemoVariant identity is (siteId, templateId): retrying the same template
+  // updates the existing variant and keeps its previewToken stable; a new
+  // variant (and a new token) is created only for a genuinely new template.
+  let demoVariant = await prisma.demoVariant.findFirst({
+    where: { siteId, templateId: options.templateId }
   });
+  if (demoVariant) {
+    demoVariant = await prisma.demoVariant.update({
+      where: { id: demoVariant.id },
+      data: { name: options.templateId, status: 'ACTIVE', themeConfig, ...(runId ? { generatedByRunId: runId } : {}) }
+    });
+  } else {
+    let variantToken = randomId().replace(/[^a-z0-9]/gi, '').slice(0, 12) || `v${Date.now().toString(36)}`;
+    // previewToken is globally unique across sites and variants.
+    while (await prisma.demoVariant.findUnique({ where: { previewToken: variantToken } })
+        || await prisma.site.findUnique({ where: { previewToken: variantToken } })) {
+      variantToken = `v${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    }
+    demoVariant = await prisma.demoVariant.create({
+      data: { siteId, templateId: options.templateId, previewToken: variantToken, name: options.templateId, status: 'ACTIVE', themeConfig: themeConfig as any, ...(runId ? { generatedByRunId: runId } : {}) }
+    });
+  }
+
+  // Exactly one preferred variant per site: the freshly built one.
+  await prisma.demoVariant.updateMany({
+    where: { siteId, id: { not: demoVariant.id }, isPreferred: true },
+    data: { isPreferred: false }
+  });
+  if (!demoVariant.isPreferred) {
+    demoVariant = await prisma.demoVariant.update({ where: { id: demoVariant.id }, data: { isPreferred: true } });
+  }
 
   await prisma.site.update({
     where: { id: siteId },
@@ -196,7 +233,20 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
         continue;
       }
       const buf = Buffer.from(await resp.arrayBuffer());
-      const mime = resp.headers.get('content-type') || 'image/jpeg';
+      const mime = (resp.headers.get('content-type') || '').split(';')[0].trim() || 'image/jpeg';
+      // Never store HTML/404 bodies or empty payloads as images.
+      if (!mime.startsWith('image/')) {
+        console.warn('media rejected: non-image mime', sourceUrl, mime);
+        continue;
+      }
+      if (buf.length === 0) {
+        console.warn('media rejected: zero-byte', sourceUrl);
+        continue;
+      }
+      if (buf.length > 20 * 1024 * 1024) {
+        console.warn('media rejected: too large', sourceUrl, buf.length);
+        continue;
+      }
       const result = await storage.upload({ data: buf, filename: m.filename, mimeType: mime });
       const dbMedia = await prisma.media.create({
         data: {
@@ -322,16 +372,31 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   const keptVacancyIds = new Set<string>();
   const keptMenuItemIds = new Set<string>();
 
+  // Ownership: sourceUrl is the immutable identity of a generated row — the
+  // same source object must always resolve to the same CMS row. A manually
+  // edited row (manualModifiedAt) is kept as-is; regeneration must never
+  // overwrite it or spawn a duplicate sibling at a bumped slug.
+  const ownedSelect = { id: true, slug: true, sourceType: true, generatedByRunId: true, manualModifiedAt: true } as const;
+  async function findOwned(model: any, sourceUrl: string | undefined, slug: string) {
+    if (sourceUrl) {
+      const bySource = await model.findFirst({
+        where: { siteId, sourceUrl },
+        orderBy: { createdAt: 'asc' },
+        select: ownedSelect
+      });
+      if (bySource) return bySource;
+    }
+    return model.findUnique({ where: { siteId_slug: { siteId, slug } }, select: ownedSelect });
+  }
+
   async function upsertPage(p: any) {
-    let slug = uniqueSlug(p.slug);
-    const existing = await prisma.page.findUnique({
-      where: { siteId_slug: { siteId, slug } },
-      select: { id: true, sourceType: true, generatedByRunId: true, manualModifiedAt: true }
-    });
+    const existing = await findOwned(prisma.page, p.sourceUrl, p.slug);
     if (existing && existing.sourceType === 'MANUAL') return undefined;
     if (existing && existing.manualModifiedAt) {
-      slug = uniqueSlug(p.slug);
+      keptPageIds.add(existing.id);
+      return existing;
     }
+    const slug = existing ? existing.slug : uniqueSlug(p.slug);
     const data: any = {
       siteId,
       title: p.title,
@@ -346,7 +411,7 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       publishedAt: new Date(),
       ...ownership
     };
-    const record = existing && !existing.manualModifiedAt ? await prisma.page.update({ where: { id: existing.id }, data }) : await prisma.page.create({ data });
+    const record = existing ? await prisma.page.update({ where: { id: existing.id }, data }) : await prisma.page.create({ data });
     keptPageIds.add(record.id);
     return record;
   }
@@ -356,15 +421,13 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   }
 
   async function upsertService(s: any) {
-    let slug = uniqueSlug(s.slug);
-    const existing = await prisma.service.findUnique({
-      where: { siteId_slug: { siteId, slug } },
-      select: { id: true, sourceType: true, generatedByRunId: true, manualModifiedAt: true }
-    });
+    const existing = await findOwned(prisma.service, s.sourceUrl, s.slug);
     if (existing && existing.sourceType === 'MANUAL') return undefined;
     if (existing && existing.manualModifiedAt) {
-      slug = uniqueSlug(s.slug);
+      keptServiceIds.add(existing.id);
+      return existing;
     }
+    const slug = existing ? existing.slug : uniqueSlug(s.slug);
     const image = mediaFromSourceUrl(s.image?.sourceUrl);
     const data: any = {
       siteId,
@@ -381,7 +444,7 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       sortOrder: 0,
       ...ownership
     };
-    const record = existing && !existing.manualModifiedAt ? await prisma.service.update({ where: { id: existing.id }, data }) : await prisma.service.create({ data });
+    const record = existing ? await prisma.service.update({ where: { id: existing.id }, data }) : await prisma.service.create({ data });
     keptServiceIds.add(record.id);
     return record;
   }
@@ -391,15 +454,13 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   }
 
   async function upsertProject(p: any) {
-    let slug = uniqueSlug(p.slug);
-    const existing = await prisma.project.findUnique({
-      where: { siteId_slug: { siteId, slug } },
-      select: { id: true, sourceType: true, generatedByRunId: true, manualModifiedAt: true }
-    });
+    const existing = await findOwned(prisma.project, p.sourceUrl, p.slug);
     if (existing && existing.sourceType === 'MANUAL') return undefined;
     if (existing && existing.manualModifiedAt) {
-      slug = uniqueSlug(p.slug);
+      keptProjectIds.add(existing.id);
+      return existing;
     }
+    const slug = existing ? existing.slug : uniqueSlug(p.slug);
     const cover = mediaFromSourceUrl(p.coverImage?.sourceUrl);
     const data: any = {
       siteId,
@@ -419,7 +480,7 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       publishedAt: new Date(),
       ...ownership
     };
-    const record = existing && !existing.manualModifiedAt ? await prisma.project.update({ where: { id: existing.id }, data }) : await prisma.project.create({ data });
+    const record = existing ? await prisma.project.update({ where: { id: existing.id }, data }) : await prisma.project.create({ data });
     keptProjectIds.add(record.id);
 
     const newMediaIds = [...new Set<string>((p.gallery || []).map((img: any) => mediaFromSourceUrl(img.sourceUrl)?.id).filter(Boolean))];
@@ -439,15 +500,12 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   }
 
   async function upsertProduct(p: any) {
-    const slug = uniqueSlug(p.slug);
-    const existing = await prisma.product.findUnique({
-      where: { siteId_slug: { siteId, slug } },
-      select: { id: true, sourceType: true, manualModifiedAt: true }
-    });
+    const existing = await findOwned(prisma.product, p.sourceUrl, p.slug);
     if (existing && existing.sourceType === 'MANUAL') return undefined;
     // Human-edited records are authoritative — never overwrite or duplicate
     // them; keep the CMS record and mark it kept.
     if (existing && existing.manualModifiedAt) { keptProductIds.add(existing.id); return existing; }
+    const slug = existing ? existing.slug : uniqueSlug(p.slug);
     const cover = mediaFromSourceUrl(p.coverImage?.sourceUrl);
     const data: any = {
       siteId,
@@ -487,15 +545,13 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   }
 
   async function upsertNews(n: any) {
-    let slug = uniqueSlug(n.slug);
-    const existing = await prisma.newsPost.findUnique({
-      where: { siteId_slug: { siteId, slug } },
-      select: { id: true, sourceType: true, generatedByRunId: true, manualModifiedAt: true }
-    });
+    const existing = await findOwned(prisma.newsPost, n.sourceUrl, n.slug);
     if (existing && existing.sourceType === 'MANUAL') return undefined;
     if (existing && existing.manualModifiedAt) {
-      slug = uniqueSlug(n.slug);
+      keptNewsIds.add(existing.id);
+      return existing;
     }
+    const slug = existing ? existing.slug : uniqueSlug(n.slug);
     const cover = mediaFromSourceUrl(n.coverImage?.sourceUrl);
     const data: any = {
       siteId,
@@ -512,7 +568,7 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       publishedAt: n.publishedAt ? new Date(n.publishedAt) : new Date(),
       ...ownership
     };
-    const record = existing && !existing.manualModifiedAt ? await prisma.newsPost.update({ where: { id: existing.id }, data }) : await prisma.newsPost.create({ data });
+    const record = existing ? await prisma.newsPost.update({ where: { id: existing.id }, data }) : await prisma.newsPost.create({ data });
     keptNewsIds.add(record.id);
     return record;
   }
@@ -522,15 +578,13 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   }
 
   async function upsertVacancy(v: any) {
-    let slug = uniqueSlug(v.slug);
-    const existing = await prisma.vacancy.findUnique({
-      where: { siteId_slug: { siteId, slug } },
-      select: { id: true, sourceType: true, generatedByRunId: true, manualModifiedAt: true }
-    });
+    const existing = await findOwned(prisma.vacancy, v.sourceUrl, v.slug);
     if (existing && existing.sourceType === 'MANUAL') return undefined;
     if (existing && existing.manualModifiedAt) {
-      slug = uniqueSlug(v.slug);
+      keptVacancyIds.add(existing.id);
+      return existing;
     }
+    const slug = existing ? existing.slug : uniqueSlug(v.slug);
     const data: any = {
       siteId,
       title: v.title,
@@ -546,7 +600,7 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       publishedAt: new Date(),
       ...ownership
     };
-    const record = existing && !existing.manualModifiedAt ? await prisma.vacancy.update({ where: { id: existing.id }, data }) : await prisma.vacancy.create({ data });
+    const record = existing ? await prisma.vacancy.update({ where: { id: existing.id }, data }) : await prisma.vacancy.create({ data });
     keptVacancyIds.add(record.id);
     return record;
   }
@@ -562,27 +616,107 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
     menu = await prisma.menu.create({ data: { siteId, name: 'main', isMain: true, ...ownership } as any });
   }
 
-  if (menu) {
-    await prisma.menuItem.deleteMany({ where: { menuId: menu.id, generatedByRunId: { not: null } } });
-  }
-
-  const allPages = await prisma.page.findMany({ where: { siteId }, select: { id: true, sourceUrl: true, isHomepage: true, slug: true } });
+  const allPages = await prisma.page.findMany({ where: { siteId }, orderBy: { createdAt: 'asc' }, select: { id: true, sourceUrl: true, isHomepage: true, slug: true } });
   const pageByUrl = new Map<string, string>(allPages.filter((p: any) => p.sourceUrl).map((p: any) => [p.sourceUrl, p.id]));
   const pageBySlug = new Map<string, string>(allPages.map((p: any) => [p.slug, p.id]));
+  const homepageId = allPages.find((p: any) => p.isHomepage)?.id;
 
-  async function createMenuItems(items: any[], menuId: string, parentId: string | null = null, sortStart = 0) {
+  const SECTION_TARGETS: Record<string, string> = {
+    services: 'SERVICES', service: 'SERVICES', uslugi: 'SERVICES',
+    projects: 'PROJECTS', project: 'PROJECTS', portfolio: 'PROJECTS', objects: 'PROJECTS', works: 'PROJECTS',
+    news: 'NEWS', novosti: 'NEWS',
+    vacancies: 'VACANCIES', vacancy: 'VACANCIES', careers: 'VACANCIES', jobs: 'VACANCIES', vakansii: 'VACANCIES',
+    products: 'PRODUCTS', catalog: 'PRODUCTS', katalog: 'PRODUCTS',
+    about: 'ABOUT', company: 'ABOUT', 'o-kompanii': 'ABOUT', 'o-nas': 'ABOUT',
+    contacts: 'CONTACTS', contact: 'CONTACTS', kontakty: 'CONTACTS',
+  };
+
+  function classifyNavUrl(rawUrl?: string): { targetType: string; target: string; pageId?: string; url?: string } {
+    if (!rawUrl) return { targetType: 'HOME', target: '' };
+    if (rawUrl.startsWith('#')) {
+      const key = rawUrl.replace(/^#/, '').toLowerCase();
+      return { targetType: 'HOME_SECTION', target: (SECTION_TARGETS[key] || key).toUpperCase() };
+    }
+    let path = '';
+    try { path = new URL(rawUrl).pathname; } catch { path = rawUrl; }
+    const clean = path.replace(/^\/+|\/+$/g, '');
+    const lastSeg = clean.split('/').pop() || '';
+    if (!clean || clean === 'index' || clean === 'home') return { targetType: 'HOME', target: '', pageId: homepageId };
+
+    // Single-segment well-known section slugs resolve to homepage sections —
+    // single-page templates render these as anchors, not separate routes.
+    if (!clean.includes('/')) {
+      const section = SECTION_TARGETS[clean] || SECTION_TARGETS[lastSeg];
+      if (section) return { targetType: 'HOME_SECTION', target: section };
+    }
+
+    const pageId = (rawUrl && pageByUrl.get(rawUrl)) || pageBySlug.get(clean) || pageBySlug.get(lastSeg);
+    if (pageId) return { targetType: 'PAGE', target: clean || lastSeg, pageId };
+
+    const section = SECTION_TARGETS[clean] || SECTION_TARGETS[lastSeg];
+    if (section) return { targetType: 'HOME_SECTION', target: section };
+
+    // Unresolvable crawler links stay as external URLs pointing at the source
+    // site — honest provenance, never a dead in-app anchor.
+    if (/^https?:\/\//.test(rawUrl)) return { targetType: 'EXTERNAL_URL', target: '', url: rawUrl };
+    return { targetType: 'CUSTOM_URL', target: '', url: rawUrl.startsWith('/') ? rawUrl : `/${clean}` };
+  }
+
+  // Menu items are deduplicated by resolved-target identity (page/url/target
+  // inside the same parent chain), not by label — a label is editable content.
+  // An existing row that resolves to the same destination is updated in place:
+  // its label is preserved (a manual rename survives regeneration) while
+  // position/flags/ownership are refreshed. Truly stale generated rows are
+  // removed by the keptIds cleanup at the end of the import.
+  const existingMenuItems = menu
+    ? await prisma.menuItem.findMany({ where: { menuId: menu.id }, orderBy: { createdAt: 'asc' } })
+    : [];
+  const menuItemById = new Map<string, any>(existingMenuItems.map((m: any) => [m.id, m]));
+  // HOME is a singleton destination — its identity must not depend on whether
+  // pageId happened to be resolved when the row was first written.
+  const itemIdentity = (m: any) =>
+    m.targetType === 'HOME' ? 'HOME' : `${m.pageId || ''}|${m.url || ''}|${m.targetType || ''}|${m.target || ''}`;
+  const existingItemByKey = new Map<string, any>();
+  for (const m of existingMenuItems) {
+    const chain = [itemIdentity(m)];
+    let p = m.parentId ? menuItemById.get(m.parentId) : null;
+    while (p) { chain.unshift(itemIdentity(p)); p = p.parentId ? menuItemById.get(p.parentId) : null; }
+    const key = chain.join('>');
+    if (!existingItemByKey.has(key)) existingItemByKey.set(key, m);
+  }
+
+  async function createMenuItems(items: any[], menuId: string, parentId: string | null = null, sortStart = 0, parentKey = '') {
     for (let i = 0; i < items.length; i++) {
       const item = items[i];
-      let pageId: string | undefined;
-      if (item.url) {
-        pageId = pageByUrl.get(item.url);
-        if (!pageId) {
-          try {
-            const u = new URL(item.url);
-            const slug = u.pathname.replace(/^\//, '').replace(/\/$/, '').split('/').pop() || '';
-            pageId = pageBySlug.get(slug);
-          } catch {}
+      const resolved = classifyNavUrl(item.url);
+      const identity = resolved.targetType === 'HOME'
+        ? 'HOME'
+        : `${resolved.pageId || ''}|${resolved.url || ''}|${resolved.targetType || ''}|${resolved.target || ''}`;
+      const key = parentKey ? `${parentKey}>${identity}` : identity;
+      const flags = {
+        visible: item.visible !== false,
+        showInHeader: item.showInHeader !== false,
+        showInFooter: item.showInFooter !== false,
+        showOnHomepage: item.showOnHomepage !== false,
+      };
+      const existing = existingItemByKey.get(key);
+      if (existing) {
+        await prisma.menuItem.update({
+          where: { id: existing.id },
+          data: {
+            parentId, sortOrder: sortStart + i,
+            pageId: resolved.pageId ?? null,
+            url: resolved.url ?? null,
+            targetType: resolved.targetType,
+            target: resolved.target || null,
+            ...flags, ...ownership
+          } as any
+        });
+        keptMenuItemIds.add(existing.id);
+        if (item.children?.length) {
+          await createMenuItems(item.children, menuId, existing.id, 0, key);
         }
+        continue;
       }
       const data: any = {
         siteId,
@@ -590,33 +724,42 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
         parentId,
         label: item.label || '—',
         sortOrder: sortStart + i,
-        pageId,
-        url: pageId ? undefined : (item.url ?? undefined),
+        pageId: resolved.pageId ?? null,
+        url: resolved.url ?? null,
+        targetType: resolved.targetType,
+        target: resolved.target || null,
+        ...flags,
         ...ownership
       };
       const created = await prisma.menuItem.create({ data } as any);
       keptMenuItemIds.add(created.id);
       if (item.children?.length) {
-        await createMenuItems(item.children, menuId, created.id, 0);
+        await createMenuItems(item.children, menuId, created.id, 0, key);
       }
     }
   }
 
   const nav = (options.content as any).navigation ?? [];
   if (nav.length > 0 && menu) {
-    await createMenuItems(nav, menu.id);
+    // Guarantee a Home entry: crawler nav often omits it.
+    const hasHome = nav.some((i: any) => {
+      try { const p = new URL(i.url || '', 'http://x').pathname.replace(/^\/+|\/+$/g, ''); return !p || p === 'index'; } catch { return false; }
+    });
+    const fullNav = hasHome ? nav : [{ label: 'Главная', url: '/' }, ...nav];
+    await createMenuItems(fullNav, menu.id);
   }
 
   async function ensureCollectionPage(title: string, baseSlug: string, blockType: string) {
-    let slug = uniqueSlug(baseSlug);
     const existing = await prisma.page.findUnique({
       where: { siteId_slug: { siteId, slug: baseSlug } },
-      select: { id: true, sourceType: true, generatedByRunId: true, manualModifiedAt: true }
+      select: { id: true, sourceType: true, generatedByRunId: true, manualModifiedAt: true, slug: true }
     });
     if (existing && existing.sourceType === 'MANUAL') return undefined;
     if (existing && existing.manualModifiedAt) {
-      slug = uniqueSlug(baseSlug);
+      keptPageIds.add(existing.id);
+      return existing;
     }
+    const slug = existing ? existing.slug : uniqueSlug(baseSlug);
     const data: any = {
       siteId,
       title,
@@ -627,49 +770,41 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       sourceType: generatedSource,
       ...ownership
     };
-    const record = existing && !existing.manualModifiedAt ? await prisma.page.update({ where: { id: existing.id }, data }) : await prisma.page.create({ data });
+    const record = existing ? await prisma.page.update({ where: { id: existing.id }, data }) : await prisma.page.create({ data });
     keptPageIds.add(record.id);
     return record;
   }
 
+  // Localized system labels — customer-visible fallback strings must match
+  // the site language, never hardcoded English on a Russian site.
+  const lang = siteSettingsBase?.language === 'en' ? 'en' : 'ru';
+  const L: Record<string, string> = lang === 'en'
+    ? { home: 'Home', services: 'Services', projects: 'Projects', news: 'News', contacts: 'Contacts' }
+    : { home: 'Главная', services: 'Услуги', projects: 'Проекты', news: 'Новости', contacts: 'Контакты' };
+
   const home = await prisma.page.findFirst({ where: { siteId, isHomepage: true }, select: { id: true, generatedByRunId: true } });
   if (nav.length === 0 && home && menu) {
     const homeItem = await prisma.menuItem.create({
-      data: { siteId, menuId: menu.id, label: 'Home', pageId: home.id, sortOrder: 0, showInFooter: true, showInHeader: true, ...ownership } as any
+      data: { siteId, menuId: menu.id, label: L.home, pageId: home.id, targetType: 'HOME', target: '', sortOrder: 0, visible: true, showInFooter: true, showInHeader: true, showOnHomepage: true, ...ownership } as any
     });
     keptMenuItemIds.add(homeItem.id);
 
+    const fallbackCollectionItem = async (label: string, slug: string, blockType: string, targetType: string, target: string, sortOrder: number) => {
+      const page = await ensureCollectionPage(label, slug, blockType);
+      if (!page) return;
+      const mi = await prisma.menuItem.create({ data: { siteId, menuId: menu.id, label, pageId: page.id, targetType, target, sortOrder, visible: true, showInHeader: true, showInFooter: true, showOnHomepage: true, ...ownership } });
+      keptMenuItemIds.add(mi.id);
+    };
+
     const sort = [1, 2, 3, 4];
-    if (options.content.services.length > 0) {
-      const sp = await ensureCollectionPage('Services', 'services', 'services');
-      if (sp) {
-        const mi = await prisma.menuItem.create({ data: { siteId, menuId: menu.id, label: 'Services', pageId: sp.id, sortOrder: sort.shift()!, showInHeader: true, showInFooter: true, ...ownership } });
-        keptMenuItemIds.add(mi.id);
-      }
-    }
-    if (options.content.projects.length > 0) {
-      const pp = await ensureCollectionPage('Projects', 'projects', 'projects');
-      if (pp) {
-        const mi = await prisma.menuItem.create({ data: { siteId, menuId: menu.id, label: 'Projects', pageId: pp.id, sortOrder: sort.shift()!, showInHeader: true, showInFooter: true, ...ownership } });
-        keptMenuItemIds.add(mi.id);
-      }
-    }
-    if (options.content.news.length > 0) {
-      const np = await ensureCollectionPage('News', 'news', 'news');
-      if (np) {
-        const mi = await prisma.menuItem.create({ data: { siteId, menuId: menu.id, label: 'News', pageId: np.id, sortOrder: sort.shift()!, showInHeader: true, showInFooter: true, ...ownership } });
-        keptMenuItemIds.add(mi.id);
-      }
-    }
+    if (options.content.services.length > 0) await fallbackCollectionItem(L.services, 'services', 'services', 'COLLECTION', 'SERVICES', sort.shift()!);
+    if (options.content.projects.length > 0) await fallbackCollectionItem(L.projects, 'projects', 'projects', 'COLLECTION', 'PROJECTS', sort.shift()!);
+    if (options.content.news.length > 0) await fallbackCollectionItem(L.news, 'news', 'news', 'COLLECTION', 'NEWS', sort.shift()!);
     const existingContacts = await prisma.page.findUnique({ where: { siteId_slug: { siteId, slug: 'contacts' } }, select: { id: true, sourceType: true, generatedByRunId: true, manualModifiedAt: true } });
     if (!existingContacts) {
-      const cp = await ensureCollectionPage('Contacts', 'contacts', 'contacts');
-      if (cp) {
-        const mi = await prisma.menuItem.create({ data: { siteId, menuId: menu.id, label: 'Contacts', pageId: cp.id, sortOrder: sort.shift()!, showInHeader: true, showInFooter: true, ...ownership } });
-        keptMenuItemIds.add(mi.id);
-      }
+      await fallbackCollectionItem(L.contacts, 'contacts', 'contacts', 'HOME_SECTION', 'CONTACTS', sort.shift()!);
     } else if ((existingContacts.sourceType !== 'MANUAL' && !existingContacts.manualModifiedAt) || regenerateContent) {
-      await prisma.page.update({ where: { id: existingContacts.id }, data: { title: 'Contacts', blocks: [{ type: 'contacts' }] as any, status: PageStatus.PUBLISHED, sourceType: generatedSource, ...ownership } });
+      await prisma.page.update({ where: { id: existingContacts.id }, data: { title: L.contacts, blocks: [{ type: 'contacts' }] as any, status: PageStatus.PUBLISHED, sourceType: generatedSource, ...ownership } });
       keptPageIds.add(existingContacts.id);
     }
   }
@@ -680,57 +815,87 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   await prisma.site.update({ where: { id: siteId }, data: { themeConfig } as any });
   await prisma.demoVariant.update({ where: { id: demoVariant.id }, data: { themeConfig } as any });
 
-  const homepage = await prisma.page.findFirst({ where: { siteId, isHomepage: true }, select: { id: true, sourceType: true, generatedByRunId: true } });
-  if (homepage && (!runId || homepage.sourceType !== 'MANUAL')) {
+  const homepage = await prisma.page.findFirst({ where: { siteId, isHomepage: true }, select: { id: true, sourceType: true, generatedByRunId: true, manualModifiedAt: true } });
+  // Never overwrite a manually edited homepage on regeneration.
+  if (homepage && (!runId || (homepage.sourceType !== 'MANUAL' && !homepage.manualModifiedAt))) {
     const hero = options.content.hero;
     const cta = options.content.cta;
     const about = options.content.about;
     const sections = options.content.homepageSections || [];
-    const sectionTitle = (type: string, fallback: string) => sections.find((s) => s.type === type)?.title || fallback;
-    const sectionLimit = (type: string, fallback: number) => sections.find((s) => s.type === type)?.limit ?? fallback;
+
+    // Stable block ids: deterministic per type occurrence, stable across regenerations.
+    const counters = new Map<string, number>();
+    const blockId = (type: string) => {
+      const n = (counters.get(type) || 0) + 1;
+      counters.set(type, n);
+      return `${type}-${n}`;
+    };
+
+    const heroBlock = hero?.title ? {
+      id: blockId('hero'), type: 'hero', enabled: true,
+      title: hero.title,
+      subtitle: hero.subtitle,
+      imageId: mapImageId(hero.imageId),
+      // No invented CTAs: render the button only when the source provides both
+      // a label and a real target.
+      ...(hero.buttonLabel && hero.buttonUrl ? { buttonLabel: hero.buttonLabel, buttonUrl: hero.buttonUrl } : {})
+    } : null;
+    const aboutBlock = about?.content ? {
+      id: blockId('about'), type: 'about', enabled: true,
+      heading: about.heading,
+      content: about.content,
+      imageId: mapImageId(about.imageId)
+    } : null;
+    const ctaBlock = cta?.title ? {
+      id: blockId('cta'), type: 'cta', enabled: true,
+      title: cta.title,
+      description: cta.description,
+      ...(cta.buttonLabel && cta.buttonUrl ? { buttonLabel: cta.buttonLabel, buttonUrl: cta.buttonUrl } : {})
+    } : null;
+
+    const entityCount: Record<string, number> = {
+      services: options.content.services.length,
+      projects: options.content.projects.length,
+      news: options.content.news.length,
+      vacancies: options.content.vacancies.length,
+    };
+    const defaultLimits: Record<string, number> = { services: 6, projects: 4, news: 3, vacancies: 3 };
+
+    const collectionBlock = (s: any) => ({
+      id: blockId(s.type), type: s.type, enabled: s.enabled !== false,
+      heading: s.title || L[s.type] || s.type,
+      limit: s.limit ?? defaultLimits[s.type],
+    });
 
     const homeBlocks: any[] = [];
-    if (hero?.title) {
-      homeBlocks.push({
-        type: 'hero',
-        title: hero.title,
-        subtitle: hero.subtitle,
-        imageId: mapImageId(hero.imageId),
-        buttonLabel: hero.buttonLabel || 'Contact us',
-        buttonUrl: hero.buttonUrl || '/contacts'
-      });
-    }
-    if (about?.heading && about?.content) {
-      homeBlocks.push({
-        type: 'about',
-        heading: about.heading,
-        content: about.content,
-        imageId: mapImageId(about.imageId)
-      });
-    }
-    if (sections.find((s) => s.type === 'services' && s.enabled) && options.content.services.length > 0) {
-      homeBlocks.push({ type: 'services', heading: sectionTitle('services', 'Services'), limit: sectionLimit('services', 6) });
-    }
-    if (sections.find((s) => s.type === 'projects' && s.enabled) && options.content.projects.length > 0) {
-      homeBlocks.push({ type: 'projects', heading: sectionTitle('projects', 'Projects'), limit: sectionLimit('projects', 4) });
-    }
-    if (sections.find((s) => s.type === 'news' && s.enabled) && options.content.news.length > 0) {
-      homeBlocks.push({ type: 'news', heading: sectionTitle('news', 'News'), limit: sectionLimit('news', 3) });
-    }
-    if (sections.find((s) => s.type === 'vacancies' && s.enabled) && options.content.vacancies.length > 0) {
-      homeBlocks.push({ type: 'vacancies', heading: sectionTitle('vacancies', 'Vacancies'), limit: sectionLimit('vacancies', 3) });
-    }
-    if (cta?.title) {
-      homeBlocks.push({
-        type: 'cta',
-        title: cta.title,
-        description: cta.description,
-        buttonLabel: cta.buttonLabel || 'Contact us',
-        buttonUrl: cta.buttonUrl || '/contacts'
-      });
-    }
-    if (sections.find((s) => s.type === 'contacts' && s.enabled)) {
-      homeBlocks.push({ type: 'contacts', heading: sectionTitle('contacts', 'Contacts') });
+    if (sections.length > 0) {
+      // Canonical composition: array order of generated homepageSections.
+      for (const s of sections) {
+        const enabled = s.enabled !== false;
+        switch (s.type) {
+          case 'hero': if (heroBlock) homeBlocks.push({ ...heroBlock, enabled }); break;
+          case 'about': if (aboutBlock) homeBlocks.push({ ...aboutBlock, enabled }); break;
+          case 'cta': if (ctaBlock) homeBlocks.push({ ...ctaBlock, enabled }); break;
+          case 'services': case 'projects': case 'news': case 'vacancies':
+            if ((entityCount[s.type] || 0) > 0) homeBlocks.push(collectionBlock(s));
+            break;
+          case 'contacts': homeBlocks.push({ id: blockId('contacts'), type: 'contacts', enabled, heading: s.title || L.contacts }); break;
+          default: break;
+        }
+      }
+      // hero/about/cta must live in Page.blocks even if the generator omitted
+      // them from homepageSections.
+      if (!homeBlocks.some((b) => b.type === 'hero') && heroBlock) homeBlocks.unshift(heroBlock);
+      if (!homeBlocks.some((b) => b.type === 'about') && aboutBlock) homeBlocks.splice(Math.min(1, homeBlocks.length), 0, aboutBlock);
+      if (!homeBlocks.some((b) => b.type === 'cta') && ctaBlock) homeBlocks.push(ctaBlock);
+    } else {
+      // No generated sections: legacy fixed-order fallback.
+      if (heroBlock) homeBlocks.push(heroBlock);
+      if (aboutBlock) homeBlocks.push(aboutBlock);
+      for (const type of ['services', 'projects', 'news', 'vacancies']) {
+        if ((entityCount[type] || 0) > 0) homeBlocks.push(collectionBlock({ type, enabled: true }));
+      }
+      if (ctaBlock) homeBlocks.push(ctaBlock);
     }
 
     await prisma.page.update({

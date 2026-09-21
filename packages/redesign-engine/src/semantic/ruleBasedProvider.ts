@@ -870,8 +870,11 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     const alt = norm(image.alt);
     const selector = (image.domPath || '').toLowerCase();
     const src = image.src || '';
-    const href = norm(image.href || '');
-    const contextText = `${alt} ${selector} ${href}`;
+    // Never feed src/href into label regexes: a TLD like `lishen.by` or a
+    // WordPress `attachment-*` class must not turn a photo into LANGUAGE_ICON
+    // or ADVERTISEMENT. Labels come from alt + DOM class tokens only.
+    const labelContext = `${alt} ${selector}`;
+    const contextText = `${alt} ${selector} ${norm(image.href || '')}`;
 
     const provenance: ImageCandidate['provenance'] = {
       sourceDocumentIds: [doc.id],
@@ -881,17 +884,21 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
       evidenceText: contextText.slice(0, 200),
     };
 
-    if (AD_MARKERS.test(contextText) || AD_DOMAINS.test(src) || /ads?|advertisement|banner|promo|sponsored/.test(selector)) {
+    if (AD_MARKERS.test(labelContext) || AD_DOMAINS.test(src)) {
       return { id: id(), src, alt: image.alt, width, height, role: 'ADVERTISEMENT', confidence: 0.85, provenance };
     }
-    if (UTILITY_MARKERS.test(contextText) && (width < 64 || height < 64)) {
+    if (UTILITY_MARKERS.test(labelContext) && (width < 64 || height < 64)) {
       return { id: id(), src, alt: image.alt, width, height, role: 'UTILITY_ICON', confidence: 0.85, provenance };
     }
-    if (LANG_LABELS.test(contextText) || /lang|language|translate|flag|gtranslate|weglot|wpml/.test(selector)) {
+    if (LANG_LABELS.test(labelContext) || /lang|language|translate|flag|gtranslate|weglot|wpml/.test(selector)) {
       return { id: id(), src, alt: image.alt, width, height, role: 'LANGUAGE_ICON', confidence: 0.88, provenance };
     }
-    if (image.provenance?.isLogo || /logo|brand|логотип/.test(alt + ' ' + selector)) {
+    if (image.provenance?.isLogo || /logo|brand|логотип|лого/.test(alt + ' ' + selector)) {
       return { id: id(), src, alt: image.alt, width, height, role: 'LOGO', confidence: 0.85, provenance };
+    }
+    // Tiny square raster that is not evidence of content — treated as an icon.
+    if (width > 0 && height > 0 && width <= 200 && height <= 200 && /icon|logo|лого|thumb|avatar|removebg|cropped/.test(labelContext)) {
+      return { id: id(), src, alt: image.alt, width, height, role: 'UTILITY_ICON', confidence: 0.7, provenance };
     }
     if (image.provenance?.isHero || (section?.order === 0 && width > 600 && height > 300)) {
       return { id: id(), src, alt: image.alt, width, height, role: 'HERO_CANDIDATE', confidence: 0.7, provenance };
@@ -1143,6 +1150,24 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
               emails.push({ value: v, evidence: evidence('section-email', v, 0.8, { sourceDocumentId: doc.id, sourceSectionId: sec.id }) });
             }
           }
+          // Address candidates live as whole paragraphs/labelled lines inside
+          // contact sections (e.g. infobox "Офис в Минске / ул. …"). Offer each
+          // plausible line; the fact gate enforces street-token/label evidence.
+          const SECTION_ADDRESSISH = /(ул\.|улица|проспект|пр\.|переулок|пер\.|площадь|пл\.|бульвар|бул\.|шоссе|набережная|наб\.|проезд|офис|office|пом\.|комн\.|street|str\.|avenue|road|lane|г\.\s*\S+|город)/iu;
+          const STREET_TOKENISH = /(ул\.|улица|проспект|пр\.|переулок|пер\.|площадь|пл\.|бульвар|бул\.|шоссе|набережная|наб\.|проезд|street|str\.|avenue|road|lane)/iu;
+          for (const para of sec.paragraphs) {
+            const line = para.trim();
+            if (line.length < 10 || line.length > 160 || !SECTION_ADDRESSISH.test(line)) continue;
+            // A bare label ("Офис в Минске", "Контакты и офис") is not an
+            // address — require a street token AND a house/building number.
+            if (!STREET_TOKENISH.test(line) || !/\d/.test(line)) continue;
+            if (/\d[\d\s()\-]{6,}\d/.test(line)) continue; // a phone line, not an address
+            const v = this.factGate.accept({ rawValue: line, attemptedType: 'ADDRESS', source: 'section-address', context: sectionContext, sourceDocumentId: doc.id });
+            if (v && !seen.has(v)) {
+              seen.add(v);
+              addresses.push({ value: v, evidence: evidence('section-address', v, 0.75, { sourceDocumentId: doc.id, sourceSectionId: sec.id }) });
+            }
+          }
         }
       }
     }
@@ -1216,7 +1241,11 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
             existing.evidence.push(evidence('collection-item', item.title, 0.65, { sourceDocumentId: doc.id, sourceCollectionId: col.id, sourceUrl: resolvedUrl }));
             continue;
           }
-          // Evidence first: a collection card needs its own URL or a description, and a non-generic title
+          // A card enriches a detail entity when its URL resolves to a crawled
+          // detail page (above). Otherwise it becomes an entity only with its
+          // own evidence — a detail URL or a description — never from a bare
+          // or generic title. Downstream import still requires the entity to
+          // resolve to a classified detail page.
           if (isGenericHeading(item.title) && !item.description) continue;
           if (!resolvedUrl && !item.description) continue;
           const imgs = item.image ? [this.imageIdForSrc(ctx, item.image.src)] : [];
@@ -1317,10 +1346,10 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
             }
           }
 
-          // A project card needs at least a meaningful title and either a URL or an image; description is optional
+          // Same rule as services: enrich-or-evidence. A card with its own
+          // detail URL, image, or description is a candidate entity; a bare
+          // teaser never is. Import still requires a detail-page resolution.
           if (!resolvedUrl && !item.image && !item.description) continue;
-
-          // Reject entries that are really timeline facts, CTAs, or awards without a project object.
           if (!isConcreteProjectEvidence(item, resolvedUrl, title)) continue;
 
           const imgs = item.image ? [this.imageIdForSrc(ctx, item.image.src)] : [];

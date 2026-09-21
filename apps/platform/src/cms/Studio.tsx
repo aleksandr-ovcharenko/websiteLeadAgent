@@ -48,16 +48,45 @@ function StudioInner({ screen }: { screen: Screen }) {
   return null;
 }
 
-export default function Studio({ siteId, user }: { siteId: string; user?: any }) {
-  const [screen, setScreen] = useState<Screen>('dashboard')
-  const [editingId, setEditingId] = useState<string | null>(null)
+const VALID_SCREENS = new Set<string>(Object.keys(SCREEN_LABELS));
 
+function readUrlState(): { screen: Screen; id: string | null } {
+  try {
+    const p = new URLSearchParams(window.location.search);
+    const s = p.get('screen');
+    return { screen: (s && VALID_SCREENS.has(s) ? s : 'dashboard') as Screen, id: p.get('edit') };
+  } catch {
+    return { screen: 'dashboard', id: null };
+  }
+}
+
+export default function Studio({ siteId, user }: { siteId: string; user?: any }) {
+  const [screen, setScreen] = useState<Screen>(() => readUrlState().screen)
+  const [editingId, setEditingId] = useState<string | null>(() => readUrlState().id)
+
+  // Deep-link support: ?screen=…&edit=… survives reload and is shareable.
   const navigate = (s: Screen, id?: string) => {
     setScreen(s)
     setEditingId(id ?? null)
+    try {
+      const u = new URL(window.location.href)
+      u.searchParams.set('screen', s)
+      if (id) u.searchParams.set('edit', id); else u.searchParams.delete('edit')
+      window.history.pushState({}, '', u)
+    } catch { /* non-browser env */ }
     const el = document.getElementById('cms-main')
     if (el) el.scrollTop = 0
   }
+
+  useEffect(() => {
+    const onPop = () => {
+      const st = readUrlState()
+      setScreen(st.screen)
+      setEditingId(st.id)
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
 
   const isEditor = EDITOR_SCREENS.includes(screen)
   const isFullHeight = isEditor || screen === 'media'

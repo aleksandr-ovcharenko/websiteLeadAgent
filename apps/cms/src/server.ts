@@ -10,6 +10,10 @@ import { apiRateLimiter } from '../../dashboard/src/security/rateLimit.js';
 import { originRefererCheck, requireJsonContentType } from '../../dashboard/src/security/csrf.js';
 import { requireSitePermission } from '../../dashboard/src/security/authz.js';
 import { LocalFilesystemMediaStorage } from '../../../packages/media-storage/dist/index.js';
+// @ts-expect-error no declaration file for built content-schema
+import { validateContentBlocks } from '../../../packages/content-schema/dist/index.js';
+// @ts-expect-error no declaration file for built templates
+import { mediaUrlOf } from '../../../packages/templates/dist/index.js';
 
 const prisma = new PrismaClient();
 const _canReadCms = requireSitePermission(prisma, 'cms.read', 'siteId');
@@ -77,8 +81,13 @@ app.get('/api/cms/sites', requireAuth, async (req: Request, res: Response) => {
 
 app.get('/api/cms/sites/:siteId', canReadCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
-  const site = await (prisma as any).site.findUnique({ where: { id: siteId }, include: { siteSettings: true } });
+  const site = await (prisma as any).site.findUnique({
+    where: { id: siteId },
+    include: { siteSettings: true, lead: { select: { website: true, websiteDomain: true, companyName: true } } }
+  });
   if (!site) { res.status(404).json({ error: 'not_found' }); return; }
+  const originalWebsiteUrl = site.lead?.website && /^https?:\/\//.test(site.lead.website) ? site.lead.website : null;
+  (site as any).originalWebsiteUrl = originalWebsiteUrl;
   const [pages, services, projects, products, news, menu, media, vacancies, users] = await Promise.all([
     (prisma as any).page.findMany({ where: { siteId } }),
     (prisma as any).service.findMany({ where: { siteId } }),
@@ -108,13 +117,32 @@ function createSlug(title: string) {
   return title.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9а-яё\-]/g, '').replace(/--+/g, '-').slice(0, 80);
 }
 
+// Canonical composition contract: Page.blocks must validate at write time.
+// Returns the normalized block array (defaults applied, unknown fields preserved)
+// or null after responding 400.
+function coerceBlocks(res: Response, blocks: unknown): any[] | null {
+  if (blocks === undefined || blocks === null) return [];
+  const r = validateContentBlocks(blocks);
+  if (!r.ok) {
+    res.status(400).json({ ok: false, error: 'Invalid blocks payload', details: r.errors });
+    return null;
+  }
+  return r.blocks;
+}
+
 // Pages
 app.post('/api/cms/sites/:siteId/pages', canEditCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const { title, slug, blocks, status, isHomepage, seoTitle, seoDescription, showInNav } = req.body;
+  const normalizedBlocks = coerceBlocks(res, blocks);
+  if (normalizedBlocks === null) return;
   const s = slug || createSlug(title);
+  // A site can only have one homepage — atomically move the flag.
+  if (isHomepage) {
+    await (prisma as any).page.updateMany({ where: { siteId, isHomepage: true }, data: { isHomepage: false } });
+  }
   const page = await (prisma as any).page.create({
-    data: { siteId, title, slug: s, blocks: blocks ?? [], status: status ?? 'DRAFT', isHomepage: !!isHomepage, seoTitle, seoDescription, sourceType: 'MANUAL', publishedAt: status === 'PUBLISHED' ? new Date() : null }
+    data: { siteId, title, slug: s, blocks: normalizedBlocks, status: status ?? 'DRAFT', isHomepage: !!isHomepage, seoTitle, seoDescription, sourceType: 'MANUAL', publishedAt: status === 'PUBLISHED' ? new Date() : null }
   });
   if (showInNav) {
     let menu = await (prisma as any).menu.findFirst({ where: { siteId, name: 'Main' } });
@@ -130,9 +158,17 @@ app.put('/api/cms/sites/:siteId/pages/:pageId', canEditCms, async (req: Request,
   const data: any = { manualModifiedAt: new Date() };
   if (title !== undefined) data.title = title;
   if (slug !== undefined) data.slug = slug;
-  if (blocks !== undefined) data.blocks = blocks;
+  if (blocks !== undefined) {
+    const normalizedBlocks = coerceBlocks(res, blocks);
+    if (normalizedBlocks === null) return;
+    data.blocks = normalizedBlocks;
+  }
   if (status !== undefined) { data.status = status; if (status === 'PUBLISHED') data.publishedAt = new Date(); }
   if (isHomepage !== undefined) data.isHomepage = isHomepage;
+  if (isHomepage === true) {
+    // Single-homepage invariant: clear the flag on all other pages first.
+    await (prisma as any).page.updateMany({ where: { siteId, isHomepage: true, id: { not: pageId } }, data: { isHomepage: false } });
+  }
   if (seoTitle !== undefined) data.seoTitle = seoTitle;
   if (seoDescription !== undefined) data.seoDescription = seoDescription;
   const page = await (prisma as any).page.update({ where: { id: pageId, siteId }, data });
@@ -317,8 +353,10 @@ app.get('/api/cms/sites/:siteId/menu', canReadCms, async (req: Request, res: Res
 app.put('/api/cms/sites/:siteId/menu', canEditCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const items = req.body.items || [];
-  let menu = await (prisma as any).menu.findFirst({ where: { siteId, name: 'Main' } });
-  if (!menu) menu = await (prisma as any).menu.create({ data: { siteId, name: 'Main', isMain: true } });
+  // Canonical navigation lives on the isMain menu — never look it up by a
+  // hardcoded display name, that creates a second menu and orphans items.
+  let menu = await (prisma as any).menu.findFirst({ where: { siteId, isMain: true } });
+  if (!menu) menu = await (prisma as any).menu.create({ data: { siteId, name: 'main', isMain: true } });
   await (prisma as any).menuItem.deleteMany({ where: { menuId: menu.id } });
 
   async function createTree(list: any[], parentId: string | null = null) {
@@ -334,7 +372,7 @@ app.put('/api/cms/sites/:siteId/menu', canEditCms, async (req: Request, res: Res
           targetType: item.targetType || item.type || null,
           target: item.target || null,
           sortOrder: i,
-          visible: item.isVisible !== false,
+          visible: item.visible !== false && item.isVisible !== false,
           showInHeader: item.showInHeader !== false,
           showInFooter: item.showInFooter !== false,
           showOnHomepage: item.showOnHomepage !== false,
@@ -359,7 +397,9 @@ function mediaStorage(siteId: string) {
 app.get('/api/cms/sites/:siteId/media', canReadCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const media = await (prisma as any).media.findMany({ where: { siteId }, orderBy: { createdAt: 'desc' } });
-  res.json({ items: media });
+  // Canonical URL resolution: local storage first-class, sourceUrl as provenance.
+  const items = media.map((m: any) => ({ ...m, url: mediaUrlOf(String(siteId), m) || null }));
+  res.json({ items });
 });
 
 app.post('/api/cms/sites/:siteId/media', canEditCms, upload.single('file'), async (req: Request, res: Response) => {
@@ -391,11 +431,29 @@ app.put('/api/cms/sites/:siteId/media/:mediaId', canEditCms, async (req: Request
 app.delete('/api/cms/sites/:siteId/media/:mediaId', canEditCms, async (req: Request, res: Response) => {
   const { siteId, mediaId } = req.params;
   const media = await (prisma as any).media.findUnique({ where: { id: mediaId, siteId } });
-  if (media) {
-    const storage = mediaStorage(String(siteId));
-    await storage.delete(media.storagePath);
-    await (prisma as any).media.delete({ where: { id: mediaId } });
+  if (!media) { res.json({ ok: true }); return; }
+
+  // Deleting media that is still referenced would produce broken images in
+  // Studio and on the public renderer — report usages instead of deleting.
+  const [svc, proj, prod, news, pm, prm, settings] = await Promise.all([
+    (prisma as any).service.count({ where: { siteId, imageId: mediaId } }),
+    (prisma as any).project.count({ where: { siteId, coverImageId: mediaId } }),
+    (prisma as any).product.count({ where: { siteId, coverImageId: mediaId } }),
+    (prisma as any).newsPost.count({ where: { siteId, coverImageId: mediaId } }),
+    (prisma as any).projectMedia.count({ where: { mediaId } }),
+    (prisma as any).productMedia.count({ where: { mediaId } }),
+    (prisma as any).siteSettings.findFirst({ where: { siteId, OR: [{ logoMediaId: mediaId }, { faviconMediaId: mediaId }] }, select: { siteId: true } })
+  ]);
+  const usages = { services: svc, projects: proj, products: prod, news, projectGalleries: pm, productGalleries: prm, siteSettings: settings ? 1 : 0 };
+  const total = Object.values(usages).reduce((a: number, b: any) => a + (b as number), 0);
+  if (total > 0 && req.query.force !== 'true') {
+    res.status(409).json({ error: 'media_in_use', usages });
+    return;
   }
+
+  const storage = mediaStorage(String(siteId));
+  await storage.delete(media.storagePath);
+  await (prisma as any).media.delete({ where: { id: mediaId } });
   res.json({ ok: true });
 });
 

@@ -146,6 +146,19 @@ export default function Dashboard({ onNavigate }: DashboardProps) {
               <p className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider">Site info</p>
             </div>
             <div className="p-4 flex flex-col gap-2.5">
+              {(site as any)?.originalWebsiteUrl ? (
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[11px] text-text-subtle flex-shrink-0">Original</span>
+                  <a href={(site as any).originalWebsiteUrl} target="_blank" rel="noopener noreferrer" className="text-[12px] text-accent font-medium text-right truncate hover:underline">
+                    {(site as any).originalWebsiteUrl.replace(/^https?:\/\//, '')}
+                  </a>
+                </div>
+              ) : (
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[11px] text-text-subtle flex-shrink-0">Original</span>
+                  <span className="text-[12px] text-warning font-medium text-right">URL missing</span>
+                </div>
+              )}
               {[
                 { label: 'Client', value: settings?.companyName || site?.name || '—' },
                 { label: 'Industry', value: 'Construction' },

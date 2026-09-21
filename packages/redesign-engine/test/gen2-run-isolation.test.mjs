@@ -207,7 +207,7 @@ describe('Generation V2 run isolation', () => {
     });
   });
 
-  it('preserves user-edited generated content on regenerate and imports conflicting new records with disambiguated slugs', async () => {
+  it('preserves user-edited generated content on regenerate without creating duplicate rows', async () => {
     await withRollback(async (tx, leadId, artifactDir) => {
       const previewSlug = `run-edit-${leadId.slice(0, 8)}`;
 
@@ -272,7 +272,9 @@ describe('Generation V2 run isolation', () => {
 
       const services = await tx.service.findMany({ where: { siteId: result2.siteId }, orderBy: { slug: 'asc' } });
       const slugs = services.map((s) => s.slug);
-      assert.deepEqual(slugs, ['service-a', 'service-a-1', 'service-c'], 'manual service remains and conflicting new record is disambiguated');
+      // A manually edited row IS the canonical entity for its source — the
+      // regenerated counterpart is skipped, never duplicated at a bumped slug.
+      assert.deepEqual(slugs, ['service-a', 'service-c'], 'manual service remains; no duplicate generated sibling');
 
       const manual = services.find((s) => s.slug === 'service-a');
       assert.equal(manual.title, 'User Edited Service A', 'user-edited generated service title is preserved');
@@ -280,10 +282,6 @@ describe('Generation V2 run isolation', () => {
       assert.equal(manual.sourceType, 'GENERATED', 'sourceType stays GENERATED to preserve provenance');
       assert.ok(manual.manualModifiedAt, 'manualModifiedAt is set');
       assert.equal(manual.generatedByRunId, 'run-1', 'provenance stays run-1');
-
-      const updated = services.find((s) => s.slug === 'service-a-1');
-      assert.equal(updated.title, "Service A'", 'new generated service imported with disambiguated slug');
-      assert.equal(updated.generatedByRunId, 'run-2', 'new generated service belongs to run-2');
 
       const created = services.find((s) => s.slug === 'service-c');
       assert.equal(created.title, 'Service C');

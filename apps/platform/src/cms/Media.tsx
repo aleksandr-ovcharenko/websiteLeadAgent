@@ -4,6 +4,7 @@ import { IconGrid, IconList, IconUpload, IconX, IconTrash } from './icons'
 import { Button, Input, SearchInput, useToast, Toast } from './ui'
 import { useStudio, formatBytes } from './context'
 import { api } from './api'
+import { mediaUrlOf } from './mediaUrl'
 
 interface MediaProps {
   onNavigate: (s: Screen) => void
@@ -31,10 +32,11 @@ export default function Media({ onNavigate }: MediaProps) {
     type: (m.mimeType || '').startsWith('image/') ? 'image' : 'document',
     name: m.originalFilename || m.filename,
     size: formatBytes(m.size),
-    url: m.sourceUrl || '',
+    // Canonical resolution: local /site-media/ copy wins over empty sourceUrl.
+    url: m.url || mediaUrlOf(siteId, m) || '',
     dims: m.width && m.height ? `${m.width}×${m.height}` : '—',
     uses: 0,
-  })), [media])
+  })), [media, siteId])
 
   const visible = useMemo(() => items.filter(m => {
     const matchType = typeFilter === 'all' || (typeFilter === 'images' && m.type === 'image') || (typeFilter === 'documents' && m.type === 'document')
@@ -106,7 +108,7 @@ export default function Media({ onNavigate }: MediaProps) {
               {visible.map((item: any) => (
                 <button key={item.id} onClick={() => { setSelected(item.id === selected ? null : item.id); setEdit({ alt: item.alt || '', caption: item.caption || '' }) }} className={`group flex flex-col overflow-hidden rounded border transition-all ${selected === item.id ? 'border-accent ring-1 ring-accent/20' : 'border-border hover:border-border'}`}>
                   <div className="w-full aspect-video bg-surface-hover overflow-hidden flex-shrink-0">
-                    {item.type === 'image' ? <img src={item.url} alt={item.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><DocIcon /></div>}
+                    {item.type === 'image' && item.url ? <img src={item.url} alt={item.name} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><DocIcon /></div>}
                   </div>
                   <div className="px-2 py-1.5 bg-surface text-left">
                     <p className="text-[11px] text-text truncate leading-tight">{item.name}</p>
@@ -128,7 +130,7 @@ export default function Media({ onNavigate }: MediaProps) {
                     <tr key={item.id} onClick={() => { setSelected(item.id === selected ? null : item.id); setEdit({ alt: item.alt || '', caption: item.caption || '' }) }} className={`border-b border-border last:border-0 hover:bg-surface-raised/60 transition-colors cursor-pointer ${selected === item.id ? 'bg-success-subtle/40' : ''}`}>
                       <td className="px-4 py-2">
                         <div className="flex items-center gap-2.5">
-                          {item.type === 'image' ? <div className="w-8 h-8 rounded bg-surface-hover overflow-hidden flex-shrink-0"><img src={item.url} alt="" className="w-full h-full object-cover" /></div> : <div className="w-8 h-8 rounded bg-surface-hover flex items-center justify-center flex-shrink-0"><DocIcon /></div>}
+                          {item.type === 'image' && item.url ? <div className="w-8 h-8 rounded bg-surface-hover overflow-hidden flex-shrink-0"><img src={item.url} alt="" className="w-full h-full object-cover" /></div> : <div className="w-8 h-8 rounded bg-surface-hover flex items-center justify-center flex-shrink-0"><DocIcon /></div>}
                           <span className="text-[13px] font-medium text-text">{item.name}</span>
                         </div>
                       </td>
@@ -153,7 +155,7 @@ export default function Media({ onNavigate }: MediaProps) {
           </div>
 
           <div className="p-4 flex flex-col gap-4">
-            {selectedItem.type === 'image' ? (
+            {selectedItem.type === 'image' && selectedItem.url ? (
               <div className="rounded border border-border overflow-hidden"><img src={selectedItem.url} alt={selectedItem.name} className="w-full object-cover" /></div>
             ) : (
               <div className="h-24 rounded border border-border bg-surface-raised flex items-center justify-center"><svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--color-border)" strokeWidth={1.25} strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" /><polyline points="14 2 14 8 20 8" /></svg></div>

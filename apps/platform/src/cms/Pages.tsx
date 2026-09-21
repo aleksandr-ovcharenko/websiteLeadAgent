@@ -5,18 +5,22 @@ import { Badge, Button, SearchInput, FilterTabs, DropdownMenu, ConfirmDelete, In
 import { useStudio, formatDate } from './context'
 import { api, uiStatus, apiStatus } from './api'
 
-const BLOCK_TYPES = ['Hero', 'Text', 'Image', 'Gallery', 'Services', 'Projects', 'News', 'CTA', 'Contacts', 'Team', 'Stats', 'Map']
+// Canonical block types offered for NEW blocks (contentBlockSchema).
+// Legacy Team/Stats/Map are intentionally absent: unknown existing blocks
+// load as read-only and are preserved verbatim on save.
+const BLOCK_TYPES = ['Hero', 'Text', 'Image', 'Gallery', 'Services', 'Projects', 'News', 'About', 'Vacancies', 'CTA', 'Contacts']
 
 const BLOCK_UI_TO_API: Record<string, string> = {
   Hero: 'hero', Text: 'text', Image: 'image', Gallery: 'gallery',
-  Services: 'services', Projects: 'projects', News: 'news', CTA: 'cta',
-  Contacts: 'contacts', Team: 'team', Stats: 'stats', Map: 'map'
+  Services: 'services', Projects: 'projects', News: 'news', About: 'about',
+  Vacancies: 'vacancies', CTA: 'cta', Contacts: 'contacts'
 }
 const BLOCK_API_TO_UI: Record<string, string> = Object.fromEntries(Object.entries(BLOCK_UI_TO_API).map(([k, v]) => [v, k]))
+const COLLECTION_TYPES = new Set(['Services', 'Projects', 'News', 'Vacancies'])
 
 function newBlock(type: string): BlockUi {
   const id = `b${Date.now()}_${Math.random().toString(36).slice(2, 5)}`
-  return { id, type, summary: '…', data: {} }
+  return { id, type, summary: '…', data: {}, enabled: true, unsupported: false, raw: undefined }
 }
 
 interface BlockUi {
@@ -24,48 +28,65 @@ interface BlockUi {
   type: string
   summary: string
   data: Record<string, any>
+  enabled: boolean
+  unsupported: boolean
+  /** Original API payload — unknown fields must survive the round-trip. */
+  raw?: Record<string, any>
 }
 
 function toApiBlock(b: BlockUi): any {
-  const t = BLOCK_UI_TO_API[b.type] || b.type.toLowerCase()
+  // Unknown / unsupported blocks round-trip verbatim (plus enabled flag).
+  if (b.unsupported || !BLOCK_UI_TO_API[b.type]) {
+    return { ...(b.raw || {}), id: b.id, type: b.raw?.type || b.type.toLowerCase(), enabled: b.enabled }
+  }
   const d = { ...b.data }
+  const base: any = { ...(b.raw || {}), id: b.id, type: BLOCK_UI_TO_API[b.type], enabled: b.enabled }
   switch (b.type) {
-    case 'Hero': return { type: 'hero', tag: d.subheading || '', title: d.heading || '', body: d.subheading || '', buttonLabel: d.buttonLabel || '', buttonUrl: d.buttonUrl || '' }
-    case 'Text': return { type: 'text', heading: d.heading || '', content: d.content || '' }
-    case 'Image': return { type: 'image', imageId: d.imageId || '', caption: d.caption || '' }
-    case 'Gallery': return { type: 'gallery', imageIds: d.imageIds || [] }
-    case 'Services': return { type: 'services', limit: d.limit ? Number(d.limit) : null }
-    case 'Projects': return { type: 'projects', limit: d.limit ? Number(d.limit) : null }
-    case 'News': return { type: 'news', limit: d.limit ? Number(d.limit) : null }
-    case 'CTA': return { type: 'cta', title: d.heading || '', description: d.description || '', buttonLabel: d.buttonLabel || '', buttonUrl: d.buttonUrl || '' }
-    case 'Contacts': return { type: 'contacts', heading: d.heading || 'Контакты' }
-    case 'Team': return { type: 'team', heading: d.heading || 'Команда', members: d.members || [] }
-    case 'Stats': return { type: 'stats', heading: d.heading || 'В цифрах', stats: d.stats || [] }
-    case 'Map': return { type: 'map', heading: d.heading || 'Как нас найти' }
-    default: return { type: t, ...d }
+    case 'Hero': return { ...base, tag: d.subheading || '', title: d.heading || '', body: d.subheading || '', buttonLabel: d.buttonLabel || '', buttonUrl: d.buttonUrl || '', imageId: d.imageId || undefined }
+    case 'Text': return { ...base, heading: d.heading || '', content: d.content || '' }
+    case 'Image': return { ...base, imageId: d.imageId || '', caption: d.caption || '' }
+    case 'Gallery': return { ...base, imageIds: d.imageIds || [] }
+    case 'Services': case 'Projects': case 'News': case 'Vacancies': {
+      const ids = (d.selectedItemIdsText ?? '')
+      const selectedItemIds = String(ids).split('\n').map((s: string) => s.trim()).filter(Boolean)
+      return { ...base, heading: d.heading || '', limit: d.limit === '' || d.limit == null ? null : Number(d.limit), selectedItemIds: selectedItemIds.length ? selectedItemIds : undefined }
+    }
+    case 'About': return { ...base, heading: d.heading || '', content: d.content || '', imageId: d.imageId || undefined }
+    case 'CTA': return { ...base, title: d.heading || '', description: d.description || '', buttonLabel: d.buttonLabel || '', buttonUrl: d.buttonUrl || '' }
+    case 'Contacts': return { ...base, heading: d.heading || 'Контакты' }
+    default: return { ...base, ...d }
   }
 }
 
 function fromApiBlock(raw: any): BlockUi {
-  const type = BLOCK_API_TO_UI[raw.type] || (raw.type ? raw.type[0].toUpperCase() + raw.type.slice(1) : 'Text')
+  const known = !!BLOCK_API_TO_UI[raw?.type]
+  const type = known ? BLOCK_API_TO_UI[raw.type] : (raw?.type ? raw.type[0].toUpperCase() + raw.type.slice(1) : 'Text')
   let data: Record<string, any> = {}
-  switch (raw.type) {
-    case 'hero': data = { heading: raw.title || '', subheading: raw.body || raw.tag || '', buttonLabel: raw.buttonLabel || '', buttonUrl: raw.buttonUrl || '' }; break
+  switch (raw?.type) {
+    case 'hero': data = { heading: raw.title || '', subheading: raw.body || raw.tag || '', buttonLabel: raw.buttonLabel || '', buttonUrl: raw.buttonUrl || '', imageId: raw.imageId || '' }; break
     case 'text': data = { heading: raw.heading || '', content: raw.content || '' }; break
     case 'image': data = { imageId: raw.imageId || '', caption: raw.caption || '' }; break
     case 'gallery': data = { imageIds: raw.imageIds || [] }; break
     case 'services':
     case 'projects':
-    case 'news': data = { limit: raw.limit ?? '' }; break
+    case 'news':
+    case 'vacancies': data = { heading: raw.heading || '', limit: raw.limit ?? '', selectedItemIdsText: (raw.selectedItemIds || []).join('\n') }; break
+    case 'about': data = { heading: raw.heading || '', content: raw.content || '', imageId: raw.imageId || '' }; break
     case 'cta': data = { heading: raw.title || '', description: raw.description || '', buttonLabel: raw.buttonLabel || '', buttonUrl: raw.buttonUrl || '' }; break
     case 'contacts': data = { heading: raw.heading || '' }; break
-    case 'team': data = { heading: raw.heading || '', members: raw.members || [] }; break
-    case 'stats': data = { heading: raw.heading || '', stats: raw.stats || [] }; break
-    case 'map': data = { heading: raw.heading || '' }; break
-    default: data = { ...raw, type: undefined }
+    default: data = {}
   }
-  const summary = raw.title || raw.heading || raw.content || type
-  return { id: `b${Math.random().toString(36).slice(2)}`, type, summary: (summary || type).slice(0, 40), data }
+  const summary = raw?.title || raw?.heading || raw?.content || type
+  return {
+    // Stable id: preserve the persisted block id; generate one only when absent.
+    id: raw?.id || `b${Math.random().toString(36).slice(2)}`,
+    type,
+    summary: String(summary || type).slice(0, 40),
+    data,
+    enabled: raw?.enabled !== false,
+    unsupported: !known,
+    raw,
+  }
 }
 
 interface PagesListProps {
@@ -151,9 +172,12 @@ export function PagesList({ onNavigate }: PagesListProps) {
               {visible.map(page => (
                 <tr key={page.id} className="border-b border-border last:border-0 hover:bg-surface-raised/60 transition-colors group">
                   <td className="px-4 py-2">
-                    <button onClick={() => onNavigate('page-editor', page.id)} className="text-[13px] font-medium text-text hover:text-accent transition-colors text-left">{page.title}</button>
+                    <span className="inline-flex items-center gap-2">
+                      <button onClick={() => onNavigate('page-editor', page.id)} className="text-[13px] font-medium text-text hover:text-accent transition-colors text-left">{page.title}</button>
+                      {page.isHomepage && <Badge variant="homepage" />}
+                    </span>
                   </td>
-                  <td className="px-4 py-2 text-[12px] text-text-subtle mono">{page.slug || '/'}</td>
+                  <td className="px-4 py-2 text-[12px] text-text-subtle mono">{page.isHomepage ? '/' : (page.slug || '/')}</td>
                   <td className="px-4 py-2"><Badge variant={uiStatus(page.status)} /></td>
                   <td className="px-4 py-2 text-[12px] text-text-subtle whitespace-nowrap">{formatDate(page.updatedAt)}</td>
                   <td className="px-4 py-2 text-[12px] text-text-subtle">Editor</td>
@@ -204,9 +228,9 @@ interface PageEditorProps {
 
 function defaultPageBlocks(): BlockUi[] {
   return [
-    { id: 'b1', type: 'Hero', summary: 'Hero block', data: { heading: 'Надёжный партнёр в строительстве', subheading: 'Опыт более 20 лет. Работаем по всей Беларуси.', buttonLabel: 'Связаться с нами', buttonUrl: '/contacts' } },
-    { id: 'b2', type: 'Services', summary: 'Services listing', data: {} },
-    { id: 'b3', type: 'Projects', summary: 'Projects listing', data: {} },
+    { id: 'b1', type: 'Hero', summary: 'Hero block', enabled: true, unsupported: false, data: { heading: 'Надёжный партнёр в строительстве', subheading: 'Опыт более 20 лет. Работаем по всей Беларуси.', buttonLabel: 'Связаться с нами', buttonUrl: '/contacts' } },
+    { id: 'b2', type: 'Services', summary: 'Services listing', enabled: true, unsupported: false, data: {} },
+    { id: 'b3', type: 'Projects', summary: 'Projects listing', enabled: true, unsupported: false, data: {} },
   ]
 }
 
@@ -303,6 +327,23 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
     markDirty()
   }
 
+  const moveBlock = (id: string, dir: -1 | 1) => {
+    setBlocks(bl => {
+      const i = bl.findIndex(x => x.id === id)
+      const j = i + dir
+      if (i < 0 || j < 0 || j >= bl.length) return bl
+      const next = [...bl]
+      ;[next[i], next[j]] = [next[j], next[i]]
+      return next
+    })
+    markDirty()
+  }
+
+  const toggleBlockEnabled = (id: string) => {
+    setBlocks(bl => bl.map(x => x.id === id ? { ...x, enabled: !x.enabled } : x))
+    markDirty()
+  }
+
   const active = blocks.find(b => b.id === activeBlock)
 
   return (
@@ -313,10 +354,11 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
           <span className="text-text-subtle flex-shrink-0">/</span>
           <span className="text-[13px] font-medium text-text truncate">{title || 'New page'}</span>
           <span className="flex-shrink-0"><Badge variant={status} /></span>
+          {isHomepage && <span className="flex-shrink-0"><Badge variant="homepage" /></span>}
         </div>
         <div className="flex items-center justify-center flex-shrink-0"><SaveIndicator state={saveState} /></div>
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Button variant="ghost" size="sm" onClick={() => { const token = site?.previewToken || ''; window.open(slug ? `/showcase/${token}/${slug}` : `/showcase/${token}`, '_blank') }}><IconEye size={12} />Preview</Button>
+          <Button variant="ghost" size="sm" onClick={() => { const token = site?.previewToken || ''; const path = (isHomepage || slug === 'index') ? '' : slug; window.open(path ? `/showcase/${token}/${path}` : `/showcase/${token}`, '_blank') }}><IconEye size={12} />Preview</Button>
           <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>
           <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>
         </div>
@@ -340,23 +382,29 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
               )}
 
               <div className="flex flex-col gap-px">
-                {blocks.map(block => {
+                {blocks.map((block, bi) => {
                   const isActive = activeBlock === block.id
                   return (
-                    <div key={block.id} className={`bg-surface border rounded overflow-hidden transition-all ${isActive ? 'border-accent shadow-[0_0_0_1px_var(--color-accent)]' : 'border-border hover:border-border'}`}>
+                    <div key={block.id} className={`bg-surface border rounded overflow-hidden transition-all ${isActive ? 'border-accent shadow-[0_0_0_1px_var(--color-accent)]' : 'border-border hover:border-border'} ${!block.enabled ? 'opacity-60' : ''}`}>
                       <div className="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer group/row" onClick={() => setActiveBlock(isActive ? null : block.id)}>
                         <span className="text-text-subtle hover:text-text-muted cursor-grab flex-shrink-0" onClick={e => e.stopPropagation()}><IconGrip size={13} /></span>
                         <span className={`text-[10px] font-bold uppercase tracking-widest w-[60px] flex-shrink-0 ${isActive ? 'text-accent' : 'text-text-subtle'}`}>{block.type}</span>
-                        <span className="flex-1 text-[13px] text-text-muted truncate min-w-0">{block.summary}</span>
-                        <div className="flex items-center gap-px opacity-0 group-hover/row:opacity-100 transition-opacity flex-shrink-0" onClick={e => e.stopPropagation()}>
-                          <button onClick={() => duplicateBlock(block.id)} className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:text-text hover:bg-surface-hover transition-colors"><IconCopy size={11} /></button>
-                          <button onClick={() => removeBlock(block.id)} className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:text-danger hover:bg-danger-subtle transition-colors"><IconX size={11} /></button>
+                        <span className="flex-1 text-[13px] text-text-muted truncate min-w-0">{block.summary}{!block.enabled ? ' · hidden' : ''}</span>
+                        <div className="flex items-center gap-px opacity-0 group-hover/row:opacity-100 focus-within:opacity-100 transition-opacity flex-shrink-0" onClick={e => e.stopPropagation()}>
+                          <button aria-label="Move block up" disabled={bi === 0} onClick={() => moveBlock(block.id, -1)} className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:text-text hover:bg-surface-hover transition-colors disabled:opacity-30 disabled:pointer-events-none">↑</button>
+                          <button aria-label="Move block down" disabled={bi === blocks.length - 1} onClick={() => moveBlock(block.id, 1)} className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:text-text hover:bg-surface-hover transition-colors disabled:opacity-30 disabled:pointer-events-none">↓</button>
+                          <button aria-label={block.enabled ? 'Hide block' : 'Show block'} onClick={() => toggleBlockEnabled(block.id)} className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:text-text hover:bg-surface-hover transition-colors"><IconEye size={11} /></button>
+                          <button aria-label="Duplicate block" onClick={() => duplicateBlock(block.id)} className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:text-text hover:bg-surface-hover transition-colors"><IconCopy size={11} /></button>
+                          <button aria-label="Remove block" onClick={() => removeBlock(block.id)} className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:text-danger hover:bg-danger-subtle transition-colors"><IconX size={11} /></button>
                         </div>
                       </div>
 
                       {isActive && (
                         <div className="px-4 pb-4 pt-1 border-t border-border bg-surface-raised">
-                          <div className="pt-3 flex flex-col gap-2.5">
+                          {block.unsupported && (
+                            <p className="text-[12px] text-warning py-2">Unsupported block type “{block.raw?.type || block.type}”. Read-only — the block is preserved as-is on save.</p>
+                          )}
+                          <div className="pt-3 flex flex-col gap-2.5" style={block.unsupported ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>
                             {block.type === 'Hero' && (
                               <>
                                 <Input label="Heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} />
@@ -384,8 +432,19 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
                                 <Textarea label="Image IDs (one per line)" value={(block.data.imageIds || []).join('\n')} onChange={v => updateBlockData(block.id, { imageIds: v.split('\n').map(s => s.trim()).filter(Boolean) })} rows={4} />
                               </>
                             )}
-                            {(block.type === 'Projects' || block.type === 'Services' || block.type === 'News') && (
-                              <Select label="Number of items" value={String(block.data.limit ?? '')} onChange={v => updateBlockData(block.id, { limit: v === 'all' ? '' : Number(v) })} options={[{ value: '', label: 'All' }, { value: '3', label: '3' }, { value: '6', label: '6' }, { value: '9', label: '9' }]} />
+                            {COLLECTION_TYPES.has(block.type) && (
+                              <>
+                                <Input label="Section heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} />
+                                <Select label="Number of items" value={String(block.data.limit ?? '')} onChange={v => updateBlockData(block.id, { limit: v === 'all' ? '' : Number(v) })} options={[{ value: '', label: 'All' }, { value: '3', label: '3' }, { value: '6', label: '6' }, { value: '9', label: '9' }]} />
+                                <Textarea label="Selected item IDs (one per line, optional)" value={block.data.selectedItemIdsText || ''} onChange={v => updateBlockData(block.id, { selectedItemIdsText: v })} rows={2} />
+                              </>
+                            )}
+                            {block.type === 'About' && (
+                              <>
+                                <Input label="Heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} />
+                                <Textarea label="Content" value={block.data.content || ''} onChange={v => updateBlockData(block.id, { content: v })} rows={4} />
+                                <Input label="Media ID (optional)" value={block.data.imageId || ''} onChange={v => updateBlockData(block.id, { imageId: v })} />
+                              </>
                             )}
                             {block.type === 'CTA' && (
                               <>
@@ -399,9 +458,6 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
                             )}
                             {block.type === 'Contacts' && (
                               <Input label="Heading" value={block.data.heading || 'Контакты'} onChange={v => updateBlockData(block.id, { heading: v })} />
-                            )}
-                            {['Team', 'Stats', 'Map'].includes(block.type) && (
-                              <p className="text-[12px] text-text-subtle py-0.5">This block displays automatically — no settings required.</p>
                             )}
                           </div>
                         </div>
@@ -444,7 +500,13 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
 
           <SideSection title="Visibility">
             <label className="flex items-center gap-2 cursor-pointer">
-              <input type="checkbox" checked={isHomepage} onChange={e => { setIsHomepage(e.target.checked); markDirty() }} className="w-3.5 h-3.5 accent-accent" />
+              <input type="checkbox" checked={isHomepage} onChange={e => {
+                const next = e.target.checked
+                const other = pages.find((p: any) => p.isHomepage && p.id !== pageId)
+                if (next && other && !window.confirm(`"${other.title}" is currently the homepage. Make "${title || 'this page'}" the homepage instead?`)) return
+                if (!next && page?.isHomepage && !window.confirm('Remove the homepage flag? The site will have no homepage.')) return
+                setIsHomepage(next); markDirty()
+              }} className="w-3.5 h-3.5 accent-accent" />
               <span className="text-[12px] text-text">Homepage</span>
             </label>
             <label className="flex items-center gap-2 cursor-pointer mt-2">

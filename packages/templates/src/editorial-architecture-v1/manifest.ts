@@ -1,0 +1,40 @@
+import type { TemplateManifest } from '../types.js';
+
+export const editorialArchitectureV1Manifest: TemplateManifest = {
+  id: 'editorial-architecture-v1',
+  name: 'Editorial Architecture v1',
+  fallbackPrimaryColor: '#a8451e',
+  supportedSectionTypes: [
+    'hero',
+    'about',
+    'services',
+    'projects',
+    'news',
+    'vacancies',
+    'contacts',
+    'cta',
+    'text',
+    'image',
+    'gallery',
+  ],
+  sectionRendererMap: {
+    hero: 'Hero',
+    about: 'About',
+    services: 'Services',
+    projects: 'Projects',
+    news: 'EditorialList',
+    vacancies: 'EditorialList',
+    contacts: 'Contacts',
+    cta: 'Finale',
+    text: 'GenericContentSection',
+    image: 'GenericContentSection',
+    gallery: 'GenericContentSection',
+  },
+  collectionRendererMap: {
+    services: 'Services',
+    projects: 'Projects',
+    news: 'EditorialList',
+    vacancies: 'EditorialList',
+  },
+  pageRenderer: 'PageView',
+};

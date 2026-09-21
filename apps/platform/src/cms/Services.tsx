@@ -4,6 +4,7 @@ import { IconEdit, IconTrash, IconMore, IconChevronLeft, IconPlus, IconGrip, Ico
 import { Badge, Button, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
 import { useStudio, formatDate } from './context'
 import { api, uiStatus, apiStatus } from './api'
+import { mediaUrlOf } from './mediaUrl'
 
 interface ServicesListProps {
   onNavigate: (s: Screen, id?: string) => void
@@ -156,9 +157,9 @@ export function ServiceEditor({ serviceId, onNavigate }: ServiceEditorProps) {
             <div>
               <p className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider mb-2">Service image</p>
               <div className="bg-surface border border-border rounded p-4">
-                {(() => { const m = (media || []).find((x: any) => x.id === imageId); return m ? (
+                {(() => { const m = (media || []).find((x: any) => x.id === imageId); return m && mediaUrlOf(siteId, m) ? (
                   <div className="mb-3">
-                    <img src={`/site-media/${siteId}/${m.filename}`} alt={m.alt || title} className="w-full max-h-[220px] object-cover rounded border border-border" />
+                    <img src={mediaUrlOf(siteId, m)} alt={m.alt || title} className="w-full max-h-[220px] object-cover rounded border border-border" />
                     <div className="flex items-center gap-3 mt-2">
                       <label className="text-[12px] text-accent font-medium cursor-pointer hover:underline">
                         <input type="file" accept="image/*" onChange={upload} className="hidden" />Replace

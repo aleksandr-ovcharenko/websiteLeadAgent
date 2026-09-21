@@ -13,6 +13,8 @@ interface DemoVariant {
   templateId: string
   previewToken: string
   isPreferred: boolean
+  status?: string
+  hasScreenshot?: boolean
 }
 
 interface SiteContext {
@@ -22,6 +24,7 @@ interface SiteContext {
   initials: string
   previewToken: string
   demoVariants: DemoVariant[]
+  originalWebsiteUrl?: string | null
 }
 
 interface ProductHeaderProps {
@@ -48,6 +51,7 @@ function mapSite(s: any): SiteContext {
     initials: getInitials(s.name || ''),
     previewToken: preferred?.previewToken || s.previewToken || '',
     demoVariants: variants,
+    originalWebsiteUrl: s.originalWebsiteUrl || s.lead?.website || null,
   }
 }
 
@@ -254,13 +258,34 @@ export default function ProductHeader({ productArea, siteId, user, onNavigate }:
               <span className="text-[12px] text-text-muted">Active</span>
             </div>
 
-            <div className="relative" ref={showcaseRef}>
-              <button
-                onClick={() => setShowcaseOpen(o => !o)}
+            {displaySite.originalWebsiteUrl && (
+              <a
+                href={displaySite.originalWebsiteUrl}
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center gap-1.5 h-[30px] px-3 rounded border border-border text-[12px] text-text-muted hover:bg-surface-raised hover:border-border transition-colors flex-shrink-0"
+                title={`Original site — ${displaySite.originalWebsiteUrl}`}
+              >
+                <IconExternal size={11} />
+                Original
+              </a>
+            )}
+
+            <div className="relative flex items-stretch" ref={showcaseRef}>
+              <button
+                onClick={handleShowcase}
+                disabled={!currentSite?.previewToken}
+                className="flex items-center gap-1.5 h-[30px] px-3 rounded-l border border-border text-[12px] text-text-muted hover:bg-surface-raised transition-colors flex-shrink-0 disabled:opacity-50"
+                title={currentSite?.previewToken ? 'Open preferred variant' : 'No preview available'}
               >
                 <IconExternal size={11} />
                 Open Showcase
+              </button>
+              <button
+                onClick={() => setShowcaseOpen(o => !o)}
+                className="flex items-center h-[30px] px-1.5 rounded-r border border-l-0 border-border text-text-subtle hover:bg-surface-raised transition-colors flex-shrink-0"
+                aria-label="Choose variant"
+              >
                 <IconChevronDown size={10} />
               </button>
 
@@ -270,7 +295,23 @@ export default function ProductHeader({ productArea, siteId, user, onNavigate }:
                     <p className="text-[10px] font-semibold text-text-subtle uppercase tracking-wider">Choose variant</p>
                   </div>
                   <div className="py-1 max-h-64 overflow-y-auto">
-                    {currentSite.demoVariants.map(v => (
+                    {currentSite.demoVariants.length === 0 ? (
+                      <div className="px-3 py-2.5">
+                        <p className="text-[12px] text-text-subtle">No built variants yet</p>
+                        {currentSite.previewToken && (
+                          <button
+                            onClick={() => {
+                              setShowcaseVisible(true)
+                              window.open(`/showcase/${currentSite.previewToken}`, '_blank', 'noopener,noreferrer')
+                              setShowcaseOpen(false)
+                            }}
+                            className="mt-1.5 text-[12px] text-accent underline"
+                          >
+                            Open site preview instead
+                          </button>
+                        )}
+                      </div>
+                    ) : currentSite.demoVariants.map(v => (
                       <button
                         key={v.id}
                         onClick={() => {
@@ -282,7 +323,9 @@ export default function ProductHeader({ productArea, siteId, user, onNavigate }:
                       >
                         <div>
                           <p className="text-[12px] font-medium text-text">{v.name || v.templateId}</p>
-                          <p className="text-[10px] text-text-subtle font-mono">{v.templateId}</p>
+                          <p className="text-[10px] text-text-subtle font-mono">
+                            {v.templateId}{v.status && v.status !== 'ACTIVE' ? ` · ${v.status.toLowerCase()}` : ''}{v.hasScreenshot === false ? ' · no screenshot' : ''}
+                          </p>
                         </div>
                         {v.isPreferred && <span className="text-[10px] text-warning">preferred</span>}
                       </button>

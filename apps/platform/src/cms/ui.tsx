@@ -3,7 +3,7 @@ import { IconX, IconCheck, IconAlert, IconLock, IconChevronDown } from './icons'
 
 // ─── Badge ───────────────────────────────────────────────────────────────────
 
-type BadgeVariant = 'published' | 'draft' | 'archived' | 'active' | 'inactive' | 'completed' | 'in-progress'
+type BadgeVariant = 'published' | 'draft' | 'archived' | 'active' | 'inactive' | 'completed' | 'in-progress' | 'homepage'
 
 const BADGE: Record<BadgeVariant, { cls: string; label: string }> = {
   published: { cls: 'bg-success-subtle text-success border border-success-subtle', label: 'Published' },
@@ -13,6 +13,7 @@ const BADGE: Record<BadgeVariant, { cls: string; label: string }> = {
   inactive: { cls: 'bg-danger-subtle text-danger border border-danger-subtle', label: 'Inactive' },
   completed: { cls: 'bg-info-subtle text-info border border-info-subtle', label: 'Completed' },
   'in-progress': { cls: 'bg-warning-subtle text-warning border border-warning-subtle', label: 'In progress' },
+  homepage: { cls: 'bg-info-subtle text-info border border-info-subtle', label: 'Homepage' },
 }
 
 export function Badge({ variant }: { variant: BadgeVariant }) {

@@ -42,6 +42,7 @@
     "infra:reset": "docker compose down -v && docker compose up -d db && npx prisma db push --accept-data-loss"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@types/http-proxy": "^1.17.17",
     "@types/node": "^22.0.0",
     "prisma": "^5.22.0",

@@ -6,7 +6,7 @@ import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { showcaseSecurityHeaders } from '../../dashboard/src/security/headers.js';
 // @ts-expect-error no declaration file for built templates
-import { templates } from '../../../packages/templates/dist/index.js';
+import { templates, resolveHomepageSections } from '../../../packages/templates/dist/index.js';
 
 const REPO_ROOT = process.cwd();
 
@@ -81,12 +81,27 @@ async function renderPreview(req: Request, res: Response) {
     if (m.sourceUrl) mediaMap.set(m.sourceUrl, m);
   }
 
-  const themeConfig = site.themeConfig || {};
+  const baseThemeConfig = site.themeConfig || {};
+  const variantThemeConfig = (variant?.themeConfig as any) || {};
+  const themeConfig = { ...baseThemeConfig, ...variantThemeConfig };
   const theme = { ...themeConfig };
-  const hero = themeConfig.hero || {};
-  const about = themeConfig.about || {};
-  const cta = themeConfig.cta || {};
-  const homepageSections = themeConfig.homepageSections || [];
+  const hero = { ...baseThemeConfig.hero, ...variantThemeConfig.hero } || {};
+  const about = { ...baseThemeConfig.about, ...variantThemeConfig.about } || {};
+  const cta = { ...baseThemeConfig.cta, ...variantThemeConfig.cta } || {};
+  // Canonical homepage composition (V3.4):
+  //   1. published homepage Page.blocks for preferred variant / site preview
+  //   2. variant themeConfig.homepageSections for non-preferred concept previews
+  //   3. site themeConfig.homepageSections (legacy fallback)
+  //   4. safe empty composition
+  const homepagePage = pages.find((p: any) => p.isHomepage);
+  const isPreferred = !variant || variant.isPreferred === true || site.preferredDemoVariantId === variant.id;
+  const resolved = resolveHomepageSections({
+    homepageBlocks: homepagePage?.blocks,
+    isPreferred,
+    variantSections: variantThemeConfig.homepageSections,
+    siteSections: baseThemeConfig.homepageSections,
+  });
+  const homepageSections = resolved.sections.map((s: any, i: number) => ({ ...s, sortOrder: i }));
   const logo = settings.logoMediaId ? mediaMap.get(settings.logoMediaId) : undefined;
   const favicon = settings.faviconMediaId ? mediaMap.get(settings.faviconMediaId) : undefined;
 
@@ -111,6 +126,7 @@ async function renderPreview(req: Request, res: Response) {
     mediaMap,
     route,
     subRoute,
+    previewToken,
     stylePreset: (req.query.style as string | undefined) || (variant?.themeConfig as any)?.stylePreset
   });
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');

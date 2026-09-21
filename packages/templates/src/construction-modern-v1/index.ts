@@ -86,9 +86,12 @@ function buildCompany(ctx: RenderContext) {
 
   const contactsPage = ctx.pages?.find((p) => p.slug === 'contacts' || /контакт/i.test(p.title || ''));
   const contactsText = textFrom(contactsPage);
-  const allPhones = findPhoneNumbers(contactsText || rawPhone).slice(0, 4);
+  const allPhones = findPhoneNumbers(contactsText || rawPhone).slice(0, 2);
   const generalPhones = allPhones.slice(0, 2).map((p) => ({ phone: p, href: `tel:${cleanPhone(p)}`, label: 'приёмная' }));
-  const procurementPhones = allPhones.slice(2, 4).map((p) => ({ phone: p, href: `tel:${cleanPhone(p)}` }));
+  // Procurement/tender UI is rendered only when the source explicitly provides
+  // a procurement channel. A generic phone must not be treated as a tender line.
+  const showProcurement = (ctx.settings as any)?.showProcurement === true || /закуп|тендер|снабжен/i.test(contactsText || '');
+  const procurementPhones: any[] = [];
 
   return {
     name: companyName,
@@ -109,7 +112,7 @@ function buildCompany(ctx: RenderContext) {
     domain,
     contacts: {
       general: generalPhones.length ? generalPhones : (phone ? [{ phone, href: phoneHref, label: 'приёмная' }] : []),
-      procurement: procurementPhones.length ? procurementPhones : [],
+      procurement: showProcurement ? procurementPhones : [],
       email,
       tenderEmail
     }
@@ -120,7 +123,7 @@ export function constructionModernV1(ctx: RenderContext): string {
   const html = readFileSync(resolve(__dirname, 'public/index.html'), 'utf-8');
   const company = buildCompany(ctx);
 
-  const token = ctx.site?.previewToken || '';
+  const token = ctx.previewToken || ctx.site?.previewToken || '';
   const base = token ? `/showcase/${token}` : '';
 
   const SECTION_BY_SLUG: Record<string, string> = {

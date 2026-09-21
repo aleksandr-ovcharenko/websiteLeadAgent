@@ -108,7 +108,7 @@ export function constructionIndustrialV1(ctx: RenderContext): string {
   const html = readFileSync(resolve(__dirname, 'public/index.html'), 'utf-8');
   const company = buildCompany(ctx);
 
-  const token = ctx.site?.previewToken || '';
+  const token = ctx.previewToken || ctx.site?.previewToken || '';
   const base = token ? `/showcase/${token}` : '';
 
   const SECTION_BY_SLUG: Record<string, string> = {

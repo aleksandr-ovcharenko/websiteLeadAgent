@@ -1,8 +1,9 @@
 import express, { type Request, type Response } from 'express';
+import { Prisma } from '@prisma/client';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { prisma, requireSuperAdmin } from './auth.js';
-import { captureSitePreview, getScreenshotStoragePath, getScreenshotUrl, previewImageUrl } from '../../../packages/screenshot/src/index.js';
+import { captureSitePreview, captureVariantPreview, previewImageUrl } from '../../../packages/screenshot/src/index.js';
 import { getPipelineStageLabel, generateSite } from '@minsk/redesign-engine';
 
 const router = express.Router();
@@ -54,7 +55,9 @@ async function toPlatformSite(site: any): Promise<any> {
   const { attention, attentionAction } = computeAttention(site, screenshot);
   const variants = site.demoVariants ?? [];
   const preferred = variants.find((v: any) => v.isPreferred) ?? variants[0];
-  const image = screenshot ? previewImageUrl(screenshot, preferred?.id) : 'https://via.placeholder.com/800x500?text=No+preview';
+  // No external placeholders: missing screenshot is a first-class UI state.
+  const image = screenshot ? previewImageUrl(screenshot, preferred?.id) : null;
+  const isFixture = (site.settings as any)?.fixture === true;
 
   return {
     id: site.id,
@@ -80,7 +83,17 @@ async function toPlatformSite(site: any): Promise<any> {
     previewToken: preferred?.previewToken ?? site.previewToken,
     originalWebsiteUrl: site.lead?.website || null,
     reviewStatus: (site.settings as any)?.reviewStatus || null,
-    demoVariants: variants.map((v: any) => ({ id: v.id, name: v.name, templateId: v.templateId, previewToken: v.previewToken, isPreferred: v.isPreferred })),
+    fixture: isFixture || undefined,
+    demoVariants: variants.map((v: any) => ({
+      id: v.id,
+      name: v.name,
+      templateId: v.templateId,
+      previewToken: v.previewToken,
+      isPreferred: v.isPreferred,
+      status: v.status,
+      screenshotUrl: v.screenshot?.url ? previewImageUrl(v.screenshot, v.id) : null,
+      hasScreenshot: !!v.screenshot
+    })),
     stageLabel
   };
 }
@@ -104,12 +117,25 @@ router.get('/api/hub/stats', requireSuperAdmin, async (_req: Request, res: Respo
   });
 });
 
-router.get('/api/platform/sites', async (_req: Request, res: Response) => {
+router.get('/api/platform/sites', async (req: Request, res: Response) => {
+  // QA/test fixtures are never shown in Forge unless explicitly requested.
+  const includeFixtures = req.query.includeFixtures === 'true';
+  // Postgres JSON semantics: `NOT (path equals true)` is NULL (not true) when the
+  // key is absent, which would exclude every non-fixture row. Include a site
+  // unless settings.fixture is explicitly `true`.
+  const where = includeFixtures ? {} : {
+    OR: [
+      { settings: { path: ['fixture'], equals: Prisma.AnyNull } },
+      { settings: { path: ['fixture'], equals: false } },
+      { settings: { path: ['fixture'], equals: Prisma.JsonNull } },
+    ]
+  };
   const sites = await prisma.site.findMany({
+    where: where as any,
     include: {
       lead: { select: { redesignStage: true, website: true } },
       builds: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, createdAt: true } },
-      demoVariants: true
+      demoVariants: { include: { screenshot: true } }
     },
     orderBy: { updatedAt: 'desc' }
   });
@@ -122,9 +148,9 @@ router.get('/api/platform/sites/:siteId', async (req: Request, res: Response) =>
   const site = await prisma.site.findUnique({
     where: { id: siteId },
     include: {
-      lead: { select: { redesignStage: true } },
+      lead: { select: { redesignStage: true, website: true } },
       builds: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, createdAt: true } },
-      demoVariants: true
+      demoVariants: { include: { screenshot: true } }
     }
   });
   if (!site) { res.status(404).json({ error: 'not_found' }); return; }
@@ -180,17 +206,36 @@ router.delete('/api/platform/sites/:siteId', async (req: Request, res: Response)
   res.json({ ok: true });
 });
 
-router.post('/api/platform/sites/:siteId/screenshot', async (req: Request, res: Response) => {
-  const siteId = String(req.params.siteId);
+async function captureSiteAndVariants(siteId: string) {
   const site = await prisma.site.findUnique({
     where: { id: siteId },
     include: {
-      builds: { orderBy: { createdAt: 'desc' }, take: 1, select: { id: true, status: true, createdAt: true } }
+      demoVariants: { where: { status: 'ACTIVE' } },
+      builds: { orderBy: { createdAt: 'desc' }, take: 5, select: { id: true, status: true, createdAt: true, demoVariantId: true } }
     }
   });
+  if (!site) return null;
+  const preferred = site.demoVariants.find((v: any) => v.isPreferred) ?? site.demoVariants[0];
+  const results: { variantId?: string; url: string }[] = [];
+  for (const v of site.demoVariants) {
+    try {
+      const r = await captureVariantPreview(site as any, v, prisma);
+      results.push({ variantId: v.id, url: r.url });
+    } catch (err: any) {
+      console.error(`[platform] variant screenshot failed for ${v.id}:`, err?.message);
+    }
+  }
+  // Site-level card shows the preferred variant when one exists.
+  const { url } = await captureSitePreview({ ...(site as any), previewTokenOverride: preferred?.previewToken }, prisma);
+  return { url, variants: results };
+}
+
+router.post('/api/platform/sites/:siteId/screenshot', async (req: Request, res: Response) => {
+  const siteId = String(req.params.siteId);
+  const site = await prisma.site.findUnique({ where: { id: siteId } });
   if (!site) { res.status(404).json({ error: 'not_found' }); return; }
-  const { url } = await captureSitePreview(site as any, prisma);
-  res.json({ ok: true, url });
+  const result = await captureSiteAndVariants(siteId);
+  res.json({ ok: true, url: result?.url, variants: result?.variants });
 });
 
 // Human review transitions — the product workflow for generation approval.
@@ -217,10 +262,14 @@ router.post('/api/platform/sites/:siteId/review', requireSuperAdmin, async (req:
   res.json({ ok: true, reviewStatus: to });
 });
 
-router.get('/site-screenshots/:siteId/preview.png', async (req: Request, res: Response) => {
-  const p = getScreenshotStoragePath(String(req.params.siteId));
+router.get('/site-screenshots/:siteId/:file', async (req: Request, res: Response) => {
+  const siteId = String(req.params.siteId);
+  const file = String(req.params.file).replace(/[^a-zA-Z0-9_.-]/g, '');
+  const dir = path.resolve('data/generated/sites', siteId, 'screenshots');
+  const p = path.resolve(dir, file);
+  if (!p.startsWith(dir)) { res.status(403).send(); return; }
   try {
-    await import('node:fs/promises').then((fs) => fs.access(p));
+    await fs.access(p);
     // Versioned by ?v= (variant id + capture time) — never heuristic-cache the
     // bare URL, so a regenerated preferred variant can never display stale.
     res.setHeader('Cache-Control', 'no-cache, must-revalidate');
@@ -330,6 +379,14 @@ router.post('/api/platform/sites/:siteId/variants', async (req: Request, res: Re
     } as any
   });
 
+  // Best-effort variant screenshot so Forge cards never show a broken image.
+  try {
+    const full = await prisma.site.findUnique({ where: { id: siteId }, include: { builds: { orderBy: { createdAt: 'desc' }, take: 5 } } });
+    if (full) await captureVariantPreview(full as any, variant, prisma);
+  } catch (err: any) {
+    console.error('[platform] variant screenshot failed:', err?.message);
+  }
+
   res.json({ ok: true, variant });
 });
 
@@ -400,7 +457,15 @@ router.post('/api/factory/runs/:runId/retry', requireSuperAdmin, async (req: Req
     mode: 'retry',
     prisma,
   });
-  res.json({ ok: true, ...result });
+
+  // Best-effort: refresh Forge card + per-variant screenshots after rebuild.
+  let screenshots: any = null;
+  try {
+    screenshots = await captureSiteAndVariants(result.siteId);
+  } catch (err: any) {
+    console.error('[platform] post-build screenshot capture failed:', err?.message);
+  }
+  res.json({ ok: true, ...result, screenshots });
 });
 
 export { router as platformRouter };

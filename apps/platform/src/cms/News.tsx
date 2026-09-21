@@ -4,6 +4,7 @@ import { IconEdit, IconEye, IconMore, IconTrash, IconChevronLeft, IconPlus, Icon
 import { Badge, Button, SearchInput, FilterTabs, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
 import { useStudio, formatDate } from './context'
 import { api, uiStatus, apiStatus } from './api'
+import { mediaUrlOf } from './mediaUrl'
 
 interface NewsListProps {
   onNavigate: (s: Screen, id?: string) => void
@@ -117,7 +118,7 @@ interface NewsEditorProps {
 }
 
 export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
-  const { siteId, news, refresh, site } = useStudio()
+  const { siteId, news, refresh, site, media } = useStudio()
   const isNew = !newsId || newsId === 'new'
   const item = isNew ? null : news.find((n: any) => n.id === newsId)
 
@@ -206,7 +207,7 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
               <div className="bg-surface border border-border rounded p-4">
                 {coverImageId ? (
                   <div className="flex items-center gap-3 mb-3">
-                    <img src={`/api/cms/sites/${siteId}/media` /* no direct url */} alt="" className="w-16 h-16 object-cover rounded border" onError={() => undefined} />
+                    <img src={mediaUrlOf(siteId, (media || []).find((m: any) => m.id === coverImageId)) || ''} alt="" className="w-16 h-16 object-cover rounded border" />
                     <span className="text-[12px] text-text-muted mono">{coverImageId}</span>
                     <button onClick={() => { setCoverImageId(''); markDirty() }} className="ml-auto text-danger text-[12px]">Remove</button>
                   </div>

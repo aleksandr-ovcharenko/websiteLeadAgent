@@ -6,9 +6,10 @@
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "scripts": {
-    "build": "tsc -p tsconfig.json && npm run build:modern-v1 && npm run build:industrial-v1",
+    "build": "tsc -p tsconfig.json && npm run build:modern-v1 && npm run build:industrial-v1 && npm run build:editorial-v1",
     "build:modern-v1": "vite build -c vite.construction-modern-v1.config.ts",
-    "build:industrial-v1": "vite build -c vite.construction-industrial-v1.config.ts"
+    "build:industrial-v1": "vite build -c vite.construction-industrial-v1.config.ts",
+    "build:editorial-v1": "vite build -c vite.editorial-architecture-v1.config.ts"
   },
   "dependencies": {
     "@minsk/security": "0.1.0",
