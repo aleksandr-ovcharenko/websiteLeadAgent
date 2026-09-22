@@ -1,4 +1,5 @@
-import { useState, useRef, useEffect, ReactNode } from 'react'
+import { useState, useRef, useEffect, useId, ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { IconX, IconCheck, IconAlert, IconLock, IconChevronDown } from './icons'
 
 // ─── Badge ───────────────────────────────────────────────────────────────────
@@ -217,49 +218,165 @@ export function Tabs({ tabs, active, onChange }: { tabs: string[]; active: strin
   )
 }
 
-// ─── Dropdown Menu ───────────────────────────────────────────────────────────
+// ─── Action Menu (portal popover) ────────────────────────────────────────────
+// Single shared implementation for every row/card action menu (CMS tables and
+// Forge cards). The menu renders through a portal into document.body with
+// position: fixed, so it is never clipped by an overflow-hidden ancestor.
+// Geometry: below-right of the trigger, flips up when there is no room,
+// shifts inside the viewport horizontally, tracks scroll/resize.
 
-interface DropdownItem {
+export interface ActionMenuItem {
   label: string
   icon?: ReactNode
   onClick: () => void
   danger?: boolean
   divider?: boolean
+  disabled?: boolean
+  hint?: string
 }
 
-export function DropdownMenu({ trigger, items }: { trigger: ReactNode; items: DropdownItem[] }) {
+const MENU_WIDTH = 176
+const MENU_MARGIN = 8
+const MENU_MAX_HEIGHT = 320
+
+function computeMenuPos(trigger: DOMRect, menuEl: HTMLElement | null): { top: number; left: number; flip: boolean } {
+  const menuH = menuEl?.offsetHeight || MENU_MAX_HEIGHT
+  const menuW = menuEl?.offsetWidth || MENU_WIDTH
+  const vh = window.innerHeight
+  const vw = window.innerWidth
+  let top = trigger.bottom + 4
+  let flip = false
+  if (top + menuH > vh - MENU_MARGIN && trigger.top - 4 - menuH > MENU_MARGIN) {
+    top = trigger.top - 4 - menuH
+    flip = true
+  }
+  // Clamp vertically even if both sides are tight.
+  top = Math.max(MENU_MARGIN, Math.min(top, vh - MENU_MARGIN - Math.min(menuH, vh - 2 * MENU_MARGIN)))
+  let left = trigger.right - menuW // right-aligned by default
+  if (left < MENU_MARGIN) left = Math.min(trigger.left, vw - menuW - MENU_MARGIN)
+  left = Math.max(MENU_MARGIN, Math.min(left, vw - menuW - MENU_MARGIN))
+  return { top, left, flip }
+}
+
+export function ActionMenu({ items, ariaLabel = 'Действия', trigger }: { items: ActionMenuItem[]; ariaLabel?: string; trigger?: ReactNode }) {
   const [open, setOpen] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
+  const [pos, setPos] = useState<{ top: number; left: number; flip: boolean }>({ top: 0, left: 0, flip: false })
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+  const menuId = useId()
+
+  const updatePos = () => {
+    if (triggerRef.current) setPos(computeMenuPos(triggerRef.current.getBoundingClientRect(), menuRef.current))
+  }
+
+  const close = (focusBack = false) => {
+    setOpen(false)
+    if (focusBack) triggerRef.current?.focus()
+  }
 
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    if (!open) return
+    updatePos()
+    const onScroll = () => updatePos()
+    const onResize = () => updatePos()
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node
+      if (triggerRef.current?.contains(t)) return
+      if (menuRef.current && !menuRef.current.contains(t)) close()
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+    const onKey = (e: KeyboardEvent) => {
+      const menu = menuRef.current
+      const focusables = menu ? Array.from(menu.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])')) : []
+      const idx = focusables.indexOf(document.activeElement as HTMLElement)
+      switch (e.key) {
+        case 'Escape':
+          e.preventDefault(); close(true); break
+        case 'ArrowDown':
+          e.preventDefault(); (focusables[idx + 1] || focusables[0])?.focus(); break
+        case 'ArrowUp':
+          e.preventDefault(); (focusables[idx - 1] || focusables[focusables.length - 1])?.focus(); break
+        case 'Home':
+          e.preventDefault(); focusables[0]?.focus(); break
+        case 'End':
+          e.preventDefault(); focusables[focusables.length - 1]?.focus(); break
+        case 'Tab':
+          close(); break
+      }
+    }
+    // capture scroll — menus must track nested scroll containers too.
+    window.addEventListener('scroll', onScroll, true)
+    window.addEventListener('resize', onResize)
+    document.addEventListener('mousedown', onDown)
+    window.addEventListener('keydown', onKey)
+    // Focus the first menu item — WAI menu pattern.
+    const t = setTimeout(() => menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]:not([disabled])')?.focus(), 0)
+    return () => {
+      clearTimeout(t)
+      window.removeEventListener('scroll', onScroll, true)
+      window.removeEventListener('resize', onResize)
+      document.removeEventListener('mousedown', onDown)
+      window.removeEventListener('keydown', onKey)
+    }
+  }, [open])
 
   return (
-    <div className="relative" ref={ref}>
-      <div onClick={() => setOpen(o => !o)} className="cursor-pointer">{trigger}</div>
-      {open && (
-        <div className="absolute right-0 mt-1 w-40 bg-surface border border-border rounded shadow-md z-50 py-0.5">
+    <>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={ariaLabel}
+        aria-expanded={open}
+        aria-controls={open ? menuId : undefined}
+        aria-haspopup="menu"
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if ((e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') && !open) {
+            e.preventDefault(); setOpen(true)
+          }
+        }}
+        // 36px visual target; ::before extends the hit area to ~44px.
+        className="relative inline-flex items-center justify-center w-9 h-9 rounded text-text-subtle hover:text-text hover:bg-surface-hover transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-accent before:absolute before:-inset-1 before:content-[''] before:rounded"
+      >
+        {trigger || (
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor" aria-hidden="true">
+            <circle cx="7" cy="2.5" r="1.2" /><circle cx="7" cy="7" r="1.2" /><circle cx="7" cy="11.5" r="1.2" />
+          </svg>
+        )}
+      </button>
+      {open && createPortal(
+        <div
+          ref={menuRef}
+          id={menuId}
+          role="menu"
+          aria-label={ariaLabel}
+          className="fixed z-[100] w-44 max-h-[320px] overflow-y-auto bg-surface border border-border rounded shadow-lg py-0.5"
+          style={{ top: pos.top, left: pos.left }}
+        >
           {items.map((item, i) => (
             <div key={i}>
-              {item.divider && i > 0 && <div className="my-0.5 border-t border-border" />}
+              {item.divider && i > 0 && <div className="my-0.5 border-t border-border" role="separator" />}
               <button
-                onClick={() => { item.onClick(); setOpen(false) }}
-                className={`w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left transition-colors ${item.danger ? 'text-danger hover:bg-danger-subtle' : 'text-text hover:bg-surface-raised'}`}
+                role="menuitem"
+                disabled={item.disabled}
+                title={item.hint}
+                onClick={() => { close(); item.onClick() }}
+                className={`w-full flex items-center gap-2 px-3 py-1.5 text-[13px] text-left transition-colors focus:outline-none focus-visible:bg-surface-raised disabled:opacity-50 disabled:cursor-not-allowed ${item.danger ? 'text-danger hover:bg-danger-subtle' : 'text-text hover:bg-surface-raised'}`}
               >
                 {item.icon && <span className="flex-shrink-0 opacity-70">{item.icon}</span>}
-                {item.label}
+                <span className="flex-1 min-w-0 truncate">{item.label}</span>
               </button>
             </div>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   )
+}
+
+// Backwards-compatible wrapper — all CMS tables share ActionMenu.
+export function DropdownMenu({ trigger, items, ariaLabel }: { trigger: ReactNode; items: ActionMenuItem[]; ariaLabel?: string }) {
+  return <ActionMenu items={items} ariaLabel={ariaLabel} trigger={trigger} />
 }
 
 // ─── Modal ───────────────────────────────────────────────────────────────────

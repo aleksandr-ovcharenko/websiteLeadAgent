@@ -68,6 +68,8 @@ export interface RenderContext {
   previewToken?: string;
   manifest?: TemplateManifest;
   stylePreset?: string;
+  /** 1-based collection page number from ?page=N (V3.7.2 pagination). */
+  page?: number;
 }
 
 export interface Template {

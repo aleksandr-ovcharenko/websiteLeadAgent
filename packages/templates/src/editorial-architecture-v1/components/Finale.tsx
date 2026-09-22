@@ -1,4 +1,4 @@
-import { cms, type CmsNavItem, type CmsSection } from '../cms';
+import { cms, t, tf, type CmsNavItem, type CmsSection } from '../cms';
 
 export function Finale({ section, anchor, chapter, nav }: { section?: CmsSection; anchor: string; chapter?: string; nav?: CmsNavItem[] }) {
   const c = cms.COMPANY;
@@ -8,7 +8,7 @@ export function Finale({ section, anchor, chapter, nav }: { section?: CmsSection
       <section id={anchor} className="finale" aria-labelledby={`${anchor}-heading`}>
         <div className="finale__inner">
           <div className="datum" aria-hidden="true" style={{ marginBottom: '2rem' }}>
-            <span>{chapter ? `Глава ${chapter}` : ''}</span>
+            <span>{chapter ? tf('chapter.label', { n: chapter }) : ''}</span>
           </div>
           {(section?.title || section?.heading) && (
             <h2 id={`${anchor}-heading`} className="finale__statement">
@@ -23,7 +23,7 @@ export function Finale({ section, anchor, chapter, nav }: { section?: CmsSection
           )}
           {c.phone && (
             <p className="finale__contact">
-              Телефон: {c.phoneHref ? <a href={c.phoneHref}>{c.phone}</a> : c.phone}
+              {t('contacts.phone')}: {c.phoneHref ? <a href={c.phoneHref}>{c.phone}</a> : c.phone}
             </p>
           )}
         </div>
@@ -33,7 +33,7 @@ export function Finale({ section, anchor, chapter, nav }: { section?: CmsSection
         <div className="footer__inner">
           <span>{c.name}</span>
           {nav && nav.length > 0 && (
-            <nav className="footer__nav" aria-label="Footer">
+            <nav className="footer__nav" aria-label={t('footer.aria') || undefined}>
               {nav.map((item) => (
                 <a
                   key={item.id}

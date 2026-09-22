@@ -117,7 +117,7 @@ export class DiscoveryService {
         companyName: candidate.data.companyName,
         city: candidate.data.city,
         address: candidate.data.address,
-        categories: candidate.data.categories,
+        categories: Array.isArray(candidate.data.categories) ? candidate.data.categories : undefined,
         phone: candidate.data.phone,
         website: candidate.data.website,
         sourceUrl: candidate.data.sourceUrl,

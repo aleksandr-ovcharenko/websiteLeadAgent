@@ -1,19 +1,20 @@
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Screen } from './types'
 import { IconEdit, IconEye, IconCopy, IconTrash, IconMore, IconChevronLeft, IconGrip, IconPlus, IconX, IconCheck, IconUpload } from './icons'
-import { Badge, Button, SearchInput, FilterTabs, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
+import { Badge, Button, SearchInput, FilterTabs, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar, Modal } from './ui'
 import { useStudio, formatDate } from './context'
 import { api, uiStatus, apiStatus } from './api'
+import { mediaUrlOf } from './mediaUrl'
 
 // Canonical block types offered for NEW blocks (contentBlockSchema).
 // Legacy Team/Stats/Map are intentionally absent: unknown existing blocks
 // load as read-only and are preserved verbatim on save.
-const BLOCK_TYPES = ['Hero', 'Text', 'Image', 'Gallery', 'Services', 'Projects', 'News', 'About', 'Vacancies', 'CTA', 'Contacts']
+const BLOCK_TYPES = ['Hero', 'Text', 'Image', 'Gallery', 'Services', 'Projects', 'News', 'About', 'Vacancies', 'CTA', 'Contacts', 'Certificates']
 
 const BLOCK_UI_TO_API: Record<string, string> = {
   Hero: 'hero', Text: 'text', Image: 'image', Gallery: 'gallery',
   Services: 'services', Projects: 'projects', News: 'news', About: 'about',
-  Vacancies: 'vacancies', CTA: 'cta', Contacts: 'contacts'
+  Vacancies: 'vacancies', CTA: 'cta', Contacts: 'contacts', Certificates: 'certificates'
 }
 const BLOCK_API_TO_UI: Record<string, string> = Object.fromEntries(Object.entries(BLOCK_UI_TO_API).map(([k, v]) => [v, k]))
 const COLLECTION_TYPES = new Set(['Services', 'Projects', 'News', 'Vacancies'])
@@ -49,11 +50,25 @@ function toApiBlock(b: BlockUi): any {
     case 'Services': case 'Projects': case 'News': case 'Vacancies': {
       const ids = (d.selectedItemIdsText ?? '')
       const selectedItemIds = String(ids).split('\n').map((s: string) => s.trim()).filter(Boolean)
-      return { ...base, heading: d.heading || '', limit: d.limit === '' || d.limit == null ? null : Number(d.limit), selectedItemIds: selectedItemIds.length ? selectedItemIds : undefined }
+      return {
+        ...base, heading: d.heading || '',
+        limit: d.limit === '' || d.limit == null ? null : Number(d.limit),
+        pageSize: d.pageSize === '' || d.pageSize == null ? undefined : Number(d.pageSize),
+        showAllLink: d.showAllLink !== false,
+        selectedItemIds: selectedItemIds.length ? selectedItemIds : undefined,
+      }
     }
     case 'About': return { ...base, heading: d.heading || '', content: d.content || '', imageId: d.imageId || undefined }
     case 'CTA': return { ...base, title: d.heading || '', description: d.description || '', buttonLabel: d.buttonLabel || '', buttonUrl: d.buttonUrl || '' }
     case 'Contacts': return { ...base, heading: d.heading || 'Контакты' }
+    case 'Certificates': return {
+      ...base, heading: d.heading || '', description: d.description || '',
+      items: (d.items || []).map((it: any, i: number) => ({
+        mediaId: it.mediaId, caption: it.caption || '', docType: it.docType || '',
+        enabled: it.enabled !== false, sortOrder: i,
+        ...(it.sourceUrl ? { sourceUrl: it.sourceUrl } : {}),
+      })).filter((it: any) => it.mediaId)
+    }
     default: return { ...base, ...d }
   }
 }
@@ -70,10 +85,11 @@ function fromApiBlock(raw: any): BlockUi {
     case 'services':
     case 'projects':
     case 'news':
-    case 'vacancies': data = { heading: raw.heading || '', limit: raw.limit ?? '', selectedItemIdsText: (raw.selectedItemIds || []).join('\n') }; break
+    case 'vacancies': data = { heading: raw.heading || '', limit: raw.limit ?? '', pageSize: raw.pageSize ?? '', showAllLink: raw.showAllLink !== false, selectedItemIdsText: (raw.selectedItemIds || []).join('\n') }; break
     case 'about': data = { heading: raw.heading || '', content: raw.content || '', imageId: raw.imageId || '' }; break
     case 'cta': data = { heading: raw.title || '', description: raw.description || '', buttonLabel: raw.buttonLabel || '', buttonUrl: raw.buttonUrl || '' }; break
     case 'contacts': data = { heading: raw.heading || '' }; break
+    case 'certificates': data = { heading: raw.heading || '', description: raw.description || '', items: raw.items || [] }; break
     default: data = {}
   }
   const summary = raw?.title || raw?.heading || raw?.content || type
@@ -131,7 +147,7 @@ export function PagesList({ onNavigate }: PagesListProps) {
   const { show } = useToast()
 
   const confirmDelete = async () => {
-    if (!deleteId) return
+    if (!deleteId || busy) return
     setBusy(true)
     try {
       await api.deletePage(siteId, deleteId)
@@ -141,6 +157,29 @@ export function PagesList({ onNavigate }: PagesListProps) {
       show(e.message || 'Failed to delete')
     } finally {
       setBusy(false); setDeleteId(null)
+    }
+  }
+
+  const duplicatePage = async (page: any) => {
+    if (busy) return
+    setBusy(true)
+    try {
+      const copySlug = `${page.slug || 'page'}-copy`
+      await api.createPage(siteId, {
+        title: `${page.title || 'Page'} (копия)`,
+        slug: copySlug,
+        blocks: page.blocks || [],
+        status: 'DRAFT',
+        isHomepage: false,
+        seoTitle: page.seoTitle,
+        seoDescription: page.seoDescription,
+      })
+      await refresh()
+      show('Page duplicated as draft')
+    } catch (e: any) {
+      show(e.message || 'Failed to duplicate')
+    } finally {
+      setBusy(false)
     }
   }
 
@@ -183,11 +222,12 @@ export function PagesList({ onNavigate }: PagesListProps) {
                   <td className="px-4 py-2 text-[12px] text-text-subtle">Editor</td>
                   <td className="px-4 py-2 text-right w-10">
                     <DropdownMenu
-                      trigger={<button className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:bg-surface-hover hover:text-text-muted transition-colors opacity-0 group-hover:opacity-100"><IconMore size={13} /></button>}
+                      ariaLabel={`Действия: ${page.title || page.slug}`}
+                      trigger={<span className="inline-flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"><IconMore size={13} /></span>}
                       items={[
                         { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('page-editor', page.id) },
                         { label: page.isHomepage ? 'Home' : 'Preview', icon: <IconEye size={12} />, onClick: () => { const url = page.isHomepage ? `/showcase/${page.site?.previewToken || ''}` : `/showcase/${page.site?.previewToken || ''}/${page.slug}`; window.open(url, '_blank') } },
-                        { label: 'Duplicate', icon: <IconCopy size={12} />, onClick: () => {} },
+                        { label: 'Duplicate', icon: <IconCopy size={12} />, onClick: () => duplicatePage(page), disabled: busy },
                         { label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(page.id), danger: true, divider: true },
                       ]}
                     />
@@ -217,6 +257,117 @@ function SaveIndicator({ state }: { state: SaveState }) {
   return <span className="flex items-center gap-1.5 text-[12px] text-text-subtle"><IconCheck size={12} className="text-success flex-shrink-0" />Saved</span>
 }
 
+// ─── Certificates block editor ───────────────────────────────────────────────
+// Ordered document items linked to CMS Media: add-from-media picker, reorder,
+// hide/show, caption editing. items[i].mediaId is the persisted Media id.
+
+function CertificatesEditor({ block, onChange }: { block: BlockUi; onChange: (patch: Record<string, any>) => void }) {
+  const { siteId, media } = useStudio()
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const items: any[] = block.data.items || []
+
+  const urlOf = (mediaId: string) => {
+    const m = (media || []).find((x: any) => x.id === mediaId)
+    return m ? mediaUrlOf(siteId, m) : undefined
+  }
+  const nameOf = (mediaId: string) => {
+    const m = (media || []).find((x: any) => x.id === mediaId)
+    return m?.originalFilename || m?.filename || mediaId
+  }
+  const isPdf = (mediaId: string, docType?: string) => {
+    const m = (media || []).find((x: any) => x.id === mediaId)
+    return docType === 'pdf' || (m?.mimeType || '') === 'application/pdf' || /\.pdf$/i.test(m?.filename || '')
+  }
+
+  const setItems = (next: any[]) => onChange({ items: next })
+  const move = (i: number, d: -1 | 1) => {
+    const j = i + d
+    if (j < 0 || j >= items.length) return
+    const next = [...items]; [next[i], next[j]] = [next[j], next[i]]
+    setItems(next)
+  }
+  const setItem = (i: number, patch: any) => setItems(items.map((it, x) => x === i ? { ...it, ...patch } : it))
+  const removeItem = (i: number) => setItems(items.filter((_, x) => x !== i))
+  const addMedia = (m: any) => {
+    if (items.some((it) => it.mediaId === m.id)) return
+    setItems([...items, {
+      mediaId: m.id,
+      caption: m.caption || m.alt || m.originalFilename || '',
+      docType: (m.mimeType === 'application/pdf' || /\.pdf$/i.test(m.filename || '')) ? 'pdf' : 'image',
+      enabled: true,
+      sortOrder: items.length,
+    }])
+    setPickerOpen(false)
+  }
+
+  const pickerItems = (media || []).filter((m: any) => !items.some((it) => it.mediaId === m.id))
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex items-center justify-between">
+        <span className="text-[12px] font-medium text-text-muted">Документы ({items.length})</span>
+        <Button variant="secondary" size="sm" onClick={() => setPickerOpen(true)}><IconPlus size={11} />Add from Media</Button>
+      </div>
+
+      {items.length === 0 ? (
+        <p className="text-[12px] text-text-subtle py-2">Нет документов — добавьте из медиатеки.</p>
+      ) : (
+        <div className="flex flex-col gap-1.5">
+          {items.map((it, i) => {
+            const url = urlOf(it.mediaId)
+            const hidden = it.enabled === false
+            return (
+              <div key={it.mediaId || i} className={`flex items-center gap-2.5 border border-border rounded px-2 py-1.5 bg-surface ${hidden ? 'opacity-50' : ''}`}>
+                <div className="w-9 h-12 flex-shrink-0 border border-border bg-white overflow-hidden flex items-center justify-center">
+                  {isPdf(it.mediaId, it.docType)
+                    ? <span className="text-[9px] font-bold text-text-subtle">PDF</span>
+                    : url ? <img src={url} alt="" className="w-full h-full object-contain" /> : <IconX size={10} />}
+                </div>
+                <div className="flex-1 min-w-0 flex flex-col gap-1">
+                  <input
+                    value={it.caption || ''}
+                    onChange={e => setItem(i, { caption: e.target.value })}
+                    placeholder={nameOf(it.mediaId)}
+                    className="w-full h-6 px-1.5 border border-transparent hover:border-border focus:border-accent rounded text-[12px] text-text bg-transparent focus:outline-none"
+                  />
+                  <span className="text-[10px] text-text-subtle mono truncate">{nameOf(it.mediaId)}{hidden ? ' · hidden' : ''}</span>
+                </div>
+                <div className="flex items-center gap-px flex-shrink-0">
+                  <button aria-label="Move up" disabled={i === 0} onClick={() => move(i, -1)} className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:text-text hover:bg-surface-hover disabled:opacity-30">↑</button>
+                  <button aria-label="Move down" disabled={i === items.length - 1} onClick={() => move(i, 1)} className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:text-text hover:bg-surface-hover disabled:opacity-30">↓</button>
+                  <button aria-label={hidden ? 'Show document' : 'Hide document'} onClick={() => setItem(i, { enabled: hidden })} className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:text-text hover:bg-surface-hover"><IconEye size={11} /></button>
+                  <button aria-label="Remove document" onClick={() => removeItem(i)} className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:text-danger hover:bg-danger-subtle"><IconX size={11} /></button>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <Modal open={pickerOpen} title="Добавить документ из медиатеки" onClose={() => setPickerOpen(false)}>
+        {pickerItems.length === 0 ? (
+          <p className="text-[12px] text-text-subtle">Все файлы уже добавлены, или медиатека пуста.</p>
+        ) : (
+          <div className="grid grid-cols-4 gap-2 max-h-[320px] overflow-y-auto">
+            {pickerItems.map((m: any) => {
+              const url = mediaUrlOf(siteId, m)
+              const pdf = m.mimeType === 'application/pdf' || /\.pdf$/i.test(m.filename || '')
+              return (
+                <button key={m.id} onClick={() => addMedia(m)} className="flex flex-col border border-border rounded overflow-hidden hover:border-accent transition-colors">
+                  <div className="w-full aspect-[3/4] bg-surface-raised flex items-center justify-center overflow-hidden">
+                    {pdf ? <span className="text-[10px] font-bold text-text-subtle">PDF</span> : url ? <img src={url} alt="" className="w-full h-full object-contain" /> : null}
+                  </div>
+                  <span className="text-[10px] text-text-muted truncate px-1.5 py-1 text-left w-full">{m.originalFilename || m.filename}</span>
+                </button>
+              )
+            })}
+          </div>
+        )}
+      </Modal>
+    </div>
+  )
+}
+
 function SideSection({ title, children, noBorder }: { title: string; children: React.ReactNode; noBorder?: boolean }) {
   return <div className={`px-5 py-4 ${noBorder ? '' : 'border-b border-border'}`}><p className="text-[11px] font-semibold uppercase tracking-wider text-text-subtle mb-3">{title}</p>{children}</div>
 }
@@ -235,7 +386,7 @@ function defaultPageBlocks(): BlockUi[] {
 }
 
 export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
-  const { siteId, site, settings, pages, refresh } = useStudio()
+  const { siteId, site, settings, pages, news, projects, services, products, vacancies, refresh } = useStudio()
   const isNew = !pageId || pageId === 'new'
   const page = isNew ? null : pages.find((p: any) => p.id === pageId)
 
@@ -252,7 +403,12 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
   const [saveState, setSaveState] = useState<SaveState>('saved')
   const { toast, show } = useToast()
 
+  // Populate once per page — a bundle refetch must not wipe unsaved edits.
+  const loadedFor = useRef<string | null>(null)
   useEffect(() => {
+    const key = page ? `id:${page.id}` : `new:${pageId ?? ''}`
+    if (loadedFor.current === key) return
+    loadedFor.current = key
     if (page) {
       setTitle(page.title || '')
       setSlug(page.slug || '')
@@ -368,7 +524,7 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
         <div className="flex-1 overflow-y-auto bg-bg p-6">
           <div className="max-w-[680px] mx-auto flex flex-col gap-5">
             <div className="bg-surface border border-border rounded px-5 py-4">
-              <input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Page title" className="w-full text-[20px] font-semibold text-text placeholder-text-subtle bg-transparent border-0 focus:outline-none leading-tight" />
+              <div data-cms-control="page:title"><input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Page title" className="w-full text-[20px] font-semibold text-text placeholder-text-subtle bg-transparent border-0 focus:outline-none leading-tight" /></div>
               <p className="text-[11px] text-text-subtle mono mt-2">{settings?.companyName || site?.domain || 'site'}{(slug ? (slug.startsWith('/') ? slug : '/' + slug) : '/<slug>').replace(/\/$/, '')}</p>
             </div>
 
@@ -404,27 +560,27 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
                           {block.unsupported && (
                             <p className="text-[12px] text-warning py-2">Unsupported block type “{block.raw?.type || block.type}”. Read-only — the block is preserved as-is on save.</p>
                           )}
-                          <div className="pt-3 flex flex-col gap-2.5" style={block.unsupported ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>
+                          <div className="pt-3 flex flex-col gap-2.5" data-cms-control={`page:block:${block.id}`} style={block.unsupported ? { pointerEvents: 'none', opacity: 0.5 } : undefined}>
                             {block.type === 'Hero' && (
                               <>
-                                <Input label="Heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} />
-                                <Input label="Subheading" value={block.data.subheading || ''} onChange={v => updateBlockData(block.id, { subheading: v })} />
+                                <div data-cms-control={`page:block:${block.id}:heading`}><Input label="Heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} /></div>
+                                <div data-cms-control={`page:block:${block.id}:subheading`}><Input label="Subheading" value={block.data.subheading || ''} onChange={v => updateBlockData(block.id, { subheading: v })} /></div>
                                 <div className="grid grid-cols-2 gap-2.5">
-                                  <Input label="Primary button" value={block.data.buttonLabel || ''} onChange={v => updateBlockData(block.id, { buttonLabel: v })} />
-                                  <Input label="Button link" value={block.data.buttonUrl || ''} onChange={v => updateBlockData(block.id, { buttonUrl: v })} />
+                                  <div data-cms-control={`page:block:${block.id}:buttonLabel`}><Input label="Primary button" value={block.data.buttonLabel || ''} onChange={v => updateBlockData(block.id, { buttonLabel: v })} /></div>
+                                  <div data-cms-control={`page:block:${block.id}:buttonUrl`}><Input label="Button link" value={block.data.buttonUrl || ''} onChange={v => updateBlockData(block.id, { buttonUrl: v })} /></div>
                                 </div>
                               </>
                             )}
                             {block.type === 'Text' && (
                               <>
-                                <Input label="Section heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} />
-                                <Textarea label="Content" value={block.data.content || ''} onChange={v => updateBlockData(block.id, { content: v })} rows={4} />
+                                <div data-cms-control={`page:block:${block.id}:heading`}><Input label="Section heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} /></div>
+                                <div data-cms-control={`page:block:${block.id}:content`}><Textarea label="Content" value={block.data.content || ''} onChange={v => updateBlockData(block.id, { content: v })} rows={4} /></div>
                               </>
                             )}
                             {block.type === 'Image' && (
                               <>
-                                <Input label="Media ID or URL" value={block.data.imageId || ''} onChange={v => updateBlockData(block.id, { imageId: v })} />
-                                <Input label="Caption" value={block.data.caption || ''} onChange={v => updateBlockData(block.id, { caption: v })} />
+                                <div data-cms-control={`page:block:${block.id}:imageId`}><Input label="Media ID or URL" value={block.data.imageId || ''} onChange={v => updateBlockData(block.id, { imageId: v })} /></div>
+                                <div data-cms-control={`page:block:${block.id}:caption`}><Input label="Caption" value={block.data.caption || ''} onChange={v => updateBlockData(block.id, { caption: v })} /></div>
                               </>
                             )}
                             {block.type === 'Gallery' && (
@@ -432,32 +588,50 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
                                 <Textarea label="Image IDs (one per line)" value={(block.data.imageIds || []).join('\n')} onChange={v => updateBlockData(block.id, { imageIds: v.split('\n').map(s => s.trim()).filter(Boolean) })} rows={4} />
                               </>
                             )}
-                            {COLLECTION_TYPES.has(block.type) && (
+                            {COLLECTION_TYPES.has(block.type) && (() => {
+                              const totalByType: Record<string, number> = { Services: services.length, Projects: projects.length, News: news.length, Vacancies: vacancies.length, Products: (products || []).length }
+                              const total = totalByType[block.type] ?? 0
+                              const lim = block.data.limit === '' || block.data.limit == null ? total : Math.min(Number(block.data.limit), total)
+                              return (
                               <>
-                                <Input label="Section heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} />
-                                <Select label="Number of items" value={String(block.data.limit ?? '')} onChange={v => updateBlockData(block.id, { limit: v === 'all' ? '' : Number(v) })} options={[{ value: '', label: 'All' }, { value: '3', label: '3' }, { value: '6', label: '6' }, { value: '9', label: '9' }]} />
-                                <Textarea label="Selected item IDs (one per line, optional)" value={block.data.selectedItemIdsText || ''} onChange={v => updateBlockData(block.id, { selectedItemIdsText: v })} rows={2} />
+                                <div data-cms-control={`page:block:${block.id}:heading`}><Input label="Section heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} /></div>
+                                <Select label="Карточек на главной" value={String(block.data.limit ?? '')} onChange={v => updateBlockData(block.id, { limit: v === 'all' ? '' : Number(v) })} options={[{ value: '', label: 'All' }, { value: '3', label: '3' }, { value: '6', label: '6' }, { value: '9', label: '9' }, { value: '12', label: '12' }]} />
+                                <Select label="Карточек на странице раздела" value={String(block.data.pageSize ?? '')} onChange={v => updateBlockData(block.id, { pageSize: v === '' ? '' : Number(v) })} options={[{ value: '', label: 'Default (6)' }, { value: '3', label: '3' }, { value: '6', label: '6' }, { value: '12', label: '12' }, { value: '18', label: '18' }, { value: '24', label: '24' }]} />
+                                <div data-cms-control={`page:block:${block.id}:selectedItemIdsText`}><Textarea label="Selected item IDs (one per line, optional)" value={block.data.selectedItemIdsText || ''} onChange={v => updateBlockData(block.id, { selectedItemIdsText: v })} rows={2} /></div>
+                                <label className="flex items-center gap-2 text-[12px] text-text-muted cursor-pointer">
+                                  <input type="checkbox" checked={block.data.showAllLink !== false} onChange={e => updateBlockData(block.id, { showAllLink: e.target.checked })} />
+                                  Показывать ссылку «Смотреть все»
+                                </label>
+                                <p className="text-[11px] text-text-subtle">На главной будет показано {lim} из {total} элементов</p>
                               </>
-                            )}
+                              )
+                            })()}
                             {block.type === 'About' && (
                               <>
-                                <Input label="Heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} />
-                                <Textarea label="Content" value={block.data.content || ''} onChange={v => updateBlockData(block.id, { content: v })} rows={4} />
-                                <Input label="Media ID (optional)" value={block.data.imageId || ''} onChange={v => updateBlockData(block.id, { imageId: v })} />
+                                <div data-cms-control={`page:block:${block.id}:heading`}><Input label="Heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} /></div>
+                                <div data-cms-control={`page:block:${block.id}:content`}><Textarea label="Content" value={block.data.content || ''} onChange={v => updateBlockData(block.id, { content: v })} rows={4} /></div>
+                                <div data-cms-control={`page:block:${block.id}:imageId`}><Input label="Media ID (optional)" value={block.data.imageId || ''} onChange={v => updateBlockData(block.id, { imageId: v })} /></div>
                               </>
                             )}
                             {block.type === 'CTA' && (
                               <>
-                                <Input label="Heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} />
-                                <Textarea label="Description" value={block.data.description || ''} onChange={v => updateBlockData(block.id, { description: v })} rows={3} />
+                                <div data-cms-control={`page:block:${block.id}:heading`}><Input label="Heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} /></div>
+                                <div data-cms-control={`page:block:${block.id}:description`}><Textarea label="Description" value={block.data.description || ''} onChange={v => updateBlockData(block.id, { description: v })} rows={3} /></div>
                                 <div className="grid grid-cols-2 gap-2.5">
-                                  <Input label="Button label" value={block.data.buttonLabel || ''} onChange={v => updateBlockData(block.id, { buttonLabel: v })} />
-                                  <Input label="Button link" value={block.data.buttonUrl || ''} onChange={v => updateBlockData(block.id, { buttonUrl: v })} />
+                                  <div data-cms-control={`page:block:${block.id}:buttonLabel`}><Input label="Button label" value={block.data.buttonLabel || ''} onChange={v => updateBlockData(block.id, { buttonLabel: v })} /></div>
+                                  <div data-cms-control={`page:block:${block.id}:buttonUrl`}><Input label="Button link" value={block.data.buttonUrl || ''} onChange={v => updateBlockData(block.id, { buttonUrl: v })} /></div>
                                 </div>
                               </>
                             )}
                             {block.type === 'Contacts' && (
-                              <Input label="Heading" value={block.data.heading || 'Контакты'} onChange={v => updateBlockData(block.id, { heading: v })} />
+                              <div data-cms-control={`page:block:${block.id}:heading`}><Input label="Heading" value={block.data.heading || 'Контакты'} onChange={v => updateBlockData(block.id, { heading: v })} /></div>
+                            )}
+                            {block.type === 'Certificates' && (
+                              <>
+                                <div data-cms-control={`page:block:${block.id}:heading`}><Input label="Section heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} /></div>
+                                <div data-cms-control={`page:block:${block.id}:description`}><Textarea label="Description" value={block.data.description || ''} onChange={v => updateBlockData(block.id, { description: v })} rows={2} /></div>
+                                <CertificatesEditor block={block} onChange={patch => updateBlockData(block.id, patch)} />
+                              </>
                             )}
                           </div>
                         </div>
@@ -494,7 +668,7 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
           </SideSection>
 
           <SideSection title="URL">
-            <Input label="Slug" value={slug} onChange={v => { setSlug(v); markDirty() }} prefix="/" />
+            <div data-cms-control="page:slug"><Input label="Slug" value={slug} onChange={v => { setSlug(v); markDirty() }} prefix="/" /></div>
             <p className="text-[11px] text-text-subtle mono mt-2 truncate">{settings?.companyName || site?.domain || 'site'}/{slug || '<slug>'}</p>
           </SideSection>
 

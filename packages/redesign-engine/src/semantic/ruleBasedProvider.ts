@@ -43,7 +43,8 @@ function valuePattern(valuePattern: string, units: string[], flags = 'iu'): RegE
 }
 
 const HOME_RE = pattern(['home', 'start', 'index', 'главная', 'home page', 'startseite', 'accueil']);
-const ABOUT_RE = pattern(['about us', 'about company', 'about', 'company', 'о нас', 'о компании', 'о предприятии', 'о-нас', 'о-компании', 'predpriyatii', 'über uns', 'unternehmen']);
+const ABOUT_RE = pattern(['about us', 'about company', 'about', 'company', 'о нас', 'о компании', 'о предприятии', 'о-нас', 'о-компании', 'predpriyatii', 'über uns', 'unternehmen', 'партнеры', 'партнер', 'partners', 'partnery']);
+const REVIEWS_RE = pattern(['reviews', 'review', 'testimonials', 'отзывы', 'отзыв', 'otzyvy', 'otzyv', 'благодарности', 'отклики', 'rezensionen', 'bewertungen']);
 const SERVICES_RE = pattern(['services', 'service', 'услуги', 'uslugi', 'услуга', 'sluzhby', 'serviceleistungen', 'leistungen', 'dienstleistungen']);
 const PROJECTS_RE = pattern(['projects', 'project', 'project portfolio', 'portfolio', 'work', 'our work', 'completed work', 'проекты', 'проектов', 'proekty', 'projekte', 'объекты', 'obekty', 'objekty', 'realisierte projekte', 'referenzen', 'realizacje']);
 const NEWS_RE = pattern(['news', 'blog', 'articles', 'press', 'новости', 'novosti', 'novini', 'presse', 'aktuelles', 'neuigkeiten']);
@@ -255,9 +256,10 @@ export function pageCategoryAndSubType(type: PageClassification['type'], doc: So
 
   if (type === 'CONTACTS') return { category: 'UTILITY', subType: 'CONTACTS' };
   if (type === 'LEGAL') return { category: 'UTILITY', subType: 'LEGAL' };
-  if (type === 'OTHER') return { category: 'UTILITY', subType: 'OTHER' };
 
-  // Corporate page subtypes (type is ABOUT or falls through)
+  // Corporate page subtypes — checked BEFORE the OTHER early return so a page
+  // whose type could not be classified still gets its evidence-based subtype
+  // (e.g. /licenses → CERTIFICATES, not a dead OTHER).
   const allText = norm(`${doc.h1 || ''} ${doc.title || ''} ${doc.metaDescription || ''} ${decodePath(doc.url)} ${breadcrumbLabels(doc)} ${allNavLabels(doc)}`);
 
   if (INVESTOR_RE.test(allText) || /\b(investor|shareholder|акционер|инвестор|investor relations)\b/iu.test(allText)) return { category: 'CORPORATE', subType: 'INVESTOR_RELATIONS' };
@@ -269,6 +271,7 @@ export function pageCategoryAndSubType(type: PageClassification['type'], doc: So
   if (HISTORY_RE.test(allText)) return { category: 'CORPORATE', subType: 'HISTORY' };
   if (MISSION_RE.test(allText)) return { category: 'CORPORATE', subType: 'MISSION' };
 
+  if (type === 'OTHER') return { category: 'UTILITY', subType: 'OTHER' };
   return { category: 'CORPORATE', subType: 'ABOUT' };
 }
 
@@ -433,6 +436,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
       NEWS_INDEX: 'NEWS_DETAIL',
       VACANCIES_INDEX: 'VACANCY_DETAIL',
       PRODUCTS_INDEX: 'PRODUCT_DETAIL',
+      REVIEWS_INDEX: 'REVIEW_DETAIL',
       CONTACTS: 'CONTACTS',
       LEGAL: 'LEGAL',
     };
@@ -459,6 +463,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     pathMatch(NEWS_RE, 7, 'NEWS_INDEX');
     pathMatch(VACANCIES_RE, 6, 'VACANCIES_INDEX');
     pathMatch(PRODUCTS_RE, 6, 'PRODUCTS_INDEX');
+    pathMatch(REVIEWS_RE, 6, 'REVIEWS_INDEX');
     pathMatch(CONTACTS_RE, 8, 'CONTACTS');
     pathMatch(LEGAL_RE, 9, 'LEGAL');
 
@@ -472,6 +477,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     if (hasRe(NEWS_RE, title, h1, meta, bc)) add('NEWS_INDEX', 8, [pageEvidence(doc, 'heading', h1 || title, 0.8)]);
     if (hasRe(VACANCIES_RE, title, h1, meta, bc)) add('VACANCIES_INDEX', 7, [pageEvidence(doc, 'heading', h1 || title, 0.75)]);
     if (hasRe(PRODUCTS_RE, title, h1, meta, bc)) add('PRODUCTS_INDEX', 7, [pageEvidence(doc, 'heading', h1 || title, 0.75)]);
+    if (hasRe(REVIEWS_RE, title, h1, meta, bc)) add('REVIEWS_INDEX', 7, [pageEvidence(doc, 'heading', h1 || title, 0.75)]);
     if (hasRe(CONTACTS_RE, title, h1, meta, bc)) add('CONTACTS', 9, [pageEvidence(doc, 'heading', h1 || title, 0.85)]);
     if (hasRe(LEGAL_RE, title, h1, meta, bc)) add('LEGAL', 10, [pageEvidence(doc, 'heading', h1 || title, 0.85)]);
 
@@ -498,6 +504,51 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
       if (PROJECTS_RE.test(ancestorText)) add('PROJECT_DETAIL', 8, [pageEvidence(doc, 'nav-ancestor', ancestorText, 0.7)]);
       if (NEWS_RE.test(ancestorText)) add('NEWS_DETAIL', 8, [pageEvidence(doc, 'nav-ancestor', ancestorText, 0.7)]);
       if (VACANCIES_RE.test(ancestorText)) add('VACANCY_DETAIL', 8, [pageEvidence(doc, 'nav-ancestor', ancestorText, 0.7)]);
+      if (REVIEWS_RE.test(ancestorText)) add('REVIEW_DETAIL', 8, [pageEvidence(doc, 'nav-ancestor', ancestorText, 0.7)]);
+    }
+
+    // Collection backlink: a page referenced as an item of a typed index
+    // page's collection is a detail of that type. Covers root-level detail
+    // slugs (e.g. /bakaleya-mogilev) that carry no path signal of their own.
+    // Nav mega-menus/footers repeat the same collection on every page —
+    // those items are chrome, never backlink evidence.
+    const colSig = (c: { items: { url?: string; title?: string }[] }) =>
+      c.items.map((i) => i.url || i.title || '').join('|');
+    const colFreq = new Map<string, number>();
+    for (const d of allDocuments) {
+      for (const c of d.collections || []) {
+        const sig = colSig(c);
+        if (sig) colFreq.set(sig, (colFreq.get(sig) || 0) + 1);
+      }
+    }
+    const navLabelsOf = (d: SourceDocument): Set<string> => {
+      const out = new Set<string>();
+      const walk = (nodes?: { label?: string; children?: any[] }[]) => {
+        for (const n of nodes || []) {
+          if (n.label) out.add(n.label.trim().toLowerCase());
+          walk(n.children);
+        }
+      };
+      walk(d.chrome?.nav?.primary);
+      walk(d.chrome?.nav?.secondary);
+      return out;
+    };
+    for (const other of allDocuments) {
+      if (other === doc) continue;
+      const navLabels = navLabelsOf(other);
+      const contentCols = (other.collections || []).filter((c) => (colFreq.get(colSig(c)) || 0) < 3);
+      const viaCollection = contentCols.some((col) =>
+        col.items.some((i) => i.url && !navLabels.has((i.title || '').trim().toLowerCase()) && sameUrl(i.url, doc.url)));
+      const viaLink = !viaCollection && (other.sections || []).some((sec) =>
+        (sec.links || []).some((l) => l.href && !navLabels.has((l.text || '').trim().toLowerCase()) && sameUrl(l.href, doc.url)));
+      if (!viaCollection && !viaLink) continue;
+      const otherText = norm(`${other.title} ${other.h1 || ''} ${decodePath(other.url)}`);
+      const ev = (kind: string) => pageEvidence(doc, 'collection-backlink', `${kind} via ${other.url}`, 0.7);
+      if (PROJECTS_RE.test(otherText)) add('PROJECT_DETAIL', 9, [ev('projects-index')]);
+      if (SERVICES_RE.test(otherText)) add('SERVICE_DETAIL', 9, [ev('services-index')]);
+      if (NEWS_RE.test(otherText)) add('NEWS_DETAIL', 9, [ev('news-index')]);
+      if (PRODUCTS_RE.test(otherText)) add('PRODUCT_DETAIL', 9, [ev('products-index')]);
+      if (REVIEWS_RE.test(otherText)) add('REVIEW_DETAIL', 9, [ev('reviews-index')]);
     }
 
     // Promote detail over index when the page has a specific H1 and body text rather than a list
@@ -520,6 +571,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
         NEWS_DETAIL: 'NEWS_INDEX',
         VACANCY_DETAIL: 'VACANCIES_INDEX',
         PRODUCT_DETAIL: 'PRODUCTS_INDEX',
+        REVIEW_DETAIL: 'REVIEWS_INDEX',
       };
       if (detailToIndex[best.type]) {
         best.type = detailToIndex[best.type];
@@ -1578,7 +1630,32 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
       }
     }
 
-    return this.deduplicateEntities(products) as ProductEntity[];
+    return this.deduplicateProducts(products);
+  }
+
+  /** Product dedupe distinguishes variants: same title with different
+   *  non-empty descriptions are separate SKUs (e.g. dimensioned shelf
+   *  models). Empty descriptions merge with any same-title sibling. */
+  private deduplicateProducts(products: ProductEntity[]): ProductEntity[] {
+    const out: ProductEntity[] = [];
+    const byTitle = new Map<string, ProductEntity[]>();
+    for (const e of products) {
+      const key = norm(e.title);
+      const list = byTitle.get(key) || [];
+      const match = list.find((x) => !x.description || !e.description || norm(x.description) === norm(e.description));
+      if (match) {
+        match.sourceDocumentIds = [...new Set([...match.sourceDocumentIds, ...e.sourceDocumentIds])];
+        match.sourceSectionIds = [...new Set([...(match.sourceSectionIds || []), ...(e.sourceSectionIds || [])])];
+        match.sourceCollectionIds = [...new Set([...(match.sourceCollectionIds || []), ...(e.sourceCollectionIds || [])])];
+        match.imageIds = [...new Set([...(match.imageIds || []), ...(e.imageIds || [])])];
+        match.evidence = [...match.evidence, ...e.evidence];
+        continue;
+      }
+      list.push(e);
+      byTitle.set(key, list);
+      out.push(e);
+    }
+    return out;
   }
 
   async extractFacts(ctx: EntityExtractionContext): Promise<FactEntity[]> {

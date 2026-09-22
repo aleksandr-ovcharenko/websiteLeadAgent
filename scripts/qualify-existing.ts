@@ -7,7 +7,10 @@ import { ActivityService } from '../apps/dashboard/src/activity/ActivityService.
 
 const prisma = new PrismaClient();
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
-const discovery = new DiscoveryService({ prisma, logger, env: process.env });
+const activity = new ActivityService({ prisma, logger });
+const discovery = new DiscoveryService({ prisma, logger, env: process.env, activity });
+const operations = new OperationService({ prisma, logger, env: process.env, discovery, activity });
+discovery.setQualificationOrchestrator(operations.qualification);
 const activity = new ActivityService({ prisma, logger });
 const operations = new OperationService({ prisma, logger, env: process.env, discovery, activity });
 

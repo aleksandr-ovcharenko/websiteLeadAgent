@@ -193,6 +193,15 @@ export interface SourceDocumentCollection {
     /** True when this item is itself a group/collection heading, not a concrete entity. */
     isGroup?: boolean;
   }[];
+  /** Viewport-scoped container evidence (Tilda screen records, mobile menus)
+   *  — used to collapse responsive collection copies. */
+  responsiveScope?: { kind: 'min' | 'max' | 'menu' | 'clone'; px?: number; recId?: string };
+}
+
+export interface SourceDocumentFaq {
+  question: string;
+  answer: string;
+  domPath?: string;
 }
 
 export interface SourceDocumentSection {
@@ -206,8 +215,63 @@ export interface SourceDocumentSection {
   images: SourceDocumentImage[];
   links: SourceDocumentLink[];
   collections: SourceDocumentCollection[];
+  /** Question/answer pairs recovered from accordion, details/summary and
+   * toggle markup — typed evidence, never flattened into paragraphs. */
+  faqs: SourceDocumentFaq[];
   domPath?: string;
   order: number;
+  /** Responsive container scope the section was extracted from (Tilda
+   *  `t-screenmin-Npx`/`t-screenmax-Npx` records, mobile-menu containers, or
+   *  slider clones). Used to prove that an identical copy is a responsive
+   *  representation rather than deliberate repeated content. */
+  responsiveScope?: { kind: 'min' | 'max' | 'menu' | 'clone'; px?: number; recId?: string };
+}
+
+export interface SourceDocumentDiagnostics {
+  /** Paragraphs removed by the deterministic adjacent-duplicate normalizer. */
+  dedupedParagraphs: { sectionId: string; kind: 'heading-paragraph' | 'adjacent'; text: string }[];
+  /** Whole sections removed as responsive representations of a retained
+   *  section (Tilda screen-scoped record copies, menu containers, slider
+   *  clones). Every removal records both ids and the fingerprint. */
+  responsiveDuplicates?: {
+    removedSectionId: string;
+    retainedSectionId: string;
+    fingerprint: string;
+    reason: string;
+    confidence: number;
+    removedScope?: string;
+    retainedScope?: string;
+  }[];
+  /** Identical-signature sections kept deliberately (no responsive evidence —
+   *  legitimate contextual repetition). */
+  repeatedContent?: { fingerprint: string; sectionIds: string[]; note: string }[];
+  /** Tilda breakpoint artboards skipped inside a .t396 block (non-first). */
+  droppedArtboards?: number;
+  /** Slider/clone containers skipped outright. */
+  droppedClones?: number;
+  /** Zero-content sections (layout shells/spacers) dropped before dedupe. */
+  droppedEmptySections?: number;
+  /** Tracking pixels / lazy placeholders / data: blobs excluded from media. */
+  droppedMedia?: number;
+  /** Technical payloads (form-config JSON, widget state, code fragments)
+   *  excluded from visible content — every drop records rule + evidence. */
+  technicalPayloads?: {
+    rule: string;
+    confidence: number;
+    sample: string;
+    domPath?: string;
+    context?: string;
+  }[];
+  /** UI-chrome / accessibility text rejected during the walk (nav toggles,
+   *  carousel controls, screen-reader helpers, cookie/widget labels).
+   *  Contextual, not a global blacklist — each entry carries its selector. */
+  rejectedTexts?: {
+    text: string;
+    sourceUrl: string;
+    selector: string;
+    rejectionReason: string;
+    extractionStage: string;
+  }[];
 }
 
 export interface SourceDocumentChrome {
@@ -258,4 +322,5 @@ export interface SourceDocument {
   mainText: string;
   rawText: string;
   html: string;
+  diagnostics?: SourceDocumentDiagnostics;
 }

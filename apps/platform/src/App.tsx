@@ -1,5 +1,6 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import Studio from "./cms/Studio";
+import { ActionMenu } from "./cms/ui";
 import ProductHeader from "./cms/ProductHeader";
 import type { ProductArea } from "./cms/ProductHeader";
 import { hasAnyPermission, visibleAreas, siteIdsFor } from "./auth/permissions";
@@ -198,66 +199,30 @@ function SiteThumbnail({
 }
 
 function MoreMenu({
+  site,
   onSettings,
   onRebuild,
-  onAudit,
   onArchive,
   onDelete,
+  busy,
 }: {
+  site: Site;
   onSettings: () => void;
   onRebuild: () => void;
-  onAudit: () => void;
   onArchive: () => void;
   onDelete: () => void;
+  busy: boolean;
 }) {
-  const [open, setOpen] = useState(false);
   return (
-    <div className="relative">
-      <button
-        onClick={() => setOpen((v) => !v)}
-        className="w-7 h-7 flex items-center justify-center rounded text-text-subtle hover:text-text hover:bg-surface-hover transition-colors"
-      >
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="currentColor">
-          <circle cx="7" cy="2.5" r="1.2" />
-          <circle cx="7" cy="7" r="1.2" />
-          <circle cx="7" cy="11.5" r="1.2" />
-        </svg>
-      </button>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-8 z-20 w-40 bg-surface border border-border rounded-md shadow-lg py-1 text-sm">
-            {[
-              { label: "Site settings", action: onSettings },
-              { label: "Rebuild", action: onRebuild },
-              { label: "Audit", action: onAudit },
-            ].map((item) => (
-              <button
-                key={item.label}
-                onClick={() => { setOpen(false); item.action(); }}
-                className="w-full text-left px-3 py-1.5 text-text hover:bg-surface-raised transition-colors"
-              >
-                {item.label}
-              </button>
-            ))}
-            <div className="border-t border-border mt-1 pt-1">
-              <button
-                onClick={() => { setOpen(false); onArchive(); }}
-                className="w-full text-left px-3 py-1.5 text-text-subtle hover:bg-surface-raised transition-colors"
-              >
-                Archive
-              </button>
-              <button
-                onClick={() => { setOpen(false); onDelete(); }}
-                className="w-full text-left px-3 py-1.5 text-danger hover:bg-danger-subtle transition-colors"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </>
-      )}
-    </div>
+    <ActionMenu
+      ariaLabel={`Действия: ${site.name}`}
+      items={[
+        { label: "Site settings", onClick: onSettings },
+        { label: busy ? "Rebuilding…" : "Rebuild", onClick: onRebuild, disabled: busy, hint: "Regenerate the site from its latest crawl" },
+        { label: "Archive", onClick: onArchive, disabled: busy, divider: true },
+        { label: "Delete", onClick: onDelete, danger: true, disabled: busy },
+      ]}
+    />
   );
 }
 
@@ -668,15 +633,43 @@ function ForgeView() {
     if (site.originalWebsiteUrl) window.open(site.originalWebsiteUrl, '_blank', 'noopener,noreferrer');
   }
 
+  const [siteActionBusy, setSiteActionBusy] = useState<string | null>(null);
+
   async function deleteSite(id: string) {
+    if (siteActionBusy) return;
     if (!confirm('Delete this site? This cannot be undone.')) return;
-    const r = await fetch(`/api/platform/sites/${id}`, { method: 'DELETE', credentials: 'include' });
-    if (!r.ok) {
-      alert('Failed to delete site');
-      return;
+    setSiteActionBusy(id);
+    try {
+      const r = await fetch(`/api/platform/sites/${id}`, { method: 'DELETE', credentials: 'include' });
+      if (!r.ok) {
+        alert('Failed to delete site');
+        return;
+      }
+      setSites((s) => s.filter((x) => x.id !== id));
+      setDetailSite((current) => (current?.id === id ? null : current));
+    } finally {
+      setSiteActionBusy(null);
     }
-    setSites((s) => s.filter((x) => x.id !== id));
-    setDetailSite((current) => (current?.id === id ? null : current));
+  }
+
+  async function rebuildSite(site: Site) {
+    if (siteActionBusy) return;
+    if (!confirm(`Rebuild "${site.name}" from its latest crawl? Generated content will be refreshed; manual CMS edits are preserved.`)) return;
+    setSiteActionBusy(site.id);
+    try {
+      const r = await fetch(`/api/platform/sites/${site.id}/rebuild`, { method: 'POST', credentials: 'include' });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        alert(body.message || body.error || 'Rebuild failed');
+        return;
+      }
+      const list = await fetch('/api/platform/sites', { credentials: 'include' }).then((x) => x.json()).catch(() => null);
+      if (list?.sites) setSites(list.sites);
+    } catch (e: any) {
+      alert(e?.message || 'Rebuild failed');
+    } finally {
+      setSiteActionBusy(null);
+    }
   }
 
   async function reviewSite(id: string, status: string) {
@@ -691,9 +684,20 @@ function ForgeView() {
     setDetailSite((d) => (d?.id === id ? { ...d, reviewStatus: status } : d));
   }
 
-  function archiveSite(id: string) {
-    fetch(`/api/platform/sites/${id}/archive`, { method: 'POST', credentials: 'include' });
-    setSites((s) => s.map((x) => (x.id === id ? { ...x, status: "ARCHIVED" } : x)));
+  async function archiveSite(id: string) {
+    if (siteActionBusy) return;
+    if (!confirm('Archive this site?')) return;
+    setSiteActionBusy(id);
+    try {
+      const r = await fetch(`/api/platform/sites/${id}/archive`, { method: 'POST', credentials: 'include' });
+      if (!r.ok) {
+        alert('Failed to archive site');
+        return;
+      }
+      setSites((s) => s.map((x) => (x.id === id ? { ...x, status: "ARCHIVED" } : x)));
+    } finally {
+      setSiteActionBusy(null);
+    }
   }
 
   if (appView === "cms" && cmsTarget) {
@@ -1047,9 +1051,10 @@ function ForgeView() {
                             </>
                           )}
                           <MoreMenu
+                            site={site}
+                            busy={siteActionBusy === site.id}
                             onSettings={() => setDetailSite(site)}
-                            onRebuild={() => {}}
-                            onAudit={() => {}}
+                            onRebuild={() => rebuildSite(site)}
                             onArchive={() => archiveSite(site.id)}
                             onDelete={() => deleteSite(site.id)}
                           />
@@ -1178,9 +1183,10 @@ function ForgeView() {
                           Preview
                         </button>
                         <MoreMenu
+                          site={site}
+                          busy={siteActionBusy === site.id}
                           onSettings={() => setDetailSite(site)}
-                          onRebuild={() => {}}
-                          onAudit={() => {}}
+                          onRebuild={() => rebuildSite(site)}
                           onArchive={() => archiveSite(site.id)}
                           onDelete={() => deleteSite(site.id)}
                         />

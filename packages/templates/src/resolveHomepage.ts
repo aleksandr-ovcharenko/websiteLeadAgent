@@ -1,10 +1,16 @@
 // Canonical homepage composition resolver.
 //
-// Resolution order (V3.4 contract):
+// Resolution order (V3.4 contract, refined V3.7.1):
 //   1. Published homepage Page.blocks — preferred/final site or site preview
-//   2. Variant themeConfig.homepageSections — non-preferred concept previews
-//   3. Legacy site themeConfig.homepageSections
-//   4. Safe empty composition
+//   2. Variant themeConfig.homepageSections — non-preferred concept previews,
+//      but ONLY when the variant composition is genuinely distinct from the
+//      site's canonical composition. A variant snapshot identical to the site
+//      snapshot is a copy, not a concept — it must not shadow live Page.blocks
+//      edits.
+//   3. Published homepage Page.blocks — canonical composition (non-preferred
+//      variants whose own sections are absent or identical to canonical)
+//   4. Legacy site themeConfig.homepageSections
+//   5. Safe empty composition
 //
 // Output is a normalized HomepageSection[]; array order IS render order.
 
@@ -41,11 +47,14 @@ export interface ResolveHomepageResult {
   /** Only enabled + renderable sections, in order. */
   visible: ResolvedSection[];
   source: 'page-blocks' | 'variant' | 'site' | 'empty';
+  /** Composition warnings (e.g. normalized ordering). */
+  warnings: string[];
 }
 
 const KNOWN_SECTION_TYPES = new Set([
   'hero', 'about', 'services', 'projects', 'products', 'news', 'articles',
   'vacancies', 'contacts', 'cta', 'dynamic', 'text', 'image', 'gallery', 'reviews',
+  'certificates',
 ]);
 
 function nonEmptyArray(v: unknown): any[] | null {
@@ -118,7 +127,23 @@ export function resolveHomepageSections(input: ResolveHomepageInput): ResolveHom
   const variant = nonEmptyArray(input.variantSections);
   const site = nonEmptyArray(input.siteSections);
 
+  const sectionType = (s: any) => String(s?.type || s?.sectionType || '').toLowerCase();
+  const sameComposition = (a: any[], b: any[]) =>
+    a.length === b.length && a.every((s, i) => sectionType(s) === sectionType(b[i]));
+  // A variant snapshot that merely copies the canonical composition carries no
+  // concept-specific structure — demote it so canonical Page.blocks stay live.
+  const distinctVariant = variant && (!site || !sameComposition(variant, site));
+
   if (input.isPreferred && blocks) {
+    sections = fromBlocks(blocks, supported);
+    source = 'page-blocks';
+  } else if (distinctVariant) {
+    sections = fromSections(variant, supported);
+    source = 'variant';
+  } else if (blocks) {
+    // Non-preferred variant preview without its own distinct sections:
+    // Page.blocks is the site's canonical composition and still applies — it
+    // outranks the legacy site-level themeConfig snapshot.
     sections = fromBlocks(blocks, supported);
     source = 'page-blocks';
   } else if (variant) {
@@ -127,17 +152,25 @@ export function resolveHomepageSections(input: ResolveHomepageInput): ResolveHom
   } else if (site) {
     sections = fromSections(site, supported);
     source = 'site';
-  } else if (blocks) {
-    // Non-preferred variant preview without its own sections: Page.blocks is
-    // the site's canonical composition and still applies.
-    sections = fromBlocks(blocks, supported);
-    source = 'page-blocks';
+  }
+
+  // Finale ordering invariant: enabled 'cta' sections carry the page footer —
+  // no content may render after the real footer. Impossible orders (e.g.
+  // contacts placed after the finale) are normalized, not silently kept.
+  const warnings: string[] = [];
+  const lastEnabledIdx = sections.reduce((acc, s, i) => (s.enabled ? i : acc), -1);
+  const lastCtaIdx = sections.reduce((acc, s, i) => (s.enabled && s.type === 'cta' ? i : acc), -1);
+  if (lastCtaIdx >= 0 && lastCtaIdx < lastEnabledIdx) {
+    warnings.push('composition normalized: enabled cta/finale sections moved to the end (footer must be last)');
+    const enabledCta = sections.filter((s) => s.enabled && s.type === 'cta');
+    sections = [...sections.filter((s) => !(s.enabled && s.type === 'cta')), ...enabledCta];
   }
 
   return {
     sections,
     visible: sections.filter((s) => s.enabled && s.supported),
     source,
+    warnings,
   };
 }
 

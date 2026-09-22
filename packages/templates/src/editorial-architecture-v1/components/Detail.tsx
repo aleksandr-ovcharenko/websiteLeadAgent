@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { cms, type CmsItem } from '../cms';
+import { cms, t, tf, type CmsItem } from '../cms';
 
 interface Props {
   index: number;
@@ -56,12 +56,12 @@ export function Detail({ index, projects, onClose, onNavigate }: Props) {
   return createPortal(
     <div id="detail-dialog" className="detail" role="dialog" aria-modal="true" aria-labelledby="detail-title">
       <button ref={closeRef} className="detail__back" onClick={onClose}>
-        ← Назад
+        ← {t('back.default')}
       </button>
       <div className="detail__inner">
         <div className="detail__head">
           <div>
-            <div className="detail__index">Объект {String(index + 1).padStart(2, '0')} / {String(total).padStart(2, '0')}</div>
+            <div className="detail__index">{tf('detail.indexTemplate', { label: t('entity.project'), i: String(index + 1).padStart(2, '0'), n: String(total).padStart(2, '0') })}</div>
             <h2 id="detail-title" className="detail__title">{project.title}</h2>
           </div>
           {(project.excerpt || project.summary) && (
@@ -71,22 +71,22 @@ export function Detail({ index, projects, onClose, onNavigate }: Props) {
 
         {project.image && (
           <figure className="detail__image">
-            <img src={project.image} alt={project.title} width="1280" height="548" />
+            <img src={project.image} alt={project.title} />
           </figure>
         )}
 
         {(project.gallery?.length || 0) > 0 && (
-          <div className="detail__meta" aria-label="Галерея">
+          <div className="detail__meta" aria-label={t('detail.galleryAria') || undefined}>
             {project.gallery!.map((src, gi) => (
-              <img key={gi} src={src} alt={`${project.title} — фото ${gi + 1}`} loading="lazy" width="320" height="240" style={{ width: '100%', aspectRatio: '4/3', objectFit: 'cover' }} />
+              <img key={gi} src={src} alt={tf('detail.galleryAlt', { title: project.title, n: gi + 1 }) || project.title} loading="lazy" style={{ width: '100%', height: 'auto', aspectRatio: '4/3', objectFit: 'cover' }} />
             ))}
           </div>
         )}
 
         {(project.category || project.location) && (
-          <div className="detail__meta" aria-label="Характеристики">
-            {project.category && <div className="detail__meta-item"><b>Категория</b>{project.category}</div>}
-            {project.location && <div className="detail__meta-item"><b>Локация</b>{project.location}</div>}
+          <div className="detail__meta" aria-label={t('detail.specsAria') || undefined}>
+            {project.category && <div className="detail__meta-item"><b>{t('detail.category')}</b>{project.category}</div>}
+            {project.location && <div className="detail__meta-item"><b>{t('detail.location')}</b>{project.location}</div>}
           </div>
         )}
 
@@ -94,17 +94,20 @@ export function Detail({ index, projects, onClose, onNavigate }: Props) {
           <button
             className="detail__nav"
             onClick={() => onNavigate((index - 1 + total) % total)}
-            aria-label="Предыдущий объект"
+            aria-label={t('detail.prevAria') || undefined}
           >
-            ← Пред.
+            {t('lightbox.prev')}
           </button>
           <button
             className="detail__nav"
             onClick={() => onNavigate((index + 1) % total)}
-            aria-label="Следующий объект"
+            aria-label={t('detail.nextAria') || undefined}
           >
-            След. →
+            {t('lightbox.next')}
           </button>
+          {project.href && (
+            <a className="detail__cta" href={project.href}>{t('detail.pageCta')}</a>
+          )}
           {cms.COMPANY.phone && (
             cms.COMPANY.phoneHref
               ? <a className="detail__cta" href={cms.COMPANY.phoneHref}>{cms.COMPANY.phone}</a>

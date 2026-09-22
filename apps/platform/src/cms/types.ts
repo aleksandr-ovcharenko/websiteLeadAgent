@@ -15,6 +15,7 @@ export type Screen =
   | 'media'
   | 'navigation'
   | 'contacts'
+  | 'versions'
   | 'site-settings'
   | 'users'
 

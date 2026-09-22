@@ -35,6 +35,7 @@ const NAV: NavGroup[] = [
     items: [
       { label: 'Navigation', screen: 'navigation', icon: <IconMenu size={14} /> },
       { label: 'Contacts', screen: 'contacts', icon: <IconPhone size={14} /> },
+      { label: 'Versions', screen: 'versions', icon: <IconLayers size={14} /> },
       { label: 'Site Settings', screen: 'site-settings', icon: <IconSettings size={14} /> },
     ],
   },

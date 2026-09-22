@@ -52,6 +52,27 @@ const BLOCKED_FILE_EXTENSIONS = new Set([
 
 const BLOCKED_QUERY_KEYS = ['fbclid', 'gclid', 'action', 'feed', 'share', 'replytocom'];
 
+// Realistic browser fingerprint — bare 'Mozilla/5.0' is rejected by DDoS-Guard
+// and similar protection layers common on .by hosts (Tilda sites especially).
+const CRAWL_USER_AGENT =
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36';
+
+const STEALTH_INIT = `
+  window.__name = function __name(x){ return x; }; globalThis.__name = window.__name;
+  Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+  Object.defineProperty(navigator, 'languages', { get: () => ['ru-RU', 'ru', 'en'] });
+`;
+
+async function newCrawlContext(browser: Browser) {
+  const context = await browser.newContext({
+    userAgent: CRAWL_USER_AGENT,
+    viewport: { width: 1440, height: 900 },
+    locale: 'ru-RU',
+  });
+  await context.addInitScript({ content: STEALTH_INIT });
+  return context;
+}
+
 async function attachRoutePolicy(page: Page) {
   await page.route('**/*', async (route: Route) => {
     const url = route.request().url();
@@ -305,7 +326,7 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
   //    or nothing — never a heuristic pick from whatever pages happened to load.
   // ---------------------------------------------------------------------
   const rootFetch = async (url: string, t: number): Promise<RootFetchResult> => {
-    const context = await browser.newContext({ userAgent: 'Mozilla/5.0' });
+    const context = await newCrawlContext(browser);
     const page = await context.newPage();
     await attachRoutePolicy(page);
     const started = Date.now();
@@ -396,7 +417,13 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
     }
   } catch {}
 
+  // One shared context for the whole crawl: anti-bot clearance cookies
+  // (e.g. DDoS-Guard __ddg*) are set once and then reused by every page,
+  // instead of re-challenging on every request.
+  let crawlContext: Awaited<ReturnType<typeof newCrawlContext>> | null = null;
+
   try {
+    crawlContext = await newCrawlContext(browser);
     while (pages.length < maxPages) {
       const next = frontier.next();
       if (!next) break;
@@ -404,12 +431,10 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
       const planKey = canonicalKey(url);
       frontier.mark(url, { attempted: true });
 
-      const context = await browser.newContext({ userAgent: 'Mozilla/5.0' });
-      const page = await context.newPage();
+      const page = await crawlContext.newPage();
       await attachRoutePolicy(page);
       try {
-        await page.addInitScript({ content: 'window.__name = function __name(x){ return x; }; globalThis.__name = window.__name;' });
-        const resp = await page.goto(url, { waitUntil: 'networkidle', timeout: timeoutMs }).catch((e) => {
+        let resp = await page.goto(url, { waitUntil: 'networkidle', timeout: timeoutMs }).catch((e) => {
           if (/timeout/i.test(String(e?.message))) return 'TIMEOUT' as const;
           return null;
         });
@@ -420,10 +445,19 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
           continue;
         }
         if (resp.status() >= 400) {
-          console.warn('crawl non-2xx', url, resp.status());
-          skipped.push({ url, reason: `HTTP ${resp.status()}` });
-          frontier.mark(url, { result: 'HTTP_ERROR', status: resp.status() });
-          continue;
+          // Anti-bot JS challenges (DDoS-Guard et al.) answer 403 on the first
+          // hit and set clearance cookies that pass on reload — wait out the
+          // challenge and retry once before declaring an HTTP error.
+          await page.waitForTimeout(4000).catch(() => {});
+          const retry = await page.reload({ waitUntil: 'domcontentloaded', timeout: timeoutMs }).catch(() => null);
+          if (retry && retry.status() < 400) {
+            resp = retry;
+          } else {
+            console.warn('crawl non-2xx', url, resp.status());
+            skipped.push({ url, reason: `HTTP ${resp.status()}` });
+            frontier.mark(url, { result: 'HTTP_ERROR', status: resp.status() });
+            continue;
+          }
         }
 
         // Redirect dedup: if the final URL canonicalizes to an already-fetched
@@ -864,10 +898,10 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
         frontier.mark(url, { result: 'FAILED', failureReason: err?.message || 'page_crawl_failed' });
       } finally {
         await page.close().catch(() => {});
-        await context.close().catch(() => {});
       }
     }
   } finally {
+    await crawlContext?.close().catch(() => {});
     await browser.close().catch(() => {});
   }
 

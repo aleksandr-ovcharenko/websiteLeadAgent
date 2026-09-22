@@ -10,10 +10,9 @@ import { apiRateLimiter } from '../../dashboard/src/security/rateLimit.js';
 import { originRefererCheck, requireJsonContentType } from '../../dashboard/src/security/csrf.js';
 import { requireSitePermission } from '../../dashboard/src/security/authz.js';
 import { LocalFilesystemMediaStorage } from '../../../packages/media-storage/dist/index.js';
-// @ts-expect-error no declaration file for built content-schema
 import { validateContentBlocks } from '../../../packages/content-schema/dist/index.js';
 // @ts-expect-error no declaration file for built templates
-import { mediaUrlOf } from '../../../packages/templates/dist/index.js';
+import { mediaUrlOf, entityPreviewPath } from '../../../packages/templates/dist/index.js';
 
 const prisma = new PrismaClient();
 const _canReadCms = requireSitePermission(prisma, 'cms.read', 'siteId');
@@ -45,6 +44,27 @@ function requireAuth(req: Request, res: Response, next: NextFunction) {
   }).catch((e: any) => next(e));
 }
 
+// V3.7.3 — text ownership contract: a manual save flips edited fields to
+// ownership 'EDITOR' inside fieldProvenance. Generation must never overwrite
+// EDITOR-owned fields; the merge keeps prior sourceText/sourceUrl/aiRevision.
+async function editorProvenance(model: any, id: string, changed: Record<string, any>) {
+  const row = await model.findUnique({ where: { id }, select: { fieldProvenance: true } }).catch(() => null);
+  const prev = (row?.fieldProvenance && typeof row.fieldProvenance === 'object') ? row.fieldProvenance as Record<string, any> : {};
+  const prov: Record<string, any> = { ...prev };
+  for (const k of Object.keys(changed)) {
+    if (k === 'manualModifiedAt' || k === 'fieldProvenance') continue;
+    const prior = prev[k] && typeof prev[k] === 'object' ? prev[k] : {};
+    prov[k] = {
+      sourceText: prior.sourceText ?? null,
+      sourceUrl: prior.sourceUrl ?? null,
+      aiRevision: prior.aiRevision ?? null,
+      value: changed[k] == null ? null : String(typeof changed[k] === 'object' ? JSON.stringify(changed[k]) : changed[k]).slice(0, 2000),
+      ownership: 'EDITOR',
+    };
+  }
+  return prov;
+}
+
 
 
 app.get('/health', (_req: Request, res: Response) => {
@@ -72,6 +92,8 @@ app.get('/api/cms/sites', requireAuth, async (req: Request, res: Response) => {
       .filter(Boolean);
     where.id = { in: siteIds };
   }
+  // V3.7.4 — consolidated duplicates are hidden from the site picker.
+  where.mergedIntoSiteId = null;
   const sites = await (prisma as any).site.findMany({
     where,
     include: { lead: { select: { companyName: true, website: true } }, siteSettings: true }
@@ -99,12 +121,104 @@ app.get('/api/cms/sites/:siteId', canReadCms, async (req: Request, res: Response
     (prisma as any).vacancy.findMany({ where: { siteId } }),
     (prisma as any).siteUser.findMany({ where: { siteId }, include: { user: { select: { id: true, email: true, createdAt: true } } } })
   ]);
-  res.json({ site, pages, services, projects, products, news, menu, media, vacancies, users });
+  // V3.7.4 Phase 5 — shared route resolver: every entity carries the exact
+  // detail route the renderer would serve (entityPreviewPath). Undefined when
+  // no detail route resolves — Studio renders "Detail preview unavailable".
+  const withPreview = (list: any[]) => list.map((e) => ({ ...e, previewPath: entityPreviewPath(e, pages) ?? null }));
+  res.json({ site, pages, services: withPreview(services), projects: withPreview(projects), products: withPreview(products), news: withPreview(news), vacancies: withPreview(vacancies), menu, media, users });
+});
+
+// ── V3.7.4 Phase 2/8 — Site → DesignVariant → SiteRevision version history ──
+// Factory and Studio read revisions through this contract; promotion is atomic.
+
+app.get('/api/cms/sites/:siteId/revisions', canReadCms, async (req: Request, res: Response) => {
+  const { siteId } = req.params;
+  const variants = await (prisma as any).demoVariant.findMany({
+    where: { siteId },
+    orderBy: { createdAt: 'asc' },
+    include: {
+      revisions: {
+        orderBy: { version: 'asc' },
+        include: { screenshots: { orderBy: [{ route: 'asc' }, { viewport: 'asc' }] } },
+      },
+    },
+  });
+  const out = variants.map((v: any) => ({
+    id: v.id,
+    name: v.name,
+    templateId: v.templateId,
+    previewToken: v.previewToken,
+    isPreferred: !!v.isPreferred,
+    activeRevisionId: v.activeRevisionId ?? null,
+    revisions: v.revisions.map((r: any) => ({
+      id: r.id,
+      version: r.version,
+      status: r.status,
+      templateId: r.templateId,
+      templateVersion: r.templateVersion,
+      contentHash: r.contentHash,
+      basedOnRevisionId: r.basedOnRevisionId,
+      generatedByRunId: r.generatedByRunId,
+      failureReason: r.failureReason,
+      currentStage: r.currentStage,
+      stageCheckpoints: r.stageCheckpoints,
+      startedAt: r.startedAt,
+      completedAt: r.completedAt,
+      durationMs: r.startedAt && r.completedAt ? new Date(r.completedAt).getTime() - new Date(r.startedAt).getTime() : null,
+      active: v.activeRevisionId === r.id,
+      screenshots: r.screenshots.map((s: any) => ({
+        id: s.id,
+        route: s.route,
+        viewport: s.viewport,
+        capturedAt: s.capturedAt,
+        current: s.current,
+        buildId: s.buildId,
+        contentHash: s.contentHash,
+        url: `/api/cms/sites/${siteId}/revision-screenshots/${s.id}`,
+      })),
+    })),
+  }));
+  res.json({ variants: out });
+});
+
+// Screenshot binary for a revision row — scoped to the site so canReadCms
+// covers authorization; storagePath is confined to the repo working dir.
+app.get('/api/cms/sites/:siteId/revision-screenshots/:shotId', canReadCms, async (req: Request, res: Response) => {
+  const { siteId, shotId } = req.params;
+  const shot = await (prisma as any).revisionScreenshot.findFirst({
+    where: { id: shotId, revision: { siteId } },
+  });
+  if (!shot) { res.status(404).json({ error: 'not_found' }); return; }
+  const abs = path.resolve(process.cwd(), shot.storagePath);
+  if (!abs.startsWith(process.cwd() + path.sep)) { res.status(403).json({ error: 'forbidden' }); return; }
+  res.sendFile(abs, (err) => { if (err && !res.headersSent) res.status(404).json({ error: 'file_missing' }); });
+});
+
+// Atomic promotion: only REVIEW_READY/PUBLISHED revisions may become active;
+// the previous active revision's screenshots are demoted in one transaction.
+app.post('/api/cms/sites/:siteId/revisions/:revisionId/promote', canEditCms, async (req: Request, res: Response) => {
+  const { siteId, revisionId } = req.params;
+  const revision = await (prisma as any).siteRevision.findFirst({ where: { id: revisionId, siteId }, include: { variant: true } });
+  if (!revision) { res.status(404).json({ error: 'not_found' }); return; }
+  if (!['REVIEW_READY', 'PUBLISHED'].includes(revision.status)) {
+    res.status(409).json({ error: 'not_promotable', status: revision.status, failureReason: revision.failureReason });
+    return;
+  }
+  await prisma.$transaction([
+    (prisma as any).revisionScreenshot.updateMany({ where: { revision: { variantId: revision.variantId } }, data: { current: false } }),
+    (prisma as any).revisionScreenshot.updateMany({ where: { revisionId: revision.id }, data: { current: true } }),
+    (prisma as any).demoVariant.update({ where: { id: revision.variantId }, data: { activeRevisionId: revision.id } }),
+  ]);
+  res.json({ ok: true, activeRevisionId: revision.id });
 });
 
 app.post('/api/cms/sites/:siteId/settings', canEditCms, async (req: Request, res: Response) => {
   const { siteId } = req.params;
   const data = { ...req.body, manualModifiedAt: new Date() };
+  const existing = await (prisma as any).siteSettings.findUnique({ where: { siteId }, select: { id: true, fieldProvenance: true } });
+  if (existing) {
+    data.fieldProvenance = await editorProvenance((prisma as any).siteSettings, existing.id, data);
+  }
   const settings = await (prisma as any).siteSettings.upsert({
     where: { siteId },
     create: { siteId, ...data },
@@ -171,6 +285,7 @@ app.put('/api/cms/sites/:siteId/pages/:pageId', canEditCms, async (req: Request,
   }
   if (seoTitle !== undefined) data.seoTitle = seoTitle;
   if (seoDescription !== undefined) data.seoDescription = seoDescription;
+  data.fieldProvenance = await editorProvenance((prisma as any).page, pageId, data);
   const page = await (prisma as any).page.update({ where: { id: pageId, siteId }, data });
   res.json({ ok: true, page });
 });
@@ -187,8 +302,10 @@ app.post('/api/cms/sites/:siteId/news', canEditCms, async (req: Request, res: Re
   const { title, slug, excerpt, blocks, status, coverImageId, seoTitle, seoDescription, publishedAt } = req.body;
   const s = slug || createSlug(title);
   const providedDate = publishedAt ? new Date(publishedAt) : null;
+  const newsBlocks = coerceBlocks(res, blocks);
+  if (newsBlocks === null) return;
   const news = await (prisma as any).newsPost.create({
-    data: { siteId, title, slug: s, excerpt, blocks: blocks ?? [], coverImageId: coverImageId || null, status: status ?? 'DRAFT', seoTitle, seoDescription, sourceType: 'MANUAL', publishedAt: status === 'PUBLISHED' ? (providedDate || new Date()) : providedDate }
+    data: { siteId, title, slug: s, excerpt, blocks: newsBlocks, coverImageId: coverImageId || null, status: status ?? 'DRAFT', seoTitle, seoDescription, sourceType: 'MANUAL', publishedAt: status === 'PUBLISHED' ? (providedDate || new Date()) : providedDate }
   });
   res.json({ ok: true, news });
 });
@@ -197,9 +314,11 @@ app.put('/api/cms/sites/:siteId/news/:newsId', canEditCms, async (req: Request, 
   const { siteId, newsId } = req.params;
   const data: any = { manualModifiedAt: new Date() };
   ['title', 'slug', 'excerpt', 'blocks', 'status', 'coverImageId', 'publishedAt', 'seoTitle', 'seoDescription'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
+  if (data.blocks !== undefined) { const nb = coerceBlocks(res, data.blocks); if (nb === null) return; data.blocks = nb; }
   if (data.coverImageId === '') data.coverImageId = null;
   if (data.publishedAt !== undefined) data.publishedAt = data.publishedAt ? new Date(data.publishedAt) : null;
   if (data.status === 'PUBLISHED' && !data.publishedAt) data.publishedAt = new Date();
+  data.fieldProvenance = await editorProvenance((prisma as any).newsPost, newsId, data);
   const news = await (prisma as any).newsPost.update({ where: { id: newsId, siteId }, data });
   res.json({ ok: true, news });
 });
@@ -216,9 +335,11 @@ app.post('/api/cms/sites/:siteId/projects', canEditCms, async (req: Request, res
   const { title, slug, excerpt, category, location, completionDate, blocks, status, coverImageId, galleryImageIds, projectStatus, seoTitle, seoDescription } = req.body;
   const s = slug || createSlug(title);
   const gallery: string[] = Array.isArray(galleryImageIds) ? galleryImageIds.filter((id: any) => typeof id === 'string') : [];
+  const projectBlocks = coerceBlocks(res, blocks);
+  if (projectBlocks === null) return;
   const project = await (prisma as any).project.create({
     data: {
-      siteId, title, slug: s, excerpt, category, location, completionDate, blocks: blocks ?? [], coverImageId: coverImageId || null,
+      siteId, title, slug: s, excerpt, category, location, completionDate, blocks: projectBlocks, coverImageId: coverImageId || null,
       projectStatus: projectStatus ?? 'completed', status: status ?? 'DRAFT', seoTitle, seoDescription, sourceType: 'MANUAL',
       publishedAt: status === 'PUBLISHED' ? new Date() : null,
       projectMedia: { create: gallery.map((mediaId: string, i: number) => ({ mediaId, sortOrder: i })) }
@@ -232,6 +353,7 @@ app.put('/api/cms/sites/:siteId/projects/:projectId', canEditCms, async (req: Re
   const { siteId, projectId } = req.params;
   const data: any = { manualModifiedAt: new Date() };
   ['title', 'slug', 'excerpt', 'category', 'location', 'completionDate', 'blocks', 'status', 'coverImageId', 'projectStatus', 'seoTitle', 'seoDescription'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
+  if (data.blocks !== undefined) { const nb = coerceBlocks(res, data.blocks); if (nb === null) return; data.blocks = nb; }
   if (data.coverImageId === '') data.coverImageId = null;
   if (data.status === 'PUBLISHED' && data.publishedAt === undefined) data.publishedAt = new Date();
   if (data.status === 'DRAFT') data.publishedAt = null;
@@ -243,6 +365,7 @@ app.put('/api/cms/sites/:siteId/projects/:projectId', canEditCms, async (req: Re
       skipDuplicates: true
     });
   }
+  data.fieldProvenance = await editorProvenance((prisma as any).project, projectId, data);
   const project = await (prisma as any).project.update({ where: { id: projectId, siteId }, data, include: { projectMedia: { include: { media: true } } } });
   res.json({ ok: true, project });
 });
@@ -259,8 +382,10 @@ app.post('/api/cms/sites/:siteId/services', canEditCms, async (req: Request, res
   const { siteId } = req.params;
   const { title, slug, shortDescription, blocks, status, imageId, sortOrder, seoTitle, seoDescription } = req.body;
   const s = slug || createSlug(title);
+  const serviceBlocks = coerceBlocks(res, blocks);
+  if (serviceBlocks === null) return;
   const service = await (prisma as any).service.create({
-    data: { siteId, title, slug: s, shortDescription, blocks: blocks ?? [], imageId: imageId || null, sortOrder: sortOrder ?? 0, status: status ?? 'DRAFT', seoTitle, seoDescription, sourceType: 'MANUAL', publishedAt: status === 'PUBLISHED' ? new Date() : null }
+    data: { siteId, title, slug: s, shortDescription, blocks: serviceBlocks, imageId: imageId || null, sortOrder: sortOrder ?? 0, status: status ?? 'DRAFT', seoTitle, seoDescription, sourceType: 'MANUAL', publishedAt: status === 'PUBLISHED' ? new Date() : null }
   });
   res.json({ ok: true, service });
 });
@@ -269,8 +394,10 @@ app.put('/api/cms/sites/:siteId/services/:serviceId', canEditCms, async (req: Re
   const { siteId, serviceId } = req.params;
   const data: any = { manualModifiedAt: new Date() };
   ['title', 'slug', 'shortDescription', 'blocks', 'status', 'imageId', 'sortOrder', 'icon', 'seoTitle', 'seoDescription'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
+  if (data.blocks !== undefined) { const nb = coerceBlocks(res, data.blocks); if (nb === null) return; data.blocks = nb; }
   if (data.imageId === '') data.imageId = null;
   if (data.status === 'PUBLISHED') data.publishedAt = new Date();
+  data.fieldProvenance = await editorProvenance((prisma as any).service, serviceId, data);
   const service = await (prisma as any).service.update({ where: { id: serviceId, siteId }, data });
   res.json({ ok: true, service });
 });
@@ -286,8 +413,10 @@ app.post('/api/cms/sites/:siteId/products', canEditCms, async (req: Request, res
   const { siteId } = req.params;
   const { title, slug, summary, attributes, blocks, coverImageId, category, price, status, sortOrder, seoTitle, seoDescription, gallery } = req.body;
   const s = slug || createSlug(title);
+  const productBlocks = coerceBlocks(res, blocks);
+  if (productBlocks === null) return;
   const product = await (prisma as any).product.create({
-    data: { siteId, title, slug: s, summary, attributes: attributes ?? {}, blocks: blocks ?? [], coverImageId: coverImageId || null, category, price, sortOrder: sortOrder ?? 0, status: status ?? 'DRAFT', seoTitle, seoDescription, sourceType: 'MANUAL', publishedAt: status === 'PUBLISHED' ? new Date() : null }
+    data: { siteId, title, slug: s, summary, attributes: attributes ?? {}, blocks: productBlocks, coverImageId: coverImageId || null, category, price, sortOrder: sortOrder ?? 0, status: status ?? 'DRAFT', seoTitle, seoDescription, sourceType: 'MANUAL', publishedAt: status === 'PUBLISHED' ? new Date() : null }
   });
   if (Array.isArray(gallery)) {
     await (prisma as any).productMedia.createMany({ data: gallery.filter((m: string) => m).map((mediaId: string, i: number) => ({ productId: product.id, mediaId, sortOrder: i })) });
@@ -302,7 +431,9 @@ app.put('/api/cms/sites/:siteId/products/:productId', canEditCms, async (req: Re
   for (const [k, v] of Object.entries({ title, slug, summary, attributes, blocks, coverImageId, category, price, sortOrder, seoTitle, seoDescription })) {
     if (v !== undefined) data[k] = v;
   }
+  if (data.blocks !== undefined) { const nb = coerceBlocks(res, data.blocks); if (nb === null) return; data.blocks = nb; }
   if (status !== undefined) { data.status = status; if (status === 'PUBLISHED') data.publishedAt = new Date(); }
+  data.fieldProvenance = await editorProvenance((prisma as any).product, productId, data);
   const product = await (prisma as any).product.update({ where: { id: productId, siteId }, data });
   if (Array.isArray(gallery)) {
     await (prisma as any).productMedia.deleteMany({ where: { productId } });
@@ -333,6 +464,7 @@ app.put('/api/cms/sites/:siteId/vacancies/:vacancyId', canEditCms, async (req: R
   const data: any = { manualModifiedAt: new Date() };
   ['title', 'slug', 'location', 'description', 'requirements', 'conditions', 'contact', 'status'].forEach((k) => { if (req.body[k] !== undefined) data[k] = req.body[k]; });
   if (data.status === 'PUBLISHED') data.publishedAt = new Date();
+  data.fieldProvenance = await editorProvenance((prisma as any).vacancy, vacancyId, data);
   const vacancy = await (prisma as any).vacancy.update({ where: { id: vacancyId, siteId }, data });
   res.json({ ok: true, vacancy });
 });
@@ -514,6 +646,13 @@ app.delete('/api/cms/sites/:siteId/users/:userId', canManageCmsUsers, async (req
   await (prisma as any).siteUser.delete({ where: { siteId_userId: { siteId, userId } } });
   await (prisma as any).userRole.deleteMany({ where: { userId, siteId } });
   res.json({ ok: true });
+});
+
+// Async route errors (e.g. Prisma validation) must return 400/500 — never
+// crash the process and take the CMS down mid-operation.
+app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+  const isValidation = err?.name === 'PrismaClientValidationError' || /Unknown argument|Invalid/.test(err?.message || '');
+  res.status(isValidation ? 400 : 500).json({ ok: false, error: isValidation ? 'invalid_payload' : 'internal_error', detail: String(err?.message || err).slice(0, 300) });
 });
 
 app.listen(PORT, () => {

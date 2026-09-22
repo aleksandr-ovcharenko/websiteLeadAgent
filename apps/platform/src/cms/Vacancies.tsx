@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Screen } from './types'
 import { IconEdit, IconTrash, IconMore, IconChevronLeft, IconPlus, IconEye, IconCheck } from './icons'
 import { Badge, Button, SearchInput, FilterTabs, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
@@ -38,7 +38,7 @@ function useVacancyFilters() {
 }
 
 export function VacanciesList({ onNavigate }: VacanciesListProps) {
-  const { siteId, vacancies, refresh } = useStudio()
+  const { siteId, vacancies, refresh, site } = useStudio()
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const { search, setSearch, filter, setFilter, visible, statusFilter } = useVacancyFilters()
   const { show } = useToast()
@@ -81,9 +81,12 @@ export function VacanciesList({ onNavigate }: VacanciesListProps) {
                   <td className="px-4 py-2 text-[12px] text-text-subtle whitespace-nowrap">{formatDate(v.updatedAt)}</td>
                   <td className="px-4 py-2 text-right w-10">
                     <DropdownMenu
-                      trigger={<button className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:bg-surface-hover hover:text-text-muted transition-colors opacity-0 group-hover:opacity-100"><IconMore size={13} /></button>}
+                      trigger={<span className="inline-flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"><IconMore size={13} /></span>}
+                      ariaLabel="Row actions"
                       items={[
                         { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('vacancy-editor', v.id) },
+                        // Shared resolver: previewPath comes from the CMS API (Phase 5).
+                        { label: v.previewPath ? 'Preview' : 'Detail preview unavailable', icon: <IconEye size={12} />, disabled: !v.previewPath, onClick: () => { if (v.previewPath) window.open(`/showcase/${site?.previewToken || ''}${v.previewPath}`, '_blank') } },
                         { label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(v.id), danger: true, divider: true },
                       ]}
                     />
@@ -113,7 +116,7 @@ interface VacancyEditorProps {
 }
 
 export function VacancyEditor({ vacancyId, onNavigate }: VacancyEditorProps) {
-  const { siteId, vacancies, refresh } = useStudio()
+  const { siteId, vacancies, refresh, site } = useStudio()
   const isNew = !vacancyId || vacancyId === 'new'
   const item = isNew ? null : vacancies.find((v: any) => v.id === vacancyId)
 
@@ -128,7 +131,12 @@ export function VacancyEditor({ vacancyId, onNavigate }: VacancyEditorProps) {
   const [saveState, setSaveState] = useState<SaveState>('saved')
   const { toast, show } = useToast()
 
+  // Populate once per entity — a bundle refetch must not wipe unsaved edits.
+  const loadedFor = useRef<string | null>(null)
   useEffect(() => {
+    const key = item ? `id:${item.id}` : `new:${vacancyId ?? ''}`
+    if (loadedFor.current === key) return
+    loadedFor.current = key
     if (item) { setTitle(item.title || ''); setSlug(item.slug || ''); setLocation(item.location || ''); setDescription(item.description || ''); setRequirements(item.requirements || ''); setConditions(item.conditions || ''); setContact(item.contact || ''); setStatus(uiStatus(item.status)) }
     else { setTitle(''); setSlug(''); setLocation(''); setDescription(''); setRequirements(''); setConditions(''); setContact(''); setStatus('draft') }
     setSaveState('saved')
@@ -157,6 +165,15 @@ export function VacancyEditor({ vacancyId, onNavigate }: VacancyEditorProps) {
         </div>
         <SaveIndicator state={saveState} />
         <div className="flex items-center gap-2 flex-shrink-0">
+          {(() => {
+            const path = item?.previewPath
+            return (
+              <Button variant="ghost" size="sm" disabled={!path}
+                onClick={() => path && window.open(`/showcase/${site?.previewToken || ''}${path}`, '_blank')}>
+                <IconEye size={12} />{path ? 'Preview' : 'Detail preview unavailable'}
+              </Button>
+            )
+          })()}
           <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>
           <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>
         </div>
@@ -165,7 +182,7 @@ export function VacancyEditor({ vacancyId, onNavigate }: VacancyEditorProps) {
       <div className="flex-1 overflow-y-auto bg-bg p-6">
         <div className="max-w-[680px] mx-auto flex flex-col gap-5">
           <div className="bg-surface border border-border rounded px-5 py-4">
-            <input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Vacancy title" className="w-full text-[20px] font-semibold text-text placeholder-text-subtle bg-transparent border-0 focus:outline-none leading-tight" />
+            <div data-cms-control="vacancy:title"><input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Vacancy title" className="w-full text-[20px] font-semibold text-text placeholder-text-subtle bg-transparent border-0 focus:outline-none leading-tight" /></div>
           </div>
 
           <div className="bg-surface border border-border rounded p-4 flex flex-col gap-3.5">
@@ -174,10 +191,10 @@ export function VacancyEditor({ vacancyId, onNavigate }: VacancyEditorProps) {
               <Input label="Location" value={location} onChange={v => { setLocation(v); markDirty() }} placeholder="City, office" />
             </div>
             <Select label="Status" value={status} onChange={v => { setStatus(v as any); markDirty() }} options={[{ value: 'published', label: 'Published' }, { value: 'draft', label: 'Draft' }, { value: 'archived', label: 'Archived' }]} />
-            <Textarea label="Description" value={description} onChange={v => { setDescription(v); markDirty() }} rows={4} placeholder="About the position and responsibilities…" />
-            <Textarea label="Requirements" value={requirements} onChange={v => { setRequirements(v); markDirty() }} rows={4} placeholder="Required skills, experience, education…" />
-            <Textarea label="Conditions" value={conditions} onChange={v => { setConditions(v); markDirty() }} rows={3} placeholder="Salary, schedule, benefits…" />
-            <Input label="Contact" value={contact} onChange={v => { setContact(v); markDirty() }} placeholder="Email or phone for applications" />
+            <div data-cms-control="vacancy:description"><Textarea label="Description" value={description} onChange={v => { setDescription(v); markDirty() }} rows={4} placeholder="About the position and responsibilities…" /></div>
+            <div data-cms-control="vacancy:requirements"><Textarea label="Requirements" value={requirements} onChange={v => { setRequirements(v); markDirty() }} rows={4} placeholder="Required skills, experience, education…" /></div>
+            <div data-cms-control="vacancy:conditions"><Textarea label="Conditions" value={conditions} onChange={v => { setConditions(v); markDirty() }} rows={3} placeholder="Salary, schedule, benefits…" /></div>
+            <div data-cms-control="vacancy:contact"><Input label="Contact" value={contact} onChange={v => { setContact(v); markDirty() }} placeholder="Email or phone for applications" /></div>
           </div>
 
           {!isNew && (

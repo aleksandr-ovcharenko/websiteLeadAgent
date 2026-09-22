@@ -473,8 +473,10 @@ export function extractFromCrawl(pages: CrawledPage[], baseUrl: string, navigati
         gallery: gallery.map(contentMediaFromImage).filter(Boolean)
       });
     } else if (cat === 'news') {
-      const yearMatch = p.url.match(/\/([12]\d{3})\//);
-      const publishedAt = yearMatch ? `${yearMatch[1]}-01-01` : new Date().toISOString();
+      // No fabrication: a URL year segment is not a publication date, and
+      // import time is never one either. Only real evidence flows via the
+      // graph path; legacy pages stay undated.
+      const publishedAt = undefined;
       news.push({
         title,
         slug: toSlug(title),

@@ -3,6 +3,40 @@ import { join } from 'node:path';
 import { PrismaClient, PageStatus, ContentSourceType } from '@prisma/client';
 import type { ExtractedContent } from '../../../content-schema/dist/index.js';
 import { LocalFilesystemMediaStorage } from '../../../media-storage/dist/index.js';
+// @ts-expect-error no declaration file for built templates
+import { COLLECTION_SLUG_HINTS } from '../../../templates/dist/index.js';
+import { mergeTemplateCopy, type TemplateCopy } from './templateCopy.js';
+import { Agent as UndiciAgent } from 'undici';
+
+// Some CDNs (notably static.tildacdn.biz) serve an incomplete certificate
+// chain: browsers and curl resolve the missing intermediate via AIA fetching,
+// Node's undici does not. Retry once with verification relaxed ONLY when the
+// failure is a certificate-chain error — any other error stays strict.
+const relaxedTlsAgent = new UndiciAgent({ connect: { rejectUnauthorized: false } });
+const TLS_CHAIN_ERRORS = new Set([
+  'UNABLE_TO_VERIFY_LEAF_SIGNATURE',
+  'UNABLE_TO_GET_ISSUER_CERT',
+  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+  'DEPTH_ZERO_SELF_SIGNED_CERT',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'UNABLE_TO_GET_CRL',
+]);
+
+async function fetchMedia(sourceUrl: string, referer: string) {
+  const headers = {
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36',
+    Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8',
+    Referer: referer,
+  };
+  try {
+    return await fetch(sourceUrl, { headers });
+  } catch (err: any) {
+    const code = err?.cause?.code || err?.code;
+    if (!TLS_CHAIN_ERRORS.has(code)) throw err;
+    console.warn('media fetch retrying with relaxed TLS (incomplete cert chain)', sourceUrl, code);
+    return await fetch(sourceUrl, { headers, dispatcher: relaxedTlsAgent } as any);
+  }
+}
 
 function slugify(input: string): string {
   return input
@@ -46,6 +80,71 @@ export function normalizePhone(input?: string | null): string | undefined {
 
 const GENERIC_NAME_RE = /^\s*(home|about(?:\s+us)?|contacts?|services?|projects?|news|careers?|vacancies?|главная|о компании|о нас|контакты|услуги|проекты|новости|вакансии|о-нас|о-компании)\s*$/iu;
 
+/** Internal/operational markers — a lead name carrying these is run metadata,
+ *  never a public brand. V3.7.3: public identity must be source-grounded. */
+const INTERNAL_NAME_MARKERS_RE = /\b(clean\s*room|qa\s*build|test\s*site|fixture|regen(?:erat\w*)?|generated\s*site|demo\s*site|smoke\s*test|e2e[-\s]?test|sandbox)\b/i;
+const INTERNAL_NAME_MARKERS_RE_G = new RegExp(INTERNAL_NAME_MARKERS_RE.source, 'gi');
+
+export function isInternalLabel(name?: string | null): boolean {
+  return !!name && INTERNAL_NAME_MARKERS_RE.test(name);
+}
+
+/** Strip internal markers from a lead name — "NextTrade Clean Room" →
+ *  "NextTrade". Returns '' when nothing usable remains. */
+export function stripInternalMarkers(name?: string | null): string {
+  if (!name) return '';
+  const cleaned = name
+    .replace(INTERNAL_NAME_MARKERS_RE_G, ' ')
+    .replace(/\s*[-–—_|\/]\s*/g, ' ')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+  return cleaned;
+}
+
+/** Name-like = short brand token(s), not a sentence or slogan. */
+export function isNameLike(name?: string | null): boolean {
+  if (!name) return false;
+  const t = name.trim();
+  if (t.length < 2 || t.length > 48) return false;
+  if (/[.!?…]/.test(t)) return false;
+  if (t.split(/\s+/).length > 5) return false;
+  return true;
+}
+
+/** Public brand resolution — the rendered company name must be grounded in
+ *  source evidence, never an internal run/fixture label. Order:
+ *    1. lead name when it is a real name (not generic, no internal markers)
+ *    2. marker-stripped lead name when it is still name-like
+ *    3. source-extracted company name (og:site_name / title / logo evidence)
+ *    4. branding hint from the crawl
+ *    5. domain-derived brand (SLD, capitalized)
+ *  Internal names NEVER survive to step 5's caller. */
+export function resolvePublicBrand(input: {
+  leadName?: string | null;
+  extractedName?: string | null;
+  brandingName?: string | null;
+  siteName?: string | null;
+  domain?: string | null;
+}): { name: string; source: 'lead' | 'lead-stripped' | 'extracted' | 'branding' | 'domain' | 'fallback' } {
+  const lead = input.leadName?.trim();
+  if (lead && !isGenericCompanyName(lead) && !isInternalLabel(lead)) return { name: lead, source: 'lead' };
+  const stripped = stripInternalMarkers(lead);
+  // Prefer source evidence over the stripped residual: the source brand is
+  // more truthful ("100 Кубов" over the domain slug "100m3").
+  const extracted = input.extractedName?.trim();
+  if (extracted && isNameLike(extracted) && !isGenericCompanyName(extracted) && !isInternalLabel(extracted)) {
+    return { name: extracted, source: 'extracted' };
+  }
+  if (stripped && isNameLike(stripped) && !isGenericCompanyName(stripped)) return { name: stripped, source: 'lead-stripped' };
+  const branding = input.brandingName?.trim();
+  if (branding && isNameLike(branding) && !isGenericCompanyName(branding) && !isInternalLabel(branding)) {
+    return { name: branding, source: 'branding' };
+  }
+  const domain = (input.domain || '').trim().replace(/^www\./, '').split('.')[0];
+  if (domain) return { name: domain.charAt(0).toUpperCase() + domain.slice(1), source: 'domain' };
+  return { name: input.siteName || '', source: 'fallback' };
+}
+
 export function isGenericCompanyName(name?: string | null): boolean {
   if (!name) return true;
   if (name.length < 2) return true;
@@ -57,6 +156,45 @@ export interface LeadIdentity {
   companyName?: string | null;
   phone?: string | null;
   address?: string | null;
+  websiteDomain?: string | null;
+}
+
+/** V3.7.3 field provenance — every generated/AI-reviewed text field carries
+ *  { value, sourceText, sourceUrl, ownership, aiRevision }. The renderer only
+ *  reads `value` via the entity columns; this map records where it came from.
+ *  Generated fields are written with ownership 'SOURCE' (crawl-derived) or
+ *  'AI'; CMS saves flip ownership to 'EDITOR' and generation never touches
+ *  EDITOR-owned fields again. */
+export type FieldOwnership = 'SOURCE' | 'AI' | 'EDITOR';
+export interface FieldProvenance {
+  value: string | null;
+  sourceText: string | null;
+  sourceUrl: string | null;
+  ownership: FieldOwnership;
+  aiRevision: {
+    provider: string;
+    model: string;
+    operation: string;
+    changedAt: string;
+    reason: string;
+    previousValue: string | null;
+  } | null;
+}
+
+export function fieldProv(
+  fields: Record<string, { value?: string | null; sourceText?: string | null; sourceUrl?: string | null; ownership?: FieldOwnership }>
+): Record<string, FieldProvenance> {
+  const out: Record<string, FieldProvenance> = {};
+  for (const [k, f] of Object.entries(fields)) {
+    out[k] = {
+      value: f.value ?? null,
+      sourceText: f.sourceText ?? f.value ?? null,
+      sourceUrl: f.sourceUrl ?? null,
+      ownership: f.ownership ?? 'SOURCE',
+      aiRevision: null,
+    };
+  }
+  return out;
 }
 
 export interface ImportOptions {
@@ -133,18 +271,48 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   const previewUrl = `http://localhost:3000/showcase/${options.previewSlug}`;
   const themeConfig: any = options.content.theme ? { ...options.content.theme, homepageSections: options.content.homepageSections, hero: options.content.hero, about: options.content.about, cta: options.content.cta, dynamicSections: (options.content as any).dynamicSections || [] } : {};
 
-  const priorSite = await prisma.site.findUnique({ where: { leadId: options.leadId }, select: { settings: true } });
+  const priorSite = await prisma.site.findUnique({ where: { leadId: options.leadId }, select: { id: true, settings: true } });
   const fixtureMarker = options.fixture
     ? { fixture: true, fixtureOwner: options.fixtureOwner || 'unknown', visibility: 'TEST' }
     : {};
   const mergedSettings = { ...((priorSite?.settings as any) || {}), ...fixtureMarker, previewUrl };
 
-  const site = await prisma.site.upsert({
-    where: { leadId: options.leadId },
-    update: { name: options.siteName, slug: options.siteSlug, templateId: options.templateId, themeConfig, settings: mergedSettings as any, status: 'DRAFT' },
-    create: { leadId: options.leadId, name: options.siteName, slug: options.siteSlug, previewToken: options.previewSlug, templateId: options.templateId, themeConfig: themeConfig as any, settings: mergedSettings as any, status: 'DRAFT' }
-  });
+  // V3.7.4 — canonical site rule: ONE canonical domain → ONE active Site.
+  // Before upserting by leadId, look up the active site that already owns this
+  // domain. A retry for a different lead of the same client must reuse the
+  // canonical site (and its CMS), never create a second Site row.
+  const canonicalDomain = options.lead.websiteDomain || options.siteSlug;
+  let canonicalSite = priorSite?.id
+    ? await prisma.site.findUnique({ where: { id: priorSite.id } })
+    : null;
+  if (!canonicalSite || canonicalSite.mergedIntoSiteId || canonicalSite.status === 'ARCHIVED') {
+    canonicalSite = await prisma.site.findFirst({
+      where: {
+        mergedIntoSiteId: null,
+        status: { not: 'ARCHIVED' },
+        OR: [{ canonicalDomain }, { domain: canonicalDomain }],
+      },
+    }) || null;
+  }
+
+  const site = canonicalSite
+    ? await prisma.site.update({
+        where: { id: canonicalSite.id },
+        data: {
+          name: options.siteName, templateId: options.templateId, themeConfig,
+          settings: mergedSettings as any, status: 'DRAFT', canonicalDomain,
+          // A canonical site that lost its leadId (dedup) adopts this lead.
+          ...(canonicalSite.leadId ? {} : { leadId: options.leadId }),
+        },
+      })
+    : await prisma.site.create({
+        data: { leadId: options.leadId, name: options.siteName, slug: options.siteSlug, previewToken: options.previewSlug, templateId: options.templateId, themeConfig: themeConfig as any, settings: mergedSettings as any, status: 'DRAFT', canonicalDomain }
+      });
   const siteId = site.id;
+  // If the lead's own site exists but is not the canonical one, archive it.
+  if (priorSite?.id && priorSite.id !== siteId) {
+    await prisma.site.update({ where: { id: priorSite.id }, data: { status: 'ARCHIVED', mergedIntoSiteId: siteId } });
+  }
 
   // DemoVariant identity is (siteId, templateId): retrying the same template
   // updates the existing variant and keeps its previewToken stable; a new
@@ -227,7 +395,7 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
     }
     try {
       const referer = `https://${new URL(sourceUrl).hostname}/`;
-      const resp = await fetch(sourceUrl, { headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36', Accept: 'image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8', Referer: referer } });
+      const resp = await fetchMedia(sourceUrl, referer);
       if (!resp.ok) {
         console.warn('media fetch non-ok', sourceUrl, resp.status);
         continue;
@@ -299,6 +467,13 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       if (Array.isArray(mapped.imageIds)) {
         mapped.imageIds = mapped.imageIds.map(mapImageId).filter(Boolean);
       }
+      // Typed document blocks (certificates/legal docs): resolve each item's
+      // mediaId (a source URL at this stage) to the persisted Media id.
+      if (Array.isArray(mapped.items) && mapped.type === 'certificates') {
+        mapped.items = mapped.items
+          .map((it: any) => ({ ...it, mediaId: mapImageId(it.mediaId) }))
+          .filter((it: any) => it.mediaId);
+      }
       return mapped;
     });
   }
@@ -311,9 +486,14 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
 
   const leadDisplayName = options.lead.companyName?.split(/[,;]/)[0]?.trim();
   const extractedCompanyName = options.content.company?.shortName ?? options.content.company?.name;
-  const companyName = !isGenericCompanyName(leadDisplayName)
-    ? leadDisplayName
-    : (!isGenericCompanyName(extractedCompanyName) ? extractedCompanyName : options.content.branding?.companyName ?? options.siteName);
+  const brandResolution = resolvePublicBrand({
+    leadName: leadDisplayName,
+    extractedName: extractedCompanyName,
+    brandingName: options.content.branding?.companyName,
+    siteName: options.siteName,
+    domain: options.lead.websiteDomain || options.siteSlug,
+  });
+  const companyName = brandResolution.name;
 
   const contacts = options.content.contacts ?? {};
   const normalizedContacts = {
@@ -345,7 +525,15 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
     defaultSeoDescription: options.content.branding?.defaultSeoDescription,
     previewUrl: undefined,
     language: 'ru',
-    timezone: 'Europe/Minsk'
+    timezone: 'Europe/Minsk',
+    // V3.7.3 — public identity provenance + editable template copy dictionary.
+    internalName: options.lead.companyName ?? options.siteName,
+    brandSource: brandResolution.source,
+    fieldProvenance: fieldProv({
+      companyName: { value: companyName, sourceText: extractedCompanyName ?? leadDisplayName, sourceUrl: options.content.pages?.find((p: any) => p.isHomepage)?.sourceUrl ?? null },
+      defaultSeoTitle: { value: options.content.branding?.defaultSeoTitle, sourceText: options.content.branding?.defaultSeoTitle, sourceUrl: null },
+      defaultSeoDescription: { value: options.content.branding?.defaultSeoDescription, sourceText: options.content.branding?.defaultSeoDescription, sourceUrl: null },
+    }),
   };
 
   function resolveThemeImage(themeObject?: any) {
@@ -357,11 +545,11 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
     return { ...themeObject, imageUrl: themeObject.imageId, imageId: undefined };
   }
 
-  const existingSettings = await prisma.siteSettings.findUnique({ where: { siteId }, select: { generatedByRunId: true, manualModifiedAt: true } });
+  const existingSettings = await prisma.siteSettings.findUnique({ where: { siteId }, select: { generatedByRunId: true, manualModifiedAt: true, templateCopy: true } });
   if (!existingSettings) {
-    await prisma.siteSettings.create({ data: { siteId, ...siteSettingsBase, ...ownership } as any });
+    await prisma.siteSettings.create({ data: { siteId, ...siteSettingsBase, templateCopy: mergeTemplateCopy(null), ...ownership } as any });
   } else if (runId && (regenerateContent || existingSettings.generatedByRunId) && !existingSettings.manualModifiedAt) {
-    await prisma.siteSettings.update({ where: { siteId }, data: { ...siteSettingsBase, ...ownership } as any });
+    await prisma.siteSettings.update({ where: { siteId }, data: { ...siteSettingsBase, templateCopy: mergeTemplateCopy(existingSettings.templateCopy as any), ...ownership } as any });
   }
 
   const keptPageIds = new Set<string>();
@@ -409,6 +597,11 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       sourceType: generatedSource,
       status: PageStatus.PUBLISHED,
       publishedAt: new Date(),
+      fieldProvenance: fieldProv({
+        title: { value: p.title, sourceUrl: p.sourceUrl },
+        seoTitle: { value: p.seoTitle, sourceUrl: p.sourceUrl },
+        seoDescription: { value: p.seoDescription, sourceUrl: p.sourceUrl },
+      }),
       ...ownership
     };
     const record = existing ? await prisma.page.update({ where: { id: existing.id }, data }) : await prisma.page.create({ data });
@@ -442,6 +635,12 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       sourceType: generatedSource,
       status: PageStatus.PUBLISHED,
       sortOrder: 0,
+      fieldProvenance: fieldProv({
+        title: { value: s.title, sourceUrl: s.sourceUrl },
+        shortDescription: { value: s.shortDescription, sourceUrl: s.sourceUrl },
+        seoTitle: { value: s.seoTitle, sourceUrl: s.sourceUrl },
+        seoDescription: { value: s.seoDescription, sourceUrl: s.sourceUrl },
+      }),
       ...ownership
     };
     const record = existing ? await prisma.service.update({ where: { id: existing.id }, data }) : await prisma.service.create({ data });
@@ -478,6 +677,12 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       sourceType: generatedSource,
       status: PageStatus.PUBLISHED,
       publishedAt: new Date(),
+      fieldProvenance: fieldProv({
+        title: { value: p.title, sourceUrl: p.sourceUrl },
+        excerpt: { value: p.excerpt, sourceUrl: p.sourceUrl },
+        seoTitle: { value: p.seoTitle, sourceUrl: p.sourceUrl },
+        seoDescription: { value: p.seoDescription, sourceUrl: p.sourceUrl },
+      }),
       ...ownership
     };
     const record = existing ? await prisma.project.update({ where: { id: existing.id }, data }) : await prisma.project.create({ data });
@@ -523,6 +728,12 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       sourceType: generatedSource,
       status: PageStatus.PUBLISHED,
       publishedAt: new Date(),
+      fieldProvenance: fieldProv({
+        title: { value: p.title, sourceUrl: p.sourceUrl },
+        summary: { value: p.summary, sourceUrl: p.sourceUrl },
+        seoTitle: { value: p.seoTitle, sourceUrl: p.sourceUrl },
+        seoDescription: { value: p.seoDescription, sourceUrl: p.sourceUrl },
+      }),
       ...ownership
     };
     const record = existing ? await prisma.product.update({ where: { id: existing.id }, data }) : await prisma.product.create({ data });
@@ -565,7 +776,16 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       sourceUrl: n.sourceUrl,
       sourceType: generatedSource,
       status: PageStatus.PUBLISHED,
-      publishedAt: n.publishedAt ? new Date(n.publishedAt) : new Date(),
+      // Publication date is source evidence only — never import time, and a
+      // previously fabricated generated value is corrected to null. Editor-set
+      // dates are safe: manualModifiedAt records return early above.
+      publishedAt: n.publishedAt ? new Date(n.publishedAt) : null,
+      fieldProvenance: fieldProv({
+        title: { value: n.title, sourceUrl: n.sourceUrl },
+        excerpt: { value: n.excerpt, sourceUrl: n.sourceUrl },
+        seoTitle: { value: n.seoTitle, sourceUrl: n.sourceUrl },
+        seoDescription: { value: n.seoDescription, sourceUrl: n.sourceUrl },
+      }),
       ...ownership
     };
     const record = existing ? await prisma.newsPost.update({ where: { id: existing.id }, data }) : await prisma.newsPost.create({ data });
@@ -598,6 +818,12 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       status: PageStatus.PUBLISHED,
       sourceType: generatedSource,
       publishedAt: new Date(),
+      fieldProvenance: fieldProv({
+        title: { value: v.title, sourceUrl: v.sourceUrl },
+        description: { value: v.description, sourceUrl: v.sourceUrl },
+        requirements: { value: v.requirements, sourceUrl: v.sourceUrl },
+        conditions: { value: v.conditions, sourceUrl: v.sourceUrl },
+      }),
       ...ownership
     };
     const record = existing ? await prisma.vacancy.update({ where: { id: existing.id }, data }) : await prisma.vacancy.create({ data });
@@ -641,19 +867,25 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
     try { path = new URL(rawUrl).pathname; } catch { path = rawUrl; }
     const clean = path.replace(/^\/+|\/+$/g, '');
     const lastSeg = clean.split('/').pop() || '';
+    // Canonical normalization: document extensions (.html/.php/…) are URL
+    // decoration — /kontakty.html must resolve like /kontakty. Page slugs keep
+    // the raw form, so the normalized variant is a second-chance lookup.
+    const stripExt = (s: string) => s.replace(/\.(html?|php\d?|aspx?)$/i, '');
+    const cleanNorm = stripExt(clean);
+    const lastSegNorm = stripExt(lastSeg);
     if (!clean || clean === 'index' || clean === 'home') return { targetType: 'HOME', target: '', pageId: homepageId };
 
     // Single-segment well-known section slugs resolve to homepage sections —
     // single-page templates render these as anchors, not separate routes.
     if (!clean.includes('/')) {
-      const section = SECTION_TARGETS[clean] || SECTION_TARGETS[lastSeg];
+      const section = SECTION_TARGETS[clean] || SECTION_TARGETS[cleanNorm] || SECTION_TARGETS[lastSeg] || SECTION_TARGETS[lastSegNorm];
       if (section) return { targetType: 'HOME_SECTION', target: section };
     }
 
-    const pageId = (rawUrl && pageByUrl.get(rawUrl)) || pageBySlug.get(clean) || pageBySlug.get(lastSeg);
+    const pageId = (rawUrl && pageByUrl.get(rawUrl)) || pageBySlug.get(clean) || pageBySlug.get(lastSeg) || pageBySlug.get(cleanNorm) || pageBySlug.get(lastSegNorm);
     if (pageId) return { targetType: 'PAGE', target: clean || lastSeg, pageId };
 
-    const section = SECTION_TARGETS[clean] || SECTION_TARGETS[lastSeg];
+    const section = SECTION_TARGETS[clean] || SECTION_TARGETS[cleanNorm] || SECTION_TARGETS[lastSeg] || SECTION_TARGETS[lastSegNorm];
     if (section) return { targetType: 'HOME_SECTION', target: section };
 
     // Unresolvable crawler links stay as external URLs pointing at the source
@@ -779,8 +1011,8 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   // the site language, never hardcoded English on a Russian site.
   const lang = siteSettingsBase?.language === 'en' ? 'en' : 'ru';
   const L: Record<string, string> = lang === 'en'
-    ? { home: 'Home', services: 'Services', projects: 'Projects', news: 'News', contacts: 'Contacts' }
-    : { home: 'Главная', services: 'Услуги', projects: 'Проекты', news: 'Новости', contacts: 'Контакты' };
+    ? { home: 'Home', services: 'Services', projects: 'Projects', news: 'News', contacts: 'Contacts', products: 'Products' }
+    : { home: 'Главная', services: 'Услуги', projects: 'Проекты', news: 'Новости', contacts: 'Контакты', products: 'Продукция' };
 
   const home = await prisma.page.findFirst({ where: { siteId, isHomepage: true }, select: { id: true, generatedByRunId: true } });
   if (nav.length === 0 && home && menu) {
@@ -815,7 +1047,7 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   await prisma.site.update({ where: { id: siteId }, data: { themeConfig } as any });
   await prisma.demoVariant.update({ where: { id: demoVariant.id }, data: { themeConfig } as any });
 
-  const homepage = await prisma.page.findFirst({ where: { siteId, isHomepage: true }, select: { id: true, sourceType: true, generatedByRunId: true, manualModifiedAt: true } });
+  const homepage = await prisma.page.findFirst({ where: { siteId, isHomepage: true }, select: { id: true, sourceType: true, generatedByRunId: true, manualModifiedAt: true, blocks: true } });
   // Never overwrite a manually edited homepage on regeneration.
   if (homepage && (!runId || (homepage.sourceType !== 'MANUAL' && !homepage.manualModifiedAt))) {
     const hero = options.content.hero;
@@ -858,14 +1090,29 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       projects: options.content.projects.length,
       news: options.content.news.length,
       vacancies: options.content.vacancies.length,
+      products: options.content.products?.length || 0,
     };
-    const defaultLimits: Record<string, number> = { services: 6, projects: 4, news: 3, vacancies: 3 };
+    const defaultLimits: Record<string, number> = { services: 6, projects: 4, news: 3, vacancies: 3, products: 6 };
+    // V3.7.2: collection-page cards per page (range 1–24 enforced by UI/schema).
+    const defaultPageSize: Record<string, number> = { services: 12, projects: 12, news: 6, vacancies: 6, products: 12 };
+    // Regeneration preserves editor-tuned collection settings: an earlier
+    // homepage block of the same type wins over generated defaults.
+    const priorByType = new Map<string, any>(
+      (Array.isArray(homepage.blocks) ? homepage.blocks : [])
+        .filter((b: any) => b && typeof b.type === 'string')
+        .map((b: any) => [String(b.type).toLowerCase(), b]),
+    );
 
-    const collectionBlock = (s: any) => ({
-      id: blockId(s.type), type: s.type, enabled: s.enabled !== false,
-      heading: s.title || L[s.type] || s.type,
-      limit: s.limit ?? defaultLimits[s.type],
-    });
+    const collectionBlock = (s: any) => {
+      const prior = priorByType.get(s.type);
+      return {
+        id: blockId(s.type), type: s.type, enabled: s.enabled !== false,
+        heading: s.title || prior?.heading || L[s.type] || s.type,
+        limit: prior?.limit ?? s.limit ?? defaultLimits[s.type],
+        pageSize: prior?.pageSize ?? s.pageSize ?? defaultPageSize[s.type] ?? 6,
+        showAllLink: prior?.showAllLink ?? s.showAllLink ?? true,
+      };
+    };
 
     const homeBlocks: any[] = [];
     if (sections.length > 0) {
@@ -876,7 +1123,7 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
           case 'hero': if (heroBlock) homeBlocks.push({ ...heroBlock, enabled }); break;
           case 'about': if (aboutBlock) homeBlocks.push({ ...aboutBlock, enabled }); break;
           case 'cta': if (ctaBlock) homeBlocks.push({ ...ctaBlock, enabled }); break;
-          case 'services': case 'projects': case 'news': case 'vacancies':
+          case 'services': case 'projects': case 'news': case 'vacancies': case 'products':
             if ((entityCount[s.type] || 0) > 0) homeBlocks.push(collectionBlock(s));
             break;
           case 'contacts': homeBlocks.push({ id: blockId('contacts'), type: 'contacts', enabled, heading: s.title || L.contacts }); break;
@@ -892,7 +1139,7 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       // No generated sections: legacy fixed-order fallback.
       if (heroBlock) homeBlocks.push(heroBlock);
       if (aboutBlock) homeBlocks.push(aboutBlock);
-      for (const type of ['services', 'projects', 'news', 'vacancies']) {
+      for (const type of ['services', 'projects', 'news', 'vacancies', 'products']) {
         if ((entityCount[type] || 0) > 0) homeBlocks.push(collectionBlock({ type, enabled: true }));
       }
       if (ctaBlock) homeBlocks.push(ctaBlock);
@@ -902,6 +1149,30 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       where: { id: homepage.id },
       data: { blocks: homeBlocks as any }
     });
+  }
+
+  // V3.7.2 — collection index pages carry a same-kind config block
+  // ({type: kind, enabled:false, pageSize, showAllLink}): it stores the
+  // pagination contract and is never rendered as a duplicate list — the
+  // renderer filters same-kind blocks out of collection.blocks.
+  {
+    const COLLECTION_PAGE_SIZE: Record<string, number> = { services: 12, projects: 12, news: 6, vacancies: 6, products: 12 };
+    const collPages = await prisma.page.findMany({
+      where: { siteId, isHomepage: false, sourceType: { not: 'MANUAL' }, manualModifiedAt: null },
+      select: { id: true, slug: true, sourceUrl: true, blocks: true },
+    });
+    const lastSeg = (u?: string) => {
+      if (!u) return '';
+      try { return new URL(u).pathname.replace(/\/+$/, '').split('/').pop() || ''; } catch { return u.replace(/\/+$/, '').split('/').pop() || ''; }
+    };
+    for (const pg of collPages) {
+      const kind = COLLECTION_SLUG_HINTS[pg.slug] || COLLECTION_SLUG_HINTS[lastSeg(pg.sourceUrl || '')];
+      if (!kind) continue;
+      const blocks = Array.isArray(pg.blocks) ? [...pg.blocks] as any[] : [];
+      if (blocks.some((b) => String(b?.type) === kind)) continue;
+      blocks.push({ id: `cfg-${kind}`, type: kind, enabled: false, pageSize: COLLECTION_PAGE_SIZE[kind] ?? 6, showAllLink: true });
+      await prisma.page.update({ where: { id: pg.id }, data: { blocks: blocks as any } });
+    }
   }
 
   if (runId && regenerateContent) {
@@ -925,5 +1196,5 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
     menuItems: await prisma.menuItem.count({ where: { siteId } as any })
   };
 
-  return { siteId, siteSlug: options.siteSlug, previewSlug: options.previewSlug, demoVariantId: demoVariant.id, stats };
+  return { siteId, siteSlug: site.slug, previewSlug: site.previewToken, demoVariantId: demoVariant.id, stats };
 }

@@ -468,7 +468,7 @@ export function buildSiteContentPlanV2(opts: {
       [...(homeDoc?.chrome?.nav?.primary || []), ...(homeDoc?.chrome?.nav?.secondary || []), ...(homeDoc?.chrome?.footer?.links || [])]
         .map((n: any) => (n.url || '').replace(/\/+$/, '')).filter(Boolean)
     );
-    const BLOCKED_DETAIL_TYPES = new Set(['CONTACTS', 'LEGAL', 'ABOUT', 'HOME', 'NEWS_INDEX', 'NEWS_DETAIL', 'VACANCIES_INDEX', 'VACANCY_DETAIL', 'SERVICES_INDEX', 'SERVICE_DETAIL', 'PRODUCTS_INDEX', 'PRODUCT_DETAIL', 'PROJECTS_INDEX'].filter((t) => t !== INDEX_TO_TYPE[et]?.toUpperCase()));
+    const BLOCKED_DETAIL_TYPES = new Set(['CONTACTS', 'LEGAL', 'ABOUT', 'HOME', 'NEWS_INDEX', 'NEWS_DETAIL', 'VACANCIES_INDEX', 'VACANCY_DETAIL', 'SERVICES_INDEX', 'SERVICE_DETAIL', 'PRODUCTS_INDEX', 'PRODUCT_DETAIL', 'PROJECTS_INDEX', 'REVIEWS_INDEX', 'REVIEW_DETAIL'].filter((t) => t !== INDEX_TO_TYPE[et]?.toUpperCase()));
     for (const cand of candidates.values()) {
       const dd = docByUrl.get(cand.url.replace(/\/+$/, ''))!;
       if (navUrls.has(dd.url.replace(/\/+$/, ''))) continue;

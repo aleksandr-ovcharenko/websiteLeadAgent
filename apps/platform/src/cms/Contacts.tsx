@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Screen } from './types'
 import { useStudio } from './context'
 import { api } from './api'
@@ -31,7 +31,10 @@ export default function Contacts({ onNavigate }: ContactsProps) {
   const [dirty, setDirty] = useState(false)
   const { toast, show } = useToast()
 
+  const loaded = useRef(false)
   useEffect(() => {
+    if (loaded.current) return
+    loaded.current = true
     const contacts = typeof settings?.contacts === 'string' ? JSON.parse(settings.contacts) : settings?.contacts || {}
     setData(contacts)
   }, [settings])

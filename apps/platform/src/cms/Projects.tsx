@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Screen } from './types'
 import { IconEdit, IconTrash, IconMore, IconChevronLeft, IconPlus, IconEye, IconX, IconCheck, IconUpload } from './icons'
 import { Badge, Button, SearchInput, FilterTabs, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
 import { useStudio, formatDate } from './context'
 import { api, uiStatus, apiStatus } from './api'
 import { mediaUrlOf } from './mediaUrl'
+import { StructuredBlocksEditor } from './StructuredBlocksEditor'
 
 interface ProjectsListProps {
   onNavigate: (s: Screen, id?: string) => void
@@ -77,7 +78,8 @@ export function ProjectsList({ onNavigate }: ProjectsListProps) {
                 <td className="px-4 py-2 text-[12px] text-text-subtle whitespace-nowrap">{formatDate(project.updatedAt)}</td>
                 <td className="px-4 py-2 w-10 text-right">
                   <DropdownMenu
-                    trigger={<button className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:bg-surface-hover hover:text-text-muted transition-colors opacity-0 group-hover:opacity-100"><IconMore size={13} /></button>}
+                    trigger={<span className="inline-flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"><IconMore size={13} /></span>}
+                      ariaLabel="Row actions"
                     items={[
                       { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('project-editor', project.id) },
                       { label: 'Preview', icon: <IconEye size={12} />, onClick: () => window.open(`/showcase/${site?.previewToken || ''}/projects/${project.slug}`, '_blank') },
@@ -125,7 +127,7 @@ export function ProjectEditor({ projectId, onNavigate }: ProjectEditorProps) {
   const [completionDate, setCompletionDate] = useState('')
   const [projectStatus, setProjectStatus] = useState<'completed' | 'in-progress'>('completed')
   const [pubStatus, setPubStatus] = useState<ReturnType<typeof uiStatus>>('draft')
-  const [content, setContent] = useState('')
+  const [blocks, setBlocks] = useState<any[]>([])
   const [coverImageId, setCoverImageId] = useState('')
   const [galleryImageIds, setGalleryImageIds] = useState<string[]>([])
   const [seoTitle, setSeoTitle] = useState('')
@@ -134,7 +136,12 @@ export function ProjectEditor({ projectId, onNavigate }: ProjectEditorProps) {
   const [uploading, setUploading] = useState(false)
   const { toast, show } = useToast()
 
+  // Populate once per entity — a bundle refetch must not wipe unsaved edits.
+  const loadedFor = useRef<string | null>(null)
   useEffect(() => {
+    const key = project ? `id:${project.id}` : `new:${projectId ?? ''}`
+    if (loadedFor.current === key) return
+    loadedFor.current = key
     if (project) {
       setTitle(project.title || ''); setSlug(project.slug || ''); setExcerpt(project.excerpt || ''); setCategory(project.category || ''); setLocation(project.location || '')
       setCompletionDate(project.completionDate ? new Date(project.completionDate).toISOString().slice(0, 10) : '')
@@ -142,22 +149,20 @@ export function ProjectEditor({ projectId, onNavigate }: ProjectEditorProps) {
       setPubStatus(uiStatus(project.status))
       setCoverImageId(project.coverImageId || '')
       setGalleryImageIds((project.projectMedia || []).map((m: any) => m.media?.id || m.mediaId).filter(Boolean))
-      setContent((project.blocks || []).map((b: any) => b.content || '').join('\n\n'))
+      setBlocks(project.blocks || [])
       setSeoTitle(project.seoTitle || ''); setSeoDesc(project.seoDescription || '')
     } else {
-      setTitle(''); setSlug(''); setExcerpt(''); setCategory(''); setLocation(''); setCompletionDate(''); setProjectStatus('completed'); setPubStatus('draft'); setContent(''); setCoverImageId(''); setGalleryImageIds([]); setSeoTitle(''); setSeoDesc('')
+      setTitle(''); setSlug(''); setExcerpt(''); setCategory(''); setLocation(''); setCompletionDate(''); setProjectStatus('completed'); setPubStatus('draft'); setBlocks([]); setCoverImageId(''); setGalleryImageIds([]); setSeoTitle(''); setSeoDesc('')
     }
     setSaveState('saved')
   }, [projectId, project])
 
   const markDirty = () => setSaveState('unsaved')
 
-  const blocksFromContent = (text: string) => text.split(/\n{2,}/).filter(Boolean).map((content: string) => ({ type: 'text', content }))
-
   const handleSave = async (publish = false) => {
     setSaveState('saving')
     try {
-      const payload: any = { title, slug, excerpt, category, location, completionDate, blocks: blocksFromContent(content), projectStatus, coverImageId, galleryImageIds, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(pubStatus) }
+      const payload: any = { title, slug, excerpt, category, location, completionDate, blocks, projectStatus, coverImageId, galleryImageIds, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(pubStatus) }
       if (isNew) { await api.createProject(siteId, payload); show(publish ? 'Project published' : 'Project saved') }
       else { await api.updateProject(siteId, project!.id, payload); show(publish ? 'Project updated' : 'Project saved') }
       await refresh(); onNavigate('projects')
@@ -189,7 +194,15 @@ export function ProjectEditor({ projectId, onNavigate }: ProjectEditorProps) {
         </div>
         <SaveIndicator state={saveState} />
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Button variant="ghost" size="sm" onClick={() => window.open(`/showcase/${site?.previewToken || ''}/projects/${slug}`, '_blank')}><IconEye size={12} />Preview</Button>
+          {(() => {
+            const path = project?.previewPath
+            return (
+              <Button variant="ghost" size="sm" disabled={!path}
+                onClick={() => path && window.open(`/showcase/${site?.previewToken || ''}${path}`, '_blank')}>
+                <IconEye size={12} />{path ? 'Preview' : 'Detail preview unavailable'}
+              </Button>
+            )
+          })()}
           <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>
           <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{pubStatus === 'published' ? 'Update' : 'Publish'}</Button>
         </div>
@@ -199,7 +212,7 @@ export function ProjectEditor({ projectId, onNavigate }: ProjectEditorProps) {
         <div className="flex-1 overflow-y-auto bg-bg p-6">
           <div className="max-w-[680px] mx-auto flex flex-col gap-5">
             <div className="bg-surface border border-border rounded px-5 py-4">
-              <input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Project title" className="w-full text-[20px] font-semibold text-text placeholder-text-subtle bg-transparent border-0 focus:outline-none leading-tight" />
+              <div data-cms-control="project:title"><input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Project title" className="w-full text-[20px] font-semibold text-text placeholder-text-subtle bg-transparent border-0 focus:outline-none leading-tight" /></div>
               <div className="flex items-center gap-1 mt-2">
                 <span className="text-[11px] text-text-subtle mono">{site?.domain || 'site'}/</span>
                 <input value={slug} onChange={e => { setSlug(e.target.value); markDirty() }} placeholder="project-slug" className="flex-1 text-[11px] text-text-muted mono bg-transparent border-0 focus:outline-none placeholder-text-subtle min-w-0" />
@@ -213,12 +226,12 @@ export function ProjectEditor({ projectId, onNavigate }: ProjectEditorProps) {
               </div>
               <Input label="Category" value={category} onChange={v => { setCategory(v); markDirty() }} placeholder="e.g. Industrial, Residential" />
               <Input label="Location" value={location} onChange={v => { setLocation(v); markDirty() }} placeholder="City, address" />
-              <Textarea label="Short description" value={excerpt} onChange={v => { setExcerpt(v); markDirty() }} rows={2} placeholder="Shown in project cards and listings…" />
+              <div data-cms-control="project:excerpt"><Textarea label="Short description" value={excerpt} onChange={v => { setExcerpt(v); markDirty() }} rows={2} placeholder="Shown in project cards and listings…" /></div>
             </div>
 
             <div className="bg-surface border border-border rounded p-4 flex flex-col gap-3">
-              <label className="text-[12px] font-medium text-text-muted">Full description</label>
-              <textarea value={content} onChange={e => { setContent(e.target.value); markDirty() }} placeholder="Detailed description of the project — scope, technology, timeline, results…" rows={8} className="w-full border-0 text-[13px] text-text placeholder-text-subtle focus:outline-none resize-y leading-relaxed" />
+              <label className="text-[12px] font-medium text-text-muted">Content blocks</label>
+              <StructuredBlocksEditor key={project?.id || 'new'} entityKind="project" value={blocks} onChange={b => { setBlocks(b); markDirty() }} />
             </div>
 
             <div>

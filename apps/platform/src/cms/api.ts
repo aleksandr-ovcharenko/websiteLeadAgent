@@ -74,6 +74,12 @@ export const api = {
   getSourceContentGraphArtifact: (runId: string) => request(`/api/factory/runs/${runId}/source-content-graph`) as Promise<any>,
   retryFactoryRun: (runId: string) => request(`/api/factory/runs/${runId}/retry`, { method: 'POST' }) as Promise<any>,
 
+  // Version history (Site → DesignVariant → SiteRevision)
+  getRevisions: (siteId: string) => request(`/api/cms/sites/${siteId}/revisions`) as Promise<{ variants: any[] }>,
+  promoteRevision: (siteId: string, revisionId: string) => request(`/api/cms/sites/${siteId}/revisions/${revisionId}/promote`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}'
+  }) as Promise<{ ok: boolean; activeRevisionId: string }>,
+
   // Discovery
   getDiscoveryProviders: () => request('/api/discovery/providers') as Promise<{ providers: any[] }>,
   getDiscoveryProvider: (id: string) => request(`/api/discovery/providers/${id}`) as Promise<{ provider: any }>,

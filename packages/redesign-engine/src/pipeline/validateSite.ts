@@ -72,7 +72,9 @@ export async function validateGeneratedSite(options: ValidateOptions): Promise<V
     true
   );
   check(
-    !!hero.buttonUrl && !hero.buttonUrl.includes('#') && !hero.buttonUrl.includes('javascript:'),
+    // A resolved section anchor ('/#contact') is a valid destination; a bare
+    // '#' or javascript: href is the dead-link case the check exists to catch.
+    !!hero.buttonUrl && hero.buttonUrl !== '#' && !hero.buttonUrl.includes('javascript:'),
     'Hero CTA has a valid destination',
     true
   );

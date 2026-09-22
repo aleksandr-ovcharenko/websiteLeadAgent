@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Screen } from './types'
 import { IconEdit, IconTrash, IconMore, IconChevronLeft, IconPlus, IconGrip, IconCheck, IconUpload, IconEye, IconX } from './icons'
 import { Badge, Button, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
@@ -42,7 +42,8 @@ export function ProductsList({ onNavigate }: ProductsListProps) {
                 <td className="px-4 py-2 text-[12px] text-gray-400 whitespace-nowrap">{formatDate(item.updatedAt)}</td>
                 <td className="px-4 py-2 w-10 text-right">
                   <DropdownMenu
-                    trigger={<button className="w-6 h-6 flex items-center justify-center rounded text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors opacity-0 group-hover:opacity-100"><IconMore size={13} /></button>}
+                    trigger={<span className="inline-flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"><IconMore size={13} /></span>}
+                      ariaLabel="Row actions"
                     items={[
                       { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('product-editor', item.id) },
                       { label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(item.id), danger: true, divider: true },
@@ -87,6 +88,7 @@ interface ProductEditorProps {
 }
 
 import { mediaUrlOf } from './mediaUrl'
+import { StructuredBlocksEditor } from './StructuredBlocksEditor'
 
 export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
   const { siteId, products, refresh, site, media } = useStudio()
@@ -101,7 +103,7 @@ export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
   const [attrs, setAttrs] = useState('')
   const [status, setStatus] = useState<ReturnType<typeof uiStatus>>('draft')
   const [orderNum, setOrderNum] = useState('')
-  const [content, setContent] = useState('')
+  const [blocks, setBlocks] = useState<any[]>([])
   const [imageId, setImageId] = useState('')
   const [galleryIds, setGalleryIds] = useState<string[]>([])
   const [seoTitle, setSeoTitle] = useState('')
@@ -110,27 +112,30 @@ export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
   const [uploading, setUploading] = useState(false)
   const { toast, show } = useToast()
 
+  // Populate once per entity — a bundle refetch must not wipe unsaved edits.
+  const loadedFor = useRef<string | null>(null)
   useEffect(() => {
+    const key = item ? `id:${item.id}` : `new:${productId ?? ''}`
+    if (loadedFor.current === key) return
+    loadedFor.current = key
     if (item) {
       setTitle(item.title || ''); setSlug(item.slug || ''); setSummary(item.summary || ''); setCategory(item.category || ''); setPrice(item.price || '')
       setAttrs(attrsToText(item.attributes)); setStatus(uiStatus(item.status)); setOrderNum(String(item.sortOrder || 0))
-      setContent((item.blocks || []).map((b: any) => b.content || '').join('\n\n'))
+      setBlocks(item.blocks || [])
       setImageId(item.coverImageId || ''); setSeoTitle(item.seoTitle || ''); setSeoDesc(item.seoDescription || '')
       setGalleryIds(((item.productMedia || []).map((pm: any) => pm.mediaId || pm.media?.id).filter(Boolean)))
     } else {
-      setTitle(''); setSlug(''); setSummary(''); setCategory(''); setPrice(''); setAttrs(''); setStatus('draft'); setOrderNum(''); setContent(''); setImageId(''); setGalleryIds([]); setSeoTitle(''); setSeoDesc('')
+      setTitle(''); setSlug(''); setSummary(''); setCategory(''); setPrice(''); setAttrs(''); setStatus('draft'); setOrderNum(''); setBlocks([]); setImageId(''); setGalleryIds([]); setSeoTitle(''); setSeoDesc('')
     }
     setSaveState('saved')
   }, [productId, item])
 
   const markDirty = () => setSaveState('unsaved')
 
-  const blocksFromContent = (text: string) => text.split(/\n{2,}/).filter(Boolean).map((content: string) => ({ type: 'text', content }))
-
   const handleSave = async (publish = false) => {
     setSaveState('saving')
     try {
-      const payload: any = { title, slug, summary, category, price, attributes: textToAttrs(attrs), blocks: blocksFromContent(content), coverImageId: imageId || null, gallery: galleryIds, sortOrder: Number(orderNum) || 0, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(status) }
+      const payload: any = { title, slug, summary, category, price, attributes: textToAttrs(attrs), blocks, coverImageId: imageId || null, gallery: galleryIds, sortOrder: Number(orderNum) || 0, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(status) }
       if (isNew) { await api.createProduct(siteId, payload); show(publish ? 'Product published' : 'Product saved') }
       else { await api.updateProduct(siteId, item!.id, payload); show(publish ? 'Product updated' : 'Product saved') }
       await refresh(); onNavigate('products')
@@ -163,7 +168,15 @@ export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
         </div>
         <SaveIndicator state={saveState} />
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Button variant="ghost" size="sm" onClick={() => window.open(`/showcase/${site?.previewToken || ''}/products`, '_blank')}><IconEye size={12} />Preview</Button>
+          {(() => {
+            const path = item?.previewPath
+            return (
+              <Button variant="ghost" size="sm" disabled={!path}
+                onClick={() => path && window.open(`/showcase/${site?.previewToken || ''}${path}`, '_blank')}>
+                <IconEye size={12} />{path ? 'Preview' : 'Detail preview unavailable'}
+              </Button>
+            )
+          })()}
           <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>
           <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>
         </div>
@@ -173,8 +186,8 @@ export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
         <div className="flex-1 overflow-y-auto bg-[#f4f5f7] p-6">
           <div className="max-w-[680px] mx-auto flex flex-col gap-5">
             <div className="bg-white border border-gray-200 rounded px-5 py-4">
-              <input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Product title" className="w-full text-[20px] font-semibold text-gray-900 placeholder-gray-300 bg-transparent border-0 focus:outline-none leading-tight" />
-              <div className="mt-3 pt-3 border-t border-gray-100">
+              <div data-cms-control="product:title"><input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Product title" className="w-full text-[20px] font-semibold text-gray-900 placeholder-gray-300 bg-transparent border-0 focus:outline-none leading-tight" /></div>
+              <div className="mt-3 pt-3 border-t border-gray-100" data-cms-control="product:summary">
                 <textarea value={summary} onChange={e => { setSummary(e.target.value); markDirty() }} placeholder="Short summary — shown on product cards" rows={2} className="w-full text-[13px] text-gray-600 placeholder-gray-300 bg-transparent border-0 focus:outline-none resize-none leading-relaxed" />
                 <p className="text-[11px] text-gray-400 text-right mt-1">{summary.length}/240</p>
               </div>
@@ -226,14 +239,14 @@ export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
               </div>
             </div>
 
-            <div className="bg-white border border-gray-200 rounded p-4 flex flex-col gap-3">
+            <div className="bg-white border border-gray-200 rounded p-4 flex flex-col gap-3" data-cms-control="product:attributes">
               <label className="text-[12px] font-medium text-gray-600">Specifications (one per line: "Key: Value")</label>
               <textarea value={attrs} onChange={e => { setAttrs(e.target.value); markDirty() }} placeholder={'Площадь: 120 м²\nЭтажность: 1\nКомплектация: Box · Grey box'} rows={4} className="w-full border-0 text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none resize-y leading-relaxed font-mono" />
             </div>
 
             <div className="bg-white border border-gray-200 rounded p-4 flex flex-col gap-3">
-              <label className="text-[12px] font-medium text-gray-600">Full description</label>
-              <textarea value={content} onChange={e => { setContent(e.target.value); markDirty() }} placeholder="Detailed description of the product…" rows={8} className="w-full border-0 text-[13px] text-gray-900 placeholder-gray-400 focus:outline-none resize-y leading-relaxed" />
+              <label className="text-[12px] font-medium text-gray-600">Content blocks</label>
+              <StructuredBlocksEditor key={item?.id || 'new'} entityKind="product" value={blocks} onChange={b => { setBlocks(b); markDirty() }} />
             </div>
           </div>
         </div>

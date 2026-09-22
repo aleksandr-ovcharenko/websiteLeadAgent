@@ -49,7 +49,7 @@ const CONFIDENCE_THRESHOLDS = {
 const PAGE_TYPES: PageClassification['type'][] = [
   'HOME', 'ABOUT', 'SERVICES_INDEX', 'SERVICE_DETAIL', 'PROJECTS_INDEX', 'PROJECT_DETAIL',
   'NEWS_INDEX', 'NEWS_DETAIL', 'VACANCIES_INDEX', 'VACANCY_DETAIL', 'PRODUCTS_INDEX',
-  'PRODUCT_DETAIL', 'CONTACTS', 'LEGAL', 'OTHER',
+  'PRODUCT_DETAIL', 'REVIEWS_INDEX', 'REVIEW_DETAIL', 'CONTACTS', 'LEGAL', 'OTHER',
 ];
 
 const AI_COLLECTION_CLASSIFICATIONS = [
@@ -672,6 +672,7 @@ Definitions:
 - NEWS_INDEX / NEWS_DETAIL: list of articles / single article
 - VACANCIES_INDEX / VACANCY_DETAIL: careers / single job
 - PRODUCTS_INDEX / PRODUCT_DETAIL: catalog / single product
+- REVIEWS_INDEX / REVIEW_DETAIL: customer testimonials / single review
 - CONTACTS: phone, email, address, map
 - LEGAL: privacy, terms, cookies, agreements
 - OTHER: none of the above

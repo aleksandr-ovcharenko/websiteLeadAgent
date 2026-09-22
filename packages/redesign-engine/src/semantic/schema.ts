@@ -60,6 +60,8 @@ export const pageTypeSchema = z.enum([
   'VACANCY_DETAIL',
   'PRODUCTS_INDEX',
   'PRODUCT_DETAIL',
+  'REVIEWS_INDEX',
+  'REVIEW_DETAIL',
   'CONTACTS',
   'LEGAL',
   'OTHER',

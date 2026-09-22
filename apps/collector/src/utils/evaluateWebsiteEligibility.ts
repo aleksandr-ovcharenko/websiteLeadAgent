@@ -41,6 +41,11 @@ const POLICY: Rule[] = [
   { type: 'exact', value: 'yell.ru', reason: 'DIRECTORY', category: 'AGGREGATOR' },
   { type: 'exact', value: 'yell.by', reason: 'DIRECTORY', category: 'AGGREGATOR' },
   { type: 'exact', value: 'zoon.ru', reason: 'DIRECTORY', category: 'AGGREGATOR' },
+  // Confirmed in-corpus aggregators (V3.7 ownership classifier evidence)
+  { type: 'suffix', value: 'gmc.by', reason: 'DIRECTORY', category: 'AGGREGATOR' },
+  { type: 'suffix', value: 'deal.by', reason: 'MARKETPLACE', category: 'MARKETPLACE' },
+  { type: 'suffix', value: 'rubrikator.by', reason: 'DIRECTORY', category: 'AGGREGATOR' },
+  { type: 'suffix', value: 'minsk-city.by', reason: 'DIRECTORY', category: 'AGGREGATOR' },
 
   // Government
   { type: 'suffix', value: 'gov.by', reason: 'GOVERNMENT', category: 'GOVERNMENT' },

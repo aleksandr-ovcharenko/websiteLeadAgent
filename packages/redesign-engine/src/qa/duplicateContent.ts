@@ -1,0 +1,357 @@
+// V3.7.4 Phase 6 — duplicate/semantic content detection inside blocks.
+//
+// Adjacent-block dedupe is not enough: responsive/Tilda copies live INSIDE a
+// single flattened block as repeated sentence sequences. These detectors find
+// repeated sentences, repeated n-gram runs, summary duplication and glued
+// headings — and record exactly which copies were removed.
+
+export interface DuplicateFinding {
+  kind:
+    | 'repeated-sentence'
+    | 'repeated-sequence'
+    | 'summary-duplicated'
+    | 'heading-duplicated'
+    | 'glued-heading'
+    | 'repeated-list-item';
+  text: string;
+  occurrences: number;
+  detail?: string;
+}
+
+const norm = (s: string) => s.replace(/\s+/g, ' ').trim();
+// Split on raw newlines/sentence punctuation FIRST — norm() would collapse
+// the \n boundaries that separate responsive copies of the same fact.
+const sentSplit = (s: string) =>
+  s.split(/\n+|(?<=[.!?…])\s+/).map((x) => norm(x)).filter((x) => x.length >= 8);
+
+/** Sentences and contiguous sentence-runs repeated inside one block. */
+export function detectIntrablockDuplicates(block: any): DuplicateFinding[] {
+  const findings: DuplicateFinding[] = [];
+  const texts: string[] = [];
+  if (typeof block?.content === 'string') texts.push(block.content);
+  if (typeof block?.description === 'string') texts.push(block.description);
+  for (const it of block?.items || []) texts.push(typeof it === 'string' ? it : it?.title || it?.content || '');
+
+  for (const text of texts) {
+    const sentences = sentSplit(text);
+    const seen = new Map<string, number[]>();
+    sentences.forEach((s, i) => {
+      const k = s.toLowerCase();
+      seen.set(k, [...(seen.get(k) || []), i]);
+    });
+    for (const [s, idx] of seen) {
+      // Structural labels ("Комплектация:" before each list) repeat legally;
+      // only real content sentences (≥20 chars) or ≥3 occurrences count.
+      if (idx.length > 1 && (s.length >= 20 || idx.length >= 3)) {
+        findings.push({ kind: 'repeated-sentence', text: s.slice(0, 120), occurrences: idx.length, detail: `positions ${idx.join(',')}` });
+      }
+    }
+    // repeated contiguous runs (e.g. the same 3-sentence fact group 5×)
+    for (let runLen = 3; runLen >= 2; runLen--) {
+      const runs = new Map<string, number>();
+      for (let i = 0; i + runLen <= sentences.length; i++) {
+        const key = sentences.slice(i, i + runLen).join(' ').toLowerCase();
+        runs.set(key, (runs.get(key) || 0) + 1);
+      }
+      for (const [run, count] of runs) {
+        if (count > 1) {
+          findings.push({ kind: 'repeated-sequence', text: run.slice(0, 120), occurrences: count, detail: `${runLen}-sentence run ×${count}` });
+          break; // report the longest repeated run only
+        }
+      }
+      if (findings.some((f) => f.kind === 'repeated-sequence')) break;
+    }
+  }
+
+  // repeated list items inside the same block
+  const itemSeen = new Map<string, number>();
+  for (const it of block?.items || []) {
+    const t = norm(typeof it === 'string' ? it : it?.title || it?.content || '').toLowerCase();
+    if (t) itemSeen.set(t, (itemSeen.get(t) || 0) + 1);
+  }
+  for (const [t, n] of itemSeen) {
+    if (n > 1) findings.push({ kind: 'repeated-list-item', text: t.slice(0, 120), occurrences: n });
+  }
+
+  // glued heading: lowercase run ending mid-word then capitalised fragment.
+  // Tokens with ≥2 internal capitals are intentional compounds/dimensions.
+  for (const t of texts) {
+    const re = /[а-яёa-z][А-ЯЁA-Z][а-яёa-z]/g;
+    const real: string[] = [];
+    let mm: RegExpExecArray | null;
+    while ((mm = re.exec(t))) {
+      if (!isCompoundToken(t, mm.index, mm[0].length)) real.push(mm[0]);
+    }
+    if (real.length >= 2) {
+      findings.push({ kind: 'glued-heading', text: real.slice(0, 4).join(' '), occurrences: real.length, detail: 'lowercase→Uppercase→lowercase glue' });
+    }
+  }
+  return findings;
+}
+
+/** The entity summary is rendered separately; a first block repeating it
+ *  produces the observed "summary shown twice" defect. */
+export function detectSummaryDuplication(summary: string | null | undefined, blocks: any[]): DuplicateFinding[] {
+  if (!summary || !blocks?.length) return [];
+  const s = norm(summary).toLowerCase();
+  if (s.length < 12) return [];
+  const first = blocks[0];
+  const body = norm([first?.content, first?.heading, ...(first?.items || []).map((i: any) => (typeof i === 'string' ? i : i?.title))].filter(Boolean).join(' ')).toLowerCase();
+  if (body.includes(s) || s.includes(body)) {
+    return [{ kind: 'summary-duplicated', text: summary.slice(0, 120), occurrences: 2, detail: 'summary text repeated by first content block' }];
+  }
+  return [];
+}
+
+/** Whole-entity check: in-block duplication + summary/first-block. */
+export function auditEntityDuplicates(entity: { summary?: string; shortDescription?: string; blocks?: any[] }): DuplicateFinding[] {
+  const findings: DuplicateFinding[] = [];
+  for (const b of entity?.blocks || []) findings.push(...detectIntrablockDuplicates(b));
+  findings.push(...detectSummaryDuplication(entity.summary || entity.shortDescription, entity?.blocks || []));
+  return findings;
+}
+
+// ─── Repair (V3.7.4 Phase 6/9) ──────────────────────────────────────────────
+// Deterministic normalizer: removes repeated lines/sequences inside a block,
+// re-joins hyphen-broken heading fragments, and drops a first block that
+// verbatim duplicates the entity summary. Every removal is recorded so the
+// provenance trail shows which responsive copies were removed.
+
+export interface RepairRecord {
+  blockId?: string;
+  kind: 'deduped-lines' | 'deduped-items' | 'joined-fragments' | 'dropped-duplicate-summary' | 'unglued' | 'rebuilt-summary';
+  detail: string;
+  removed?: string[];
+}
+
+const isAllCapsFragment = (s: string) => {
+  const letters = s.replace(/[^А-ЯЁA-Z]/g, '');
+  return letters.length >= 3 && letters.length / s.replace(/\s/g, '').length > 0.6 && s === s.toUpperCase();
+};
+
+/** Re-join lines that are fragments of one heading/phrase:
+ *  - "Дизайн-\nконцепция" → "Дизайн-концепция"  (hyphen break + lowercase)
+ *  - "ДИЗАЙН-КОНЦЕПЦИЯ:\nСОЗДАНИЕ…\nСТИЛЯ" → one heading (colon chain)
+ *  - "План\nрасстановки оборудования" → wrapped prose rejoin (no terminal
+ *    punctuation + lowercase continuation)
+ *  Distinct standalone ALL-CAPS headings are NOT merged — no colon chain.
+ */
+export function joinFragmentedLines(content: string): { text: string; joined: string[] } {
+  const lines = content.split('\n');
+  const out: string[] = [];
+  const joined: string[] = [];
+  let i = 0;
+  while (i < lines.length) {
+    const cur = lines[i];
+    const t = cur.replace(/\s+$/, '');
+    // 0. orphan colon continuation — "3D-ВИЗУАЛИЗАЦИЯ\n: ФОТОРЕАЛИСТИЧНЫЕ…"
+    if (/^\s*:/.test(cur) && out.length) {
+      out[out.length - 1] = `${out[out.length - 1]}${cur}`;
+      joined.push(`<prev> + ${cur.trim()}`);
+      i++; continue;
+    }
+    const next = lines[i + 1];
+    const n = next?.trim();
+    if (n) {
+      // 1. hyphen break followed by lowercase continuation
+      if (/-\s*$/.test(t) && /^[а-яёa-z]/.test(n)) {
+        const merged = t.replace(/\s*-\s*$/, '-') + n;
+        out.push(merged); joined.push(`${t} + ${n}`);
+        i += 2; continue;
+      }
+      // 2. ALL-CAPS heading fragment ending with ':' — colon chain keeps
+      //    merging subsequent ALL-CAPS lines (they're one logical heading).
+      if (isAllCapsFragment(t) && /:\s*$/.test(t) && isAllCapsFragment(n)) {
+        let merged = t;
+        let j = i + 1;
+        while (j < lines.length && isAllCapsFragment(lines[j].trim())) {
+          merged += ' ' + lines[j].trim();
+          j++;
+        }
+        out.push(merged.replace(/\s{2,}/g, ' ')); joined.push(lines.slice(i, j).map((x) => x.trim()).join(' + '));
+        i = j; continue;
+      }
+      // 3. wrapped fragment: a single token or a dangling preposition/
+      //    conjunction followed by lowercase continuation. Distinct short
+      //    lines (list items, separate facts) never merge — the current line
+      //    must be an obvious fragment.
+      const singleToken = /^\S{1,15}$/.test(t);
+      const danglingPrep = /\b(в|на|и|для|от|до|по|с|у|о|об|из|к|за|под|над|при|без|или|а|но|что|как|the|of|and|for|to|in|on|with)\s*$/i.test(t);
+      if (t && (singleToken || danglingPrep) && !/[.!?…:;,)\]]\s*$/.test(t) && /^[а-яёa-z]/.test(n)) {
+        out.push(`${t} ${n}`); joined.push(`${t} + ${n}`);
+        i += 2; continue;
+      }
+    }
+    out.push(cur); i++;
+  }
+  return { text: out.join('\n'), joined };
+}
+
+/** Remove duplicate lines/sequences inside one content string, keeping first
+ *  occurrence order. Handles the 5× responsive-copy pattern. */
+export function dedupeLines(content: string): { text: string; removed: string[] } {
+  const lines = content.split('\n').map((l) => l.trim());
+  const seen = new Set<string>();
+  const removed: string[] = [];
+  const keep: string[] = [];
+  for (const l of lines) {
+    const k = l.toLowerCase();
+    if (l.length >= 8 && seen.has(k)) { removed.push(l); continue; }
+    if (l.length >= 8) seen.add(k);
+    keep.push(l);
+  }
+  // Collapse 3+ blank lines
+  return { text: keep.join('\n').replace(/\n{3,}/g, '\n\n').trim(), removed };
+}
+
+export function dedupeItems(items: any[]): { items: any[]; removed: any[] } {
+  const seen = new Set<string>();
+  const removed: any[] = [];
+  const keep: any[] = [];
+  for (const it of items || []) {
+    const k = norm(typeof it === 'string' ? it : it?.title || it?.question || it?.content || JSON.stringify(it)).toLowerCase();
+    if (k && seen.has(k)) { removed.push(it); continue; }
+    if (k) seen.add(k);
+    keep.push(it);
+  }
+  return { items: keep, removed };
+}
+
+/** Unglue flattened-DOM joins:
+ *  - "словоПродолжение" → "слово Продолжение" (lost sentence break)
+ *  - "…прилавок)Осуществлена" → "…прилавок). Осуществлена"
+ *  A single lowercase char after the capital is enough ("холодомПеренесено").
+ */
+/** A token with ≥2 internal capitals is an intentional compound name or
+ *  abbreviation ("СанЭпидемСтанции", "ВхШхГ" dimension notation), not a
+ *  flattened-DOM join — glue repairs must leave it untouched. */
+function isCompoundToken(s: string, matchStart: number, matchLen: number): boolean {
+  let a = matchStart, b = matchStart + matchLen;
+  while (a > 0 && /\S/.test(s[a - 1])) a--;
+  while (b < s.length && /\S/.test(s[b])) b++;
+  const word = s.slice(a, b);
+  const caps = word.slice(1).replace(/[^А-ЯЁA-Z]/g, '');
+  return caps.length >= 2;
+}
+
+export function unglueText(s: string, opts: { sentenceBreaks?: boolean } = {}): { text: string; fixed: string[] } {
+  const fixed: string[] = [];
+  const sep = opts.sentenceBreaks ? '. ' : ' ';
+  // Cyrillic-only boundaries: a Latin lower→Upper rule would corrupt
+  // legitimate camelCase brands ("YouTube", "iPhone").
+  const text = s
+    .replace(/([а-яё])([А-ЯЁ][а-яё]+)/g, (m, a, b, off) => {
+      if (isCompoundToken(s, off, m.length)) return m;
+      fixed.push(m); return `${a}${sep}${b}`;
+    })
+    .replace(/([)»”])([А-ЯЁ][а-яё]+)/g, (m, a, b) => { fixed.push(m); return `${a}${sep}${b}`; });
+  return { text, fixed };
+}
+
+/** Strip a normalized prefix from raw text: walks raw chars until the
+ *  normalized prefix is consumed, returns the remainder (formatting kept). */
+function stripNormPrefix(raw: string, normPrefix: string): string | null {
+  let need = normPrefix.replace(/\s+/g, ' ').trim().toLowerCase();
+  let i = 0, matched = '';
+  while (i < raw.length && need.length) {
+    const ch = raw[i];
+    const c = /\s/.test(ch) ? ' ' : ch.toLowerCase();
+    if (/\s/.test(ch) && (matched.endsWith(' ') || !matched.length)) { i++; continue; }
+    if (need[0] === c) { matched += c; need = need.slice(1); i++; continue; }
+    return null;
+  }
+  return need.length ? null : raw.slice(i).replace(/^[\s\n.]+/, '');
+}
+
+/**
+ * Normalize one entity's blocks + title. Returns the repaired entity payload
+ * and the provenance log of every removed/repaired copy.
+ */
+export function normalizeEntityContent(entity: { title?: string; summary?: string; shortDescription?: string; excerpt?: string; metaDescription?: string; blocks?: any[] }): { entity: any; repairs: RepairRecord[] } {
+  const repairs: RepairRecord[] = [];
+  const out: any = { ...entity };
+
+  // Title unglue ("Дизайн-проектпродуктового" → "Дизайн-проект продуктового")
+  if (typeof out.title === 'string') {
+    const u = unglueText(out.title);
+    if (u.fixed.length) { repairs.push({ kind: 'unglued', detail: `title: "${out.title}" → "${u.text}"`, removed: u.fixed }); out.title = u.text; }
+  }
+
+  // A summary that is a bare list fragment ("· разрешения…") is an extraction
+  // artifact — it can never be a good lead-in and will always flag as a
+  // mid-list duplication. Rebuild it from the first real sentence.
+  let summary = norm(out.summary || out.shortDescription || out.excerpt || '');
+  if (/^[·•\-—*]\s*\S/.test(summary)) {
+    // Prefer the source page's metaDescription — a content-derived summary
+    // will always duplicate the block it came from.
+    const meta = norm(entity.metaDescription || '');
+    const firstText = (entity.blocks || []).map((b: any) => b?.content).find((c: any) => typeof c === 'string' && c.trim().length > 40);
+    const candidate = meta.length >= 20 ? meta : firstText && sentSplit(firstText).find((s) => s.length >= 40);
+    if (candidate) {
+      const rebuilt = candidate.slice(0, 220);
+      repairs.push({ kind: 'rebuilt-summary', detail: `fragment summary "${summary.slice(0, 60)}" → "${rebuilt.slice(0, 60)}"`, removed: [summary] });
+      for (const f of ['excerpt', 'shortDescription', 'summary']) {
+        if (out[f] !== undefined) out[f] = rebuilt;
+      }
+      summary = rebuilt;
+    }
+  }
+  summary = summary.toLowerCase();
+  const blocks: any[] = [];
+  for (const [bi, raw] of (entity.blocks || []).entries()) {
+    const b: any = { ...raw };
+    // First block repeats the entity summary (renders twice). If the block
+    // has nothing else, drop it; if it has a heading/items/more content,
+    // strip the duplicated summary prefix and keep the rest.
+    if (bi === 0 && summary.length >= 12 && b.type === 'richText') {
+      const bc = norm(b.content || '').toLowerCase();
+      const bcRaw = String(b.content || '');
+      if (!b.heading && !b.items?.length && (bc === summary || (bc && summary.includes(bc)) || (bc && bc.includes(summary)))) {
+        repairs.push({ blockId: b.id, kind: 'dropped-duplicate-summary', detail: 'first block verbatim duplicates entity summary', removed: [b.content] });
+        continue;
+      }
+      // Heading that verbatim repeats the summary — renders twice.
+      if (b.heading && norm(b.heading).toLowerCase() === summary) {
+        repairs.push({ blockId: b.id, kind: 'deduped-lines', detail: 'first block heading duplicates entity summary', removed: [b.heading] });
+        delete b.heading;
+      }
+      if (bc.startsWith(summary)) {
+        const stripped = stripNormPrefix(bcRaw, summary);
+        if (stripped !== null && (stripped.length >= 12 || b.heading || b.items?.length)) {
+          repairs.push({ blockId: b.id, kind: 'deduped-lines', detail: 'summary prefix stripped from first block', removed: [bcRaw.slice(0, bcRaw.length - stripped.length)] });
+          b.content = stripped;
+          if (!b.content) delete b.content;
+        }
+      }
+    }
+    for (const field of ['heading', 'description']) {
+      if (typeof b[field] === 'string' && b[field]) {
+        const u = unglueText(b[field]);
+        if (u.fixed.length) { repairs.push({ blockId: b.id, kind: 'unglued', detail: `${field}: ${u.fixed.length} glued fragments`, removed: u.fixed.slice(0, 10) }); b[field] = u.text; }
+      }
+    }
+    if (typeof b.content === 'string' && b.content) {
+      // 1. unglue (sentence breaks in prose), 2. join fragments, 3. dedupe lines
+      const u = unglueText(b.content, { sentenceBreaks: true });
+      if (u.fixed.length >= 2) repairs.push({ blockId: b.id, kind: 'unglued', detail: `${u.fixed.length} glued fragments`, removed: u.fixed.slice(0, 10) });
+      const j = joinFragmentedLines(u.text);
+      if (j.joined.length) repairs.push({ blockId: b.id, kind: 'joined-fragments', detail: `${j.joined.length} fragment joins`, removed: j.joined.slice(0, 20) });
+      const d = dedupeLines(j.text);
+      if (d.removed.length) repairs.push({ blockId: b.id, kind: 'deduped-lines', detail: `${d.removed.length} duplicate lines removed`, removed: d.removed.slice(0, 20) });
+      b.content = d.text;
+    }
+    if (Array.isArray(b.items)) {
+      b.items = b.items.map((it: any) => {
+        if (typeof it === 'string') { const u = unglueText(it); if (u.fixed.length) { repairs.push({ blockId: b.id, kind: 'unglued', detail: `item: ${u.fixed.length} glued fragments`, removed: u.fixed.slice(0, 10) }); return u.text; } return it; }
+        if (it && typeof it.title === 'string') { const u = unglueText(it.title); if (u.fixed.length) { repairs.push({ blockId: b.id, kind: 'unglued', detail: `item title: ${u.fixed.length} glued fragments`, removed: u.fixed.slice(0, 10) }); return { ...it, title: u.text }; } }
+        return it;
+      });
+      const d = dedupeItems(b.items);
+      if (d.removed.length) repairs.push({ blockId: b.id, kind: 'deduped-items', detail: `${d.removed.length} duplicate items removed`, removed: d.removed.map((x: any) => String(x?.title || x).slice(0, 60)) });
+      b.items = d.items;
+    }
+    blocks.push(b);
+  }
+  out.blocks = blocks;
+  return { entity: out, repairs };
+}

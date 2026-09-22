@@ -151,6 +151,7 @@ const PAGE_ROLE: Record<string, SiteContentPlan['pages'][number]['role']> = {
   PRODUCTS_INDEX: 'collection', PRODUCT_DETAIL: 'detail',
   NEWS_INDEX: 'collection', NEWS_DETAIL: 'detail',
   VACANCIES_INDEX: 'collection', VACANCY_DETAIL: 'detail',
+  REVIEWS_INDEX: 'collection', REVIEW_DETAIL: 'detail',
 };
 
 export function buildSiteContentPlan(opts: {

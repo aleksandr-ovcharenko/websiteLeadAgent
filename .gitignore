@@ -74,3 +74,4 @@ playwright-report/
 /docs/radar-evidence/
 /apps/dashboard/docs/screenshots/
 /apps/platform/e2e/screenshots/
+packages/redesign-engine/test/data/

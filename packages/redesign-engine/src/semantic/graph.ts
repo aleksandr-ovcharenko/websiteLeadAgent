@@ -31,6 +31,99 @@ export async function buildSourceContentGraph({
     pageClassifications.set(doc.id, classification);
   }
 
+  // Second pass — index backlink via computed classifications. A page still
+  // OTHER that a *_INDEX page links to (collection item or body link) is a
+  // detail page of that index's type. This is vocabulary-free: it catches
+  // catalog landings whose wording no regex anticipated.
+  const detailOfIndex: Record<string, string> = {
+    SERVICES_INDEX: 'SERVICE_DETAIL',
+    PROJECTS_INDEX: 'PROJECT_DETAIL',
+    NEWS_INDEX: 'NEWS_DETAIL',
+    VACANCIES_INDEX: 'VACANCY_DETAIL',
+    PRODUCTS_INDEX: 'PRODUCT_DETAIL',
+    REVIEWS_INDEX: 'REVIEW_DETAIL',
+  };
+  // Pagination continuations (…/page/N/) inherit the parent listing's type —
+  // they are the same index page, chunked, not independent content.
+  for (const doc of sourceDocuments) {
+    const pc = pageClassifications.get(doc.id)!;
+    if (pc.type !== 'OTHER') continue;
+    try {
+      const m = new URL(doc.url).pathname.replace(/\/+$/, '').match(/^(.*)\/page\/\d+$/);
+      if (!m) continue;
+      const parent = sourceDocuments.find((d) => {
+        try { return new URL(d.url).pathname.replace(/\/+$/, '') === m[1]; } catch { return false; }
+      });
+      const parentType = parent ? pageClassifications.get(parent.id)?.type : undefined;
+      if (!parentType || parentType === 'OTHER') continue;
+      pageClassifications.set(doc.id, {
+        ...pc,
+        type: parentType,
+        confidence: 0.6,
+        evidence: [...pc.evidence, { type: 'pagination-continuation', value: parent!.url, confidence: 0.6, sourceDocumentId: doc.id }],
+      });
+    } catch { /* malformed url — leave OTHER */ }
+  }
+
+  const samePath = (a?: string, b?: string): boolean => {
+    if (!a || !b) return false;
+    try {
+      const pa = new URL(a).pathname.replace(/\/+$/, '');
+      const pb = new URL(b).pathname.replace(/\/+$/, '');
+      return pa === pb;
+    } catch { return a === b; }
+  };
+  // A collection whose item set repeats on many pages is site chrome (nav
+  // mega-menu, footer link block), not page content — its "items" must not
+  // feed backlinks. Same for links whose text is a nav label.
+  const colSig = (c: { items: { url?: string; title?: string }[] }) =>
+    c.items.map((i) => i.url || i.title || '').join('|');
+  const colFreq = new Map<string, number>();
+  for (const d of sourceDocuments) {
+    for (const c of d.collections || []) {
+      const sig = colSig(c);
+      if (sig) colFreq.set(sig, (colFreq.get(sig) || 0) + 1);
+    }
+  }
+  const isChromeCollection = (c: { items: { url?: string; title?: string }[] }) =>
+    (colFreq.get(colSig(c)) || 0) >= 3;
+  const navLabelsOf = (d: (typeof sourceDocuments)[number]): Set<string> => {
+    const out = new Set<string>();
+    const walk = (nodes?: { label?: string; children?: any[] }[]) => {
+      for (const n of nodes || []) {
+        if (n.label) out.add(n.label.trim().toLowerCase());
+        walk(n.children);
+      }
+    };
+    walk(d.chrome?.nav?.primary);
+    walk(d.chrome?.nav?.secondary);
+    return out;
+  };
+  for (const doc of sourceDocuments) {
+    const pc = pageClassifications.get(doc.id)!;
+    if (pc.type !== 'OTHER') continue;
+    for (const other of sourceDocuments) {
+      if (other === doc) continue;
+      const oc = pageClassifications.get(other.id)!;
+      const detail = detailOfIndex[oc.type];
+      if (!detail) continue;
+      const navLabels = navLabelsOf(other);
+      const linked =
+        (other.collections || []).some((c) => !isChromeCollection(c) &&
+          c.items.some((i) => i.url && !navLabels.has((i.title || '').trim().toLowerCase()) && samePath(i.url, doc.url))) ||
+        (other.sections || []).some((s) => (s.links || []).some((l) =>
+          l.href && !navLabels.has((l.text || '').trim().toLowerCase()) && samePath(l.href, doc.url)));
+      if (!linked) continue;
+      pageClassifications.set(doc.id, {
+        ...pc,
+        type: detail as SemanticPage['classification']['type'],
+        confidence: 0.6,
+        evidence: [...pc.evidence, { type: 'index-backlink', value: `${oc.type} via ${other.url}`, confidence: 0.6, sourceDocumentId: doc.id }],
+      });
+      break;
+    }
+  }
+
   // Classify collections and sections per page
   for (const doc of sourceDocuments) {
     const pageClass = pageClassifications.get(doc.id)!;

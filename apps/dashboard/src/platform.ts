@@ -24,8 +24,8 @@ function uiStatus(site: any) {
   if (site.status === 'ACTIVE') return 'ACTIVE';
   const stage = site.lead?.redesignStage ?? 'NOT_SELECTED';
   if (['DEMO_APPROVED', 'READY_TO_CONTACT'].includes(stage)) return 'DEMO_APPROVED';
-  if (['DEMO_GENERATED', 'SITE_RENDERED', 'AUDIT_DONE'].includes(stage)) return 'DEMO_GENERATED';
-  if (['CONTENT_TRANSFORMED', 'CMS_IMPORTED'].includes(stage)) return 'CONTENT_READY';
+  if (['DEMO_GENERATED', 'SITE_RENDERED', 'AUDIT_DONE', 'RENDER_VALIDATED', 'VISUAL_VALIDATED', 'HUMAN_REVIEW_READY'].includes(stage)) return 'DEMO_GENERATED';
+  if (['CONTENT_TRANSFORMED', 'CMS_IMPORTED', 'CONTENT_VALIDATED', 'GRAPH_BUILT', 'CMS_IMPORT_READY'].includes(stage)) return 'CONTENT_READY';
   return 'DRAFT';
 }
 
@@ -100,8 +100,8 @@ async function toPlatformSite(site: any): Promise<any> {
 
 router.get('/api/hub/stats', requireSuperAdmin, async (_req: Request, res: Response) => {
   const [totalLeads, goodLeads, totalSites, activeRuns, runningRuns] = await Promise.all([
-    prisma.lead.count(),
-    prisma.lead.count({ where: { manualReviewStatus: 'GOOD' } }),
+    prisma.lead.count({ where: { mergeStatus: 'NONE', archivedAt: null } }),
+    prisma.lead.count({ where: { manualReviewStatus: 'GOOD', mergeStatus: 'NONE', archivedAt: null } }),
     prisma.site.count({ where: { status: { not: 'ARCHIVED' } } }),
     prisma.redesignRun.count(),
     prisma.redesignRun.count({
@@ -123,7 +123,10 @@ router.get('/api/platform/sites', async (req: Request, res: Response) => {
   // Postgres JSON semantics: `NOT (path equals true)` is NULL (not true) when the
   // key is absent, which would exclude every non-fixture row. Include a site
   // unless settings.fixture is explicitly `true`.
-  const where = includeFixtures ? {} : {
+  // V3.7.4 — consolidated/archived duplicates (mergedIntoSiteId set) never
+  // appear as ordinary customer sites.
+  const where = includeFixtures ? { mergedIntoSiteId: null } : {
+    mergedIntoSiteId: null,
     OR: [
       { settings: { path: ['fixture'], equals: Prisma.AnyNull } },
       { settings: { path: ['fixture'], equals: false } },
@@ -296,11 +299,17 @@ router.get('/api/factory/runs', requireSuperAdmin, async (req: Request, res: Res
     'CRAWL_READY',
     'CRAWL_FAILED',
     'CONTENT_EXTRACTED',
+    'CONTENT_VALIDATED',
+    'GRAPH_BUILT',
+    'CMS_IMPORT_READY',
     'CONTENT_TRANSFORMED',
     'CMS_IMPORTED',
     'SITE_RENDERED',
+    'RENDER_VALIDATED',
+    'VISUAL_VALIDATED',
     'AUDIT_DONE',
     'DEMO_GENERATED',
+    'HUMAN_REVIEW_READY',
     'DEMO_APPROVED',
     'READY_TO_CONTACT'
   ];
@@ -311,7 +320,7 @@ router.get('/api/factory/runs', requireSuperAdmin, async (req: Request, res: Res
     const totalStages = 8;
     const idx = stageIndex(run.stage);
     const isFailed = !!run.errorMessage;
-    const isCompleted = ['DEMO_GENERATED', 'DEMO_APPROVED', 'READY_TO_CONTACT'].includes(run.stage);
+    const isCompleted = ['DEMO_GENERATED', 'HUMAN_REVIEW_READY', 'DEMO_APPROVED', 'READY_TO_CONTACT'].includes(run.stage);
     const isQueued = ['NOT_SELECTED', 'SELECTED_FOR_REDESIGN'].includes(run.stage) && !isFailed;
     const isRunning = !isFailed && !isCompleted && !isQueued;
 
@@ -339,6 +348,10 @@ router.get('/api/factory/runs', requireSuperAdmin, async (req: Request, res: Res
       leadId: run.leadId,
       crawlJsonPath: run.crawlJsonPath,
       homepage: run.homepageCandidate,
+      stageResults: Array.isArray(run.stageResults) ? run.stageResults : [],
+      resumeFromStage: Array.isArray(run.stageResults)
+        ? [...run.stageResults].reverse().find((g: any) => g?.status === 'FAIL')?.retryFromStage ?? null
+        : null,
       siteId: run.site?.id,
       forgeId: run.site?.id,
       previewToken: run.site?.previewToken,
@@ -440,6 +453,35 @@ router.get('/api/factory/runs/:runId/source-content-graph', requireSuperAdmin, a
   }
 });
 
+// Forge "Rebuild" — regenerate a site in place from its latest redesign run.
+// Same pipeline as /api/factory/runs/:runId/retry; resolves the run by site.
+router.post('/api/platform/sites/:siteId/rebuild', async (req: Request, res: Response) => {
+  const siteId = String(req.params.siteId);
+  const site = await prisma.site.findUnique({ where: { id: siteId } });
+  if (!site) { res.status(404).json({ error: 'not_found' }); return; }
+  const run = await prisma.redesignRun.findFirst({
+    where: { siteId, crawlJsonPath: { not: null } },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!run) { res.status(409).json({ error: 'no_rebuildable_run', message: 'Site has no redesign run with a crawl artifact' }); return; }
+
+  // V3.7.4 Phase 7 — async job: return the runId immediately; the rebuild
+  // resumes the same revision via checkpoints and never creates a new Site.
+  generateSite({
+    leadId: run.leadId,
+    crawlRunId: run.id,
+    templateId: site.templateId || 'construction-modern-v1',
+    force: true,
+    mode: 'retry',
+    prisma,
+  }).then(async (result) => {
+    try { await captureSiteAndVariants(result.siteId); }
+    catch (err: any) { console.error('[platform] post-rebuild screenshot capture failed:', err?.message); }
+  }).catch((err: any) => console.error(`[platform] async rebuild failed for site ${siteId}:`, err?.message || err));
+
+  res.status(202).json({ ok: true, async: true, runId: run.id, siteId });
+});
+
 router.post('/api/factory/runs/:runId/retry', requireSuperAdmin, async (req: Request, res: Response) => {
   const runId = String(req.params.runId);
   const run = await prisma.redesignRun.findUnique({
@@ -449,23 +491,27 @@ router.post('/api/factory/runs/:runId/retry', requireSuperAdmin, async (req: Req
   if (!run) { res.status(404).json({ error: 'not_found' }); return; }
   if (!run.crawlJsonPath) { res.status(400).json({ error: 'no_crawl_artifact' }); return; }
 
-  const result = await generateSite({
+  // Retry restarts from the owning stage of the last FAIL gate, not from the
+  // beginning — the gate's retryFromStage carries that decision.
+  const gates = Array.isArray((run as any).stageResults) ? (run as any).stageResults as any[] : [];
+  const resumeFromStage = [...gates].reverse().find((g) => g?.status === 'FAIL')?.retryFromStage;
+
+  // V3.7.4 Phase 7 — async job: return the runId immediately; retry resumes
+  // the failed revision from its last checkpoint instead of starting over.
+  generateSite({
     leadId: run.leadId,
     crawlRunId: run.id,
     templateId: run.site?.templateId || 'construction-modern-v1',
     force: true,
     mode: 'retry',
+    resumeFromStage,
     prisma,
-  });
+  }).then(async (result) => {
+    try { await captureSiteAndVariants(result.siteId); }
+    catch (err: any) { console.error('[platform] post-build screenshot capture failed:', err?.message); }
+  }).catch((err: any) => console.error(`[platform] async retry failed for run ${runId}:`, err?.message || err));
 
-  // Best-effort: refresh Forge card + per-variant screenshots after rebuild.
-  let screenshots: any = null;
-  try {
-    screenshots = await captureSiteAndVariants(result.siteId);
-  } catch (err: any) {
-    console.error('[platform] post-build screenshot capture failed:', err?.message);
-  }
-  res.json({ ok: true, ...result, screenshots });
+  res.status(202).json({ ok: true, async: true, runId: run.id });
 });
 
 export { router as platformRouter };

@@ -41,7 +41,7 @@ function normalizeText(input: string | string[] | undefined | null): string {
 }
 
 function detectBusinessType(intent: string | undefined, query: string): string {
-  const corpus = normalizeText([intent, query]);
+  const corpus = normalizeText(intent ? [intent, query] : query);
   if (corpus.includes('спорт') || corpus.includes('клуб')) return 'sports';
   if (corpus.includes('подряд') || corpus.includes('строит')) return 'construction';
   if (corpus.includes('сварка') || corpus.includes('сантех')) return 'construction';

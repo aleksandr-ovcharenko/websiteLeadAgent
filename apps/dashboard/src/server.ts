@@ -84,6 +84,9 @@ const LEAD_SELECT =  {
       auditStatus: true,
       auditErrorMessage: true,
       redesignStage: true,
+      mergeStatus: true,
+      mergedIntoLeadId: true,
+      archivedAt: true,
       updatedAt: true,
       site: {
         select: {
@@ -189,6 +192,12 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
 
   const where: any = {};
 
+  // Merged/blocked duplicates and archived-ineligible rows never appear in
+  // actionable Radar views — survivors carry the domain; archived rows stay
+  // recoverable by direct lookup.
+  where.mergeStatus = 'NONE';
+  where.archivedAt = null;
+
   if (Number.isFinite(minLead) && minLead > 0) {
     where.leadScore = { gte: minLead };
   }
@@ -247,8 +256,8 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
   const generationStageMap: Record<string, string[]> = {
     NOT_SELECTED: ['NOT_SELECTED'],
     SELECTED: ['SELECTED_FOR_REDESIGN'],
-    GENERATING: ['CRAWL_READY', 'CONTENT_EXTRACTED', 'CONTENT_TRANSFORMED', 'CMS_IMPORTED', 'SITE_RENDERED', 'AUDIT_DONE'],
-    GENERATED: ['DEMO_GENERATED', 'DEMO_APPROVED', 'READY_TO_CONTACT'],
+    GENERATING: ['CRAWL_READY', 'CONTENT_EXTRACTED', 'CONTENT_VALIDATED', 'GRAPH_BUILT', 'CMS_IMPORT_READY', 'CONTENT_TRANSFORMED', 'CMS_IMPORTED', 'SITE_RENDERED', 'RENDER_VALIDATED', 'VISUAL_VALIDATED', 'AUDIT_DONE'],
+    GENERATED: ['DEMO_GENERATED', 'HUMAN_REVIEW_READY', 'DEMO_APPROVED', 'READY_TO_CONTACT'],
     FAILED: ['CRAWL_FAILED'],
   };
   if (generationStatus && generationStatus !== 'ALL') {
@@ -320,6 +329,7 @@ app.get('/api/leads', requireAuth, async (req: Request, res: Response) => {
   });
   const activeByLead = new Map<string, any[]>();
   for (const op of activeOperations) {
+    if (!op.leadId) continue;
     const list = activeByLead.get(op.leadId) || [];
     list.push(op);
     activeByLead.set(op.leadId, list);
@@ -351,7 +361,7 @@ const FAILED_CHECKS_OR: any[] = [
 
 app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => {
   const discoveryRunId = typeof req.query.discoveryRunId === 'string' ? req.query.discoveryRunId : '';
-  const where: any = {};
+  const where: any = { mergeStatus: 'NONE', archivedAt: null };
   if (discoveryRunId) {
     const run = await prisma.discoveryRun.findUnique({ where: { id: discoveryRunId }, select: { leadIds: true } });
     if (run?.leadIds?.length) where.id = { in: run.leadIds };
@@ -420,7 +430,7 @@ app.get('/api/leads/stats', requireAuth, async (req: Request, res: Response) => 
 });
 
 app.get('/api/discovery/runs/:runId/stats', requireSuperAdmin, async (req: Request, res: Response) => {
-  const run = await prisma.discoveryRun.findUnique({ where: { id: String(req.params.runId) }, include: { _count: { select: { leadIds: true } } } });
+  const run = await prisma.discoveryRun.findUnique({ where: { id: String(req.params.runId) }, include: { _count: { select: { candidates: true } } } });
   if (!run) { res.status(404).json({ error: 'not_found' }); return; }
   res.json(await discovery.getRunFunnel(run.id));
 });
@@ -436,6 +446,8 @@ app.get('/api/discovery/runs/:runId/candidates', requireSuperAdmin, async (req: 
 app.get('/api/leads/changes', requireAuth, async (req: Request, res: Response) => {
   const since = Number(req.query.since);
   const where: any = Number.isFinite(since) && since > 0 ? { updatedAt: { gt: new Date(since) } } : {};
+  where.mergeStatus = 'NONE';
+  where.archivedAt = null;
   const items = await prisma.lead.findMany({ where, select: LEAD_SELECT, take: 200, orderBy: { updatedAt: 'asc' } });
   res.json({ items });
 });
@@ -562,7 +574,8 @@ app.post('/api/leads/:leadId/redesign', requireAuth, async (req: Request, res: R
   const stage = typeof req.body?.stage === 'string' ? String(req.body.stage) : '';
   const stages = new Set([
     'NOT_SELECTED', 'SELECTED_FOR_REDESIGN', 'CRAWL_READY', 'CRAWL_FAILED', 'CONTENT_EXTRACTED',
-    'CONTENT_TRANSFORMED', 'CMS_IMPORTED', 'SITE_RENDERED', 'AUDIT_DONE', 'DEMO_GENERATED', 'DEMO_APPROVED', 'READY_TO_CONTACT'
+    'CONTENT_VALIDATED', 'GRAPH_BUILT', 'CMS_IMPORT_READY', 'CONTENT_TRANSFORMED', 'CMS_IMPORTED',
+    'SITE_RENDERED', 'RENDER_VALIDATED', 'HUMAN_REVIEW_READY', 'AUDIT_DONE', 'DEMO_GENERATED', 'DEMO_APPROVED', 'READY_TO_CONTACT'
   ]);
   if (!stages.has(stage)) {
     res.status(400).json({ error: 'invalid_stage' });
@@ -610,17 +623,29 @@ app.post('/api/leads/:leadId/redesign', requireAuth, async (req: Request, res: R
   res.json({ ok: true, lead: updated });
 });
 
+// V3.7.4 Phase 7 — generation is an async resumable job. The endpoint returns
+// 202 + runId as soon as the run row exists; the job continues in the
+// background, persists stage checkpoints/heartbeats, and a retry resumes the
+// same revision — a client timeout can never terminate or duplicate it.
 app.post('/api/leads/:leadId/generate', requireSuperAdmin, async (req: Request, res: Response) => {
   const leadId = String(req.params.leadId);
   const template = typeof req.body?.template === 'string' ? req.body.template : 'construction-modern-v1';
   const force = req.body?.force === true;
   const crawlRunId = typeof req.body?.crawlRunId === 'string' ? req.body.crawlRunId : undefined;
-  try {
-    const result = await generateSite({ leadId, templateId: template, force, crawlRunId, mode: 'regenerate', prisma });
-    res.json({ ok: true, ...result });
-  } catch (err: any) {
-    res.status(400).json({ error: err?.message || 'generation_failed' });
+
+  let runId: string | undefined = crawlRunId;
+  const job = generateSite({
+    leadId, templateId: template, force, crawlRunId, mode: 'regenerate', prisma,
+    onActivity: (a: any) => { if (!runId && a?.details?.runId) runId = a.details.runId; },
+  });
+  job.catch((err: any) => console.error(`[factory] async generation failed for lead ${leadId}:`, err?.message || err));
+
+  if (!runId) {
+    // Wait briefly for the run row to be created (before the crawl starts).
+    const deadline = Date.now() + 10000;
+    while (!runId && Date.now() < deadline) await new Promise((r) => setTimeout(r, 100));
   }
+  res.status(202).json({ ok: true, async: true, runId: runId || null });
 });
 
 app.post('/api/leads/:leadId/review', requireAuth, async (req: Request, res: Response) => {
@@ -963,7 +988,7 @@ app.listen(PORT, async () => {
     await activity.error({
       module: 'SYSTEM',
       eventType: 'BROWSER_UNAVAILABLE',
-      message: browser.friendlyMessage,
+      message: browser.friendlyMessage ?? 'Browser unavailable',
       details: { action: browser.action, rawMessage: browser.rawMessage },
       error: new Error(browser.rawMessage),
     });

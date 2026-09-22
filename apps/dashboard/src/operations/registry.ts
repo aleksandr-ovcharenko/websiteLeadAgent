@@ -407,7 +407,7 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
       category: 'factory',
       description: 'Generate the demo site from a previously produced crawl artifact (crawlRunId). Mode: retry (preserve existing CMS), regenerate (replace generated content).',
       requiredRole: 'SUPER_ADMIN',
-      inputSchema: { leadId: 'string', crawlRunId: 'string', force: 'boolean', mode: 'string', templateId: 'string' },
+      inputSchema: { leadId: 'string', crawlRunId: 'string', force: 'boolean', mode: 'string', templateId: 'string', resumeFromStage: 'string' },
       supportsCancel: false,
       handler: async (ctx, input) => {
         const mode = input.mode ?? 'retry';
@@ -418,6 +418,7 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
           templateId: input.templateId,
           force: input.force ?? false,
           mode,
+          resumeFromStage: input.resumeFromStage,
           prisma: deps.prisma,
           onActivity: async (event: { level?: 'INFO' | 'WARN' | 'ERROR'; module: string; eventType: string; message: string; details?: Record<string, any> }) => {
             await deps.activity.log({
@@ -471,7 +472,7 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
         const concurrency = Math.max(1, Math.min(5, Math.floor(Number(input.concurrency ?? 2))));
 
         const all = await deps.prisma.lead.findMany({
-          where: { id: { in: ids } },
+          where: { id: { in: ids }, mergeStatus: 'NONE', archivedAt: null },
           select: { id: true, website: true, websiteDomain: true, websiteStatus: true, auditStatus: true, lighthouseReport: true, visualAnalysis: true, leadScoreV2: true }
         });
 

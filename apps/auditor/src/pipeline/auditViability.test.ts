@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { classifyNavigationError } from './auditLeadWebsite';
+import { classifyNavigationError } from './auditLeadWebsite.js';
 
 describe('classifyNavigationError — website viability gate', () => {
   it('marks DNS/protocol/TLS/refused failures as HARD (dead website)', () => {

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Screen } from './types'
 import { useStudio } from './context'
 import { api } from './api'
@@ -16,7 +16,12 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
   const [form, setForm] = useState<Record<string, any>>({})
   const { toast, show } = useToast()
 
+  const loaded = useRef(false)
   useEffect(() => {
+    if (loaded.current) return
+    // Wait until real data has arrived (settings starts as {}).
+    if (!site && Object.keys(settings || {}).length === 0) return
+    loaded.current = true
     const contacts = typeof settings?.contacts === 'string' ? JSON.parse(settings.contacts) : settings?.contacts || {}
     setForm({
       companyName: settings?.companyName || '',
@@ -36,6 +41,10 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
       phone: contacts.phone || '',
       email: contacts.email || '',
       workingHours: contacts.workingHours || '',
+      // V3.7.3 — CMS-owned template copy dictionary (all renderer furniture text)
+      templateCopy: (typeof settings?.templateCopy === 'object' && settings?.templateCopy) ? settings.templateCopy : {},
+      internalName: settings?.internalName || '',
+      brandSource: settings?.brandSource || '',
     })
   }, [settings, site])
 
@@ -64,6 +73,7 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
       contacts,
       analyticsEnabled: form.analyticsEnabled,
       analytics: { ga4Id: form.ga4Id, ym: form.ym },
+      templateCopy: form.templateCopy,
     }
     try {
       await api.saveSettings(siteId, payload)
@@ -73,7 +83,7 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
     setSaving(false)
   }
 
-  const TABS = ['General', 'Brand', 'SEO', 'Domain', 'Analytics']
+  const TABS = ['General', 'Brand', 'Template copy', 'SEO', 'Domain', 'Analytics']
 
   const SettingsGroup = ({ title, children }: { title: string; children: React.ReactNode }) => (
     <div>
@@ -118,6 +128,12 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
                   </div>
                   <span className="text-[11px] text-text-subtle bg-surface-hover px-2 py-0.5 rounded">Read only</span>
                 </div>
+                {(form.internalName || form.brandSource) && (
+                  <div className="mt-3 text-[11px] text-text-subtle">
+                    {form.internalName && <p>Internal name: <span className="mono">{form.internalName}</span></p>}
+                    {form.brandSource && <p>Brand resolved from: <span className="mono">{form.brandSource}</span></p>}
+                  </div>
+                )}
               </div>
             </div>
           )}
@@ -136,6 +152,30 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
                     </div>
                   ))}
                 </div>
+              </SettingsGroup>
+            </div>
+          )}
+
+          {tab === 'Template copy' && (
+            <div className="flex flex-col gap-5">
+              <SettingsGroup title="Системные тексты шаблона">
+                <p className="text-[12px] text-text-subtle">
+                  Every visible furniture string the template renders (menu, pager, back links, 404, view-all labels).
+                  These are CMS-owned — the renderer never falls back to hardcoded text.
+                </p>
+                {Object.keys(form.templateCopy || {}).sort().map((k) => (
+                  <div key={k} className="flex items-center gap-2">
+                    <span className="text-[11px] mono text-text-subtle w-[200px] shrink-0 truncate" title={k}>{k}</span>
+                    <input
+                      value={form.templateCopy[k] ?? ''}
+                      onChange={(e) => update({ templateCopy: { ...form.templateCopy, [k]: e.target.value } })}
+                      className="flex-1 h-[30px] border border-border rounded text-[12px] text-text px-2.5 focus:outline-none focus:ring-1 focus:ring-accent"
+                    />
+                  </div>
+                ))}
+                {!Object.keys(form.templateCopy || {}).length && (
+                  <p className="text-[12px] text-text-subtle">No template copy recorded yet — generated at import.</p>
+                )}
               </SettingsGroup>
             </div>
           )}

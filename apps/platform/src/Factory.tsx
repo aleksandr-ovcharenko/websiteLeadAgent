@@ -3,6 +3,7 @@ import { ProductArea } from './cms/ProductHeader'
 import { Button } from './cms/ui'
 import { IconX, IconCheck, IconChevronRight } from './cms/icons'
 import { api } from './cms/api'
+import { RevisionHistory } from './cms/RevisionHistory'
 import { OperationConsole } from './radar/OperationConsole'
 
 type RunStatus = 'queued' | 'running' | 'failed' | 'completed'
@@ -21,8 +22,22 @@ interface PipelineRun {
   failedStage?: string
   failedReason?: string
   leadId?: string
+  siteId?: string
   forgeId?: string
   previewToken?: string
+  stageResults?: StageGate[]
+  resumeFromStage?: string | null
+}
+
+interface StageGate {
+  status: 'PASS' | 'PASS_WITH_WARNINGS' | 'FAIL'
+  stage: string
+  errors: string[]
+  warnings: string[]
+  metrics: Record<string, number | string | boolean>
+  artifactPaths: string[]
+  retryFromStage: string
+  durationMs?: number
 }
 
 interface Toast {
@@ -39,16 +54,43 @@ function useToast() {
   return { toast, show }
 }
 
+const GATE_LABELS: Record<string, string> = {
+  CRAWLED: 'Crawl',
+  EXTRACTED: 'Extract',
+  CONTENT_VALIDATED: 'Content QA',
+  GRAPH_BUILT: 'Graph',
+  CMS_IMPORT_READY: 'CMS import QA',
+  CMS_IMPORTED: 'CMS import',
+  RENDERED: 'Render',
+  RENDER_VALIDATED: 'Route/media QA',
+  VISUAL_VALIDATED: 'Visual QA',
+  HUMAN_REVIEW_READY: 'Human review',
+}
+
+const GATE_ORDER = Object.keys(GATE_LABELS)
+
 function buildStages(run: PipelineRun) {
+  // Prefer the typed gate contract persisted on the run (V3.7.2+); fall back
+  // to the legacy fixed list for runs predating it.
+  const gates = run.stageResults
+  if (gates && gates.length) {
+    const byStage = new Map(gates.map(g => [g.stage, g]))
+    return GATE_ORDER.map(stage => {
+      const g = byStage.get(stage)
+      if (!g) return { name: GATE_LABELS[stage], status: 'pending' as const, gate: undefined }
+      const status = g.status === 'FAIL' ? 'failed' as const : 'done' as const
+      return { name: GATE_LABELS[stage], status, gate: g }
+    })
+  }
   const names = [
     'Lead selected', 'Content extraction', 'Content transformation',
     'CMS import', 'Website generation', 'Validation', 'Demo ready',
   ]
   return names.map((name, i) => {
-    if (run.status === 'failed' && name === run.failedStage) return { name, status: 'failed' as const }
-    if (i < run.stagesDone) return { name, status: 'done' as const }
-    if (i === run.stagesDone && run.status === 'running') return { name, status: 'running' as const }
-    return { name, status: 'pending' as const }
+    if (run.status === 'failed' && name === run.failedStage) return { name, status: 'failed' as const, gate: undefined }
+    if (i < run.stagesDone) return { name, status: 'done' as const, gate: undefined }
+    if (i === run.stagesDone && run.status === 'running') return { name, status: 'running' as const, gate: undefined }
+    return { name, status: 'pending' as const, gate: undefined }
   })
 }
 
@@ -70,28 +112,69 @@ function StatusBadge({ status }: { status: RunStatus }) {
   )
 }
 
-function StageRow({ stage }: { stage: { name: string; status: 'done' | 'running' | 'failed' | 'pending' } }) {
+function StageRow({ stage }: { stage: { name: string; status: 'done' | 'running' | 'failed' | 'pending'; gate?: StageGate } }) {
+  const [open, setOpen] = useState(false)
+  const g = stage.gate
+  const hasDetail = !!g && (g.errors.length > 0 || g.warnings.length > 0 || Object.keys(g.metrics).length > 0)
   return (
-    <div className="flex items-center gap-3 py-1.5">
-      <div className="w-5 flex items-center justify-center flex-shrink-0">
-        {stage.status === 'done' && (
-          <span className="w-4 h-4 rounded-full bg-success flex items-center justify-center">
-            <IconCheck size={9} className="text-text-inverse" />
-          </span>
+    <div className="py-1.5">
+      <div
+        className={`flex items-center gap-3 ${hasDetail ? 'cursor-pointer' : ''}`}
+        onClick={() => hasDetail && setOpen(!open)}
+      >
+        <div className="w-5 flex items-center justify-center flex-shrink-0">
+          {stage.status === 'done' && g?.status === 'PASS_WITH_WARNINGS' && (
+            <span className="w-4 h-4 rounded-full bg-warning flex items-center justify-center">
+              <IconCheck size={9} className="text-text-inverse" />
+            </span>
+          )}
+          {stage.status === 'done' && g?.status !== 'PASS_WITH_WARNINGS' && (
+            <span className="w-4 h-4 rounded-full bg-success flex items-center justify-center">
+              <IconCheck size={9} className="text-text-inverse" />
+            </span>
+          )}
+          {stage.status === 'running' && (
+            <span className="w-4 h-4 rounded-full border-2 border-accent flex items-center justify-center">
+              <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
+            </span>
+          )}
+          {stage.status === 'failed' && (
+            <span className="w-4 h-4 rounded-full bg-danger flex items-center justify-center">
+              <IconX size={8} className="text-text-inverse" />
+            </span>
+          )}
+          {stage.status === 'pending' && <span className="w-3.5 h-3.5 rounded-full border-2 border-border" />}
+        </div>
+        <span className="text-[12px] text-text">{stage.name}</span>
+        {g && g.warnings.length > 0 && (
+          <span className="text-[10px] text-warning mono">{g.warnings.length}w</span>
         )}
-        {stage.status === 'running' && (
-          <span className="w-4 h-4 rounded-full border-2 border-accent flex items-center justify-center">
-            <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse" />
-          </span>
+        {g && g.errors.length > 0 && (
+          <span className="text-[10px] text-danger mono">{g.errors.length}e</span>
         )}
-        {stage.status === 'failed' && (
-          <span className="w-4 h-4 rounded-full bg-danger flex items-center justify-center">
-            <IconX size={8} className="text-text-inverse" />
-          </span>
-        )}
-        {stage.status === 'pending' && <span className="w-3.5 h-3.5 rounded-full border-2 border-border" />}
+        {hasDetail && <IconChevronRight size={10} className={`text-text-subtle transition-transform ${open ? 'rotate-90' : ''}`} />}
       </div>
-      <span className="text-[12px] text-text">{stage.name}</span>
+      {open && g && (
+        <div className="ml-8 mt-1.5 mb-1 space-y-1.5">
+          {g.errors.map((e, i) => (
+            <p key={`e${i}`} className="text-[11px] text-danger leading-snug">{e}</p>
+          ))}
+          {g.warnings.map((w, i) => (
+            <p key={`w${i}`} className="text-[11px] text-warning leading-snug">{w}</p>
+          ))}
+          {g.status === 'FAIL' && (
+            <p className="text-[10px] text-text-subtle">
+              Retry from: <span className="mono">{GATE_LABELS[g.retryFromStage] || g.retryFromStage}</span>
+              {g.retryFromStage === 'CRAWLED' && ' · recrawl required'}
+            </p>
+          )}
+          {g.artifactPaths?.length > 0 && (
+            <div className="text-[10px] text-text-subtle mono leading-snug break-all">
+              {g.artifactPaths.map((p, i) => <div key={i}>{p.split('/').slice(-2).join('/')}</div>)}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -185,7 +268,7 @@ export default function Factory({ onNavigate }: FactoryProps) {
     try {
       const { run: op } = await api.startOperation({
         operationId: 'GENERATE_SITE',
-        input: { leadId: run.leadId, force: true },
+        input: { leadId: run.leadId, crawlRunId: run.id, force: true, mode: 'retry', resumeFromStage: run.resumeFromStage ?? undefined },
         entityType: 'RedesignRun',
         entityId: run.id,
       })
@@ -325,9 +408,14 @@ export default function Factory({ onNavigate }: FactoryProps) {
               <div className="mx-5 mt-4 mb-2 bg-danger-subtle border border-danger-subtle rounded p-3.5">
                 <p className="text-[12px] font-semibold text-danger mb-1">Failed at: {selectedRun.failedStage}</p>
                 <p className="text-[12px] text-danger leading-relaxed">{selectedRun.failedReason}</p>
+                {selectedRun.resumeFromStage && (
+                  <p className="text-[11px] text-text-subtle mt-2">
+                    Retry resumes from <span className="mono">{GATE_LABELS[selectedRun.resumeFromStage] || selectedRun.resumeFromStage}</span>
+                  </p>
+                )}
                 <div className="flex items-center gap-2 mt-3">
                   <Button variant="primary" size="sm" disabled={retrying === selectedRun.id} onClick={() => handleRetry(selectedRun)}>
-                    {retrying === selectedRun.id ? 'Retrying…' : 'Retry'}
+                    {retrying === selectedRun.id ? 'Retrying…' : selectedRun.resumeFromStage ? `Retry from ${GATE_LABELS[selectedRun.resumeFromStage] || selectedRun.resumeFromStage}` : 'Retry'}
                   </Button>
                 </div>
               </div>
@@ -340,6 +428,13 @@ export default function Factory({ onNavigate }: FactoryProps) {
             )}
 
             <ArtifactPanel runId={selectedRun.id} />
+
+            {selectedRun.siteId && (
+              <div className="px-5 py-4 border-b border-border">
+                <p className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider mb-3">Version history</p>
+                <RevisionHistory siteId={selectedRun.siteId} />
+              </div>
+            )}
 
             <div className="px-5 py-4">
               <p className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider mb-3">Pipeline stages</p>

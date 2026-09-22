@@ -56,6 +56,12 @@ enum ManualReviewStatus {
   UNSURE
 }
 
+enum LeadMergeStatus {
+  NONE
+  MERGED
+  BLOCKED_FOR_MANUAL_MERGE
+}
+
 enum VisualAnalysisStatus {
   PENDING
   SUCCESS
@@ -68,9 +74,18 @@ enum RedesignStage {
   CRAWL_READY
   CRAWL_FAILED
   CONTENT_EXTRACTED
+  CONTENT_VALIDATED
+  GRAPH_BUILT
+  CMS_IMPORT_READY
   CONTENT_TRANSFORMED
   CMS_IMPORTED
   SITE_RENDERED
+  RENDER_VALIDATED
+  /// V3.7.3 — automated content+visual acceptance (DOM/geometry/screenshots)
+  VISUAL_VALIDATED
+  /// V3.7.4 — a run/revision rejected by QA; never promotable.
+  QA_FAILED
+  HUMAN_REVIEW_READY
   AUDIT_DONE
   DEMO_GENERATED
   DEMO_APPROVED
@@ -160,6 +175,17 @@ model Lead {
   reviewedAt         DateTime?
 
   redesignStage RedesignStage @default(NOT_SELECTED)
+
+  // Duplicate-merge bookkeeping (V3.7 radar hygiene). A lead is "actionable"
+  // only while mergeStatus = NONE and archivedAt is null. MERGED rows point at
+  // their survivor; BLOCKED rows keep all artifacts but leave the active set
+  // until a human resolves the group.
+  mergeStatus       LeadMergeStatus @default(NONE)
+  mergedIntoLeadId  String?
+  mergedInto        Lead?     @relation("LeadMerge", fields: [mergedIntoLeadId], references: [id])
+  mergedFrom        Lead[]    @relation("LeadMerge")
+  duplicateGroupKey String?
+  archivedAt        DateTime?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -282,6 +308,17 @@ model Site {
   builds     SiteBuild[]
   screenshot SitePreviewScreenshot?
   demoVariants DemoVariant[]
+  revisions  SiteRevision[]
+  /// V3.7.4 — duplicate sites archived into this canonical site.
+  mergedIntoSiteId String?
+  /// V3.7.4 — canonical source domain (one domain → one active Site).
+  canonicalDomain String?
+  /// V3.7.4 — reversible consolidation map: duplicateSiteId → migrated
+  /// resources (variants, runs, screenshots, entity counts).
+  consolidationLog Json?
+
+  @@index([canonicalDomain])
+  @@index([mergedIntoSiteId])
 }
 
 model DemoVariant {
@@ -294,6 +331,8 @@ model DemoVariant {
   status    SiteStatus @default(DRAFT)
   themeConfig Json?    @default("{}")
   isPreferred Boolean @default(false)
+  /// V3.7.4 — the revision currently served by the preview token.
+  activeRevisionId String?
   generatedByRunId String?
   generatedByDemoVariantId String?
   createdAt DateTime @default(now())
@@ -302,6 +341,71 @@ model DemoVariant {
   site Site @relation(fields: [siteId], references: [id], onDelete: Cascade)
   builds SiteBuild[]
   screenshot DemoVariantScreenshot?
+  revisions  SiteRevision[]
+}
+
+/// V3.7.4 — Site → DesignVariant(DemoVariant) → SiteRevision.
+/// A revision is an immutable build of one variant; retries continue the
+/// same revision, regeneration creates the next version. Failed revisions
+/// never replace the currently served preview.
+enum RevisionStatus {
+  GENERATING
+  QA_FAILED
+  REVIEW_READY
+  PUBLISHED
+  ARCHIVED
+}
+
+model SiteRevision {
+  id            String   @id @default(cuid())
+  variantId     String
+  siteId        String
+  /// Sequential per variant (v1, v2, …).
+  version       Int
+  basedOnRevisionId String?
+  generatedByRunId String?
+  /// Immutable CMS snapshot used for this build.
+  contentSnapshot Json?
+  contentHash   String?
+  routeManifest Json?
+  templateId    String
+  templateVersion String?
+  status        RevisionStatus @default(GENERATING)
+  failureReason String?
+  /// Resume support: last completed stage + per-stage timing/heartbeat.
+  currentStage  RedesignStage?
+  stageCheckpoints Json?
+  startedAt     DateTime @default(now())
+  completedAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  variant DemoVariant @relation(fields: [variantId], references: [id], onDelete: Cascade)
+  site    Site        @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  screenshots RevisionScreenshot[]
+
+  @@unique([variantId, version])
+  @@index([siteId])
+  @@index([status])
+}
+
+model RevisionScreenshot {
+  id          String   @id @default(cuid())
+  revisionId  String
+  route       String
+  viewport    String
+  storagePath String
+  url         String?
+  capturedAt  DateTime @default(now())
+  contentHash String?
+  buildId     String?
+  /// Whether this shot belongs to the variant's currently active revision.
+  current     Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  revision SiteRevision @relation(fields: [revisionId], references: [id], onDelete: Cascade)
+
+  @@index([revisionId])
 }
 
 model DemoVariantScreenshot {
@@ -342,6 +446,14 @@ model SiteSettings {
   language String?
   timezone String?
   previewUrl String?
+  /// V3.7.3 — editable template copy dictionary (system strings: view-all, pager, 404, menu)
+  templateCopy Json?   @default("{}")
+  /// V3.7.3 — per-field text ownership for settings fields (companyName etc.)
+  fieldProvenance Json?
+  /// V3.7.3 — internal run/fixture name (never rendered as public brand)
+  internalName String?
+  /// V3.7.3 — how the public brand was resolved: lead | lead-stripped | extracted | branding | domain | fallback
+  brandSource String?
   generatedByRunId String?
   generatedByDemoVariantId String?
   manualModifiedAt DateTime?
@@ -430,6 +542,8 @@ model Page {
   generatedByDemoVariantId String?
   manualModifiedAt DateTime?
   isHomepage Boolean @default(false)
+  /// V3.7.3 — per-field text ownership: {field: {sourceText, sourceUrl, ownership, aiRevision}}
+  fieldProvenance Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -458,6 +572,8 @@ model NewsPost {
   generatedByRunId String?
   generatedByDemoVariantId String?
   manualModifiedAt DateTime?
+  /// V3.7.3 — per-field text ownership: {field: {sourceText, sourceUrl, ownership, aiRevision}}
+  fieldProvenance Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -490,6 +606,8 @@ model Project {
   generatedByRunId String?
   generatedByDemoVariantId String?
   manualModifiedAt DateTime?
+  /// V3.7.3 — per-field text ownership: {field: {sourceText, sourceUrl, ownership, aiRevision}}
+  fieldProvenance Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -535,6 +653,8 @@ model Service {
   generatedByRunId String?
   generatedByDemoVariantId String?
   manualModifiedAt DateTime?
+  /// V3.7.3 — per-field text ownership: {field: {sourceText, sourceUrl, ownership, aiRevision}}
+  fieldProvenance Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -568,6 +688,8 @@ model Product {
   generatedByRunId String?
   generatedByDemoVariantId String?
   manualModifiedAt DateTime?
+  /// V3.7.3 — per-field text ownership: {field: {sourceText, sourceUrl, ownership, aiRevision}}
+  fieldProvenance Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -611,6 +733,8 @@ model Vacancy {
   generatedByRunId String?
   generatedByDemoVariantId String?
   manualModifiedAt DateTime?
+  /// V3.7.3 — per-field text ownership: {field: {sourceText, sourceUrl, ownership, aiRevision}}
+  fieldProvenance Json?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -680,6 +804,12 @@ model RedesignRun {
   currentScreenshots Json?
   redesignScreenshots Json?
   lighthouseReport Json?
+  /// Per-stage gate results (V3.7.2): ordered StageGateResult records.
+  stageResults Json?
+  /// V3.7.4 Phase 7 — liveness heartbeat written by the running job; a stale
+  /// heartbeat on a non-terminal stage marks a crashed/interrupted run that
+  /// a retry can resume (never a replacement Site).
+  lastHeartbeatAt DateTime?
   errorMessage String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

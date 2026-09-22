@@ -118,7 +118,7 @@ export function confidenceLevel(confidence: number): ConfidenceLevel {
 const PAGE_TYPES: PageClassification['type'][] = [
   'HOME', 'ABOUT', 'SERVICES_INDEX', 'SERVICE_DETAIL', 'PROJECTS_INDEX', 'PROJECT_DETAIL',
   'NEWS_INDEX', 'NEWS_DETAIL', 'VACANCIES_INDEX', 'VACANCY_DETAIL', 'PRODUCTS_INDEX',
-  'PRODUCT_DETAIL', 'CONTACTS', 'LEGAL', 'OTHER',
+  'PRODUCT_DETAIL', 'REVIEWS_INDEX', 'REVIEW_DETAIL', 'CONTACTS', 'LEGAL', 'OTHER',
 ];
 
 function pageTextForValidation(doc: SourceDocument): string {

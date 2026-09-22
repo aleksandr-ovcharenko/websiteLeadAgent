@@ -40,10 +40,17 @@ export const galleryBlockSchema = blockBaseSchema.extend({
 // Collection blocks select CMS entities: optional heading, limit and
 // explicit selectedItemIds (order preserved). limit is nullable because
 // Studio historically writes `null` for "all items".
+// V3.7.2: pageSize controls collection-page pagination; showAllLink toggles
+// the "Все …" link on homepage previews. limit = homepage preview count,
+// pageSize = cards per collection page (range 1–24 enforced at write time
+// by the CMS UI; schema accepts any positive int for import tolerance).
 const collectionFields = {
   limit: z.number().nullable().optional(),
+  pageSize: z.number().int().positive().max(48).nullable().optional(),
+  showAllLink: z.boolean().optional(),
   heading: z.string().optional(),
   selectedItemIds: z.array(z.string()).optional(),
+  displayVariant: z.string().optional(),
 };
 
 export const servicesBlockSchema = blockBaseSchema.extend({
@@ -97,12 +104,82 @@ export const contactsBlockSchema = blockBaseSchema.extend({
   heading: z.string().optional(),
 });
 
+// Certificates / legal documents: ordered document items with first-class
+// media linkage. mediaId is a CMS Media id after import; caption/docType/
+// issuer fields are only populated when source-confirmed.
+export const certificatesBlockSchema = blockBaseSchema.extend({
+  type: z.literal('certificates'),
+  heading: z.string().optional(),
+  description: z.string().optional(),
+  items: z.array(
+    z.object({
+      mediaId: z.string(),
+      caption: z.string().optional(),
+      docType: z.string().optional(),
+      issuedBy: z.string().optional(),
+      issuedAt: z.string().optional(),
+      sourceUrl: z.string().optional(),
+      enabled: z.boolean().optional(),
+      sortOrder: z.number().optional(),
+    })
+  ).default([]),
+});
+
+// Editorial text: body copy with an optional real heading (never a technical
+// type label) and an optional evidence-backed bullet list.
+export const richTextBlockSchema = blockBaseSchema.extend({
+  type: z.literal('richText'),
+  heading: z.string().optional(),
+  content: z.string().optional(),
+  items: z.array(z.string()).optional(),
+});
+
+// Ordered process steps ("Как мы работаем") — each step keeps its own title
+// and description from the source.
+export const processStepsBlockSchema = blockBaseSchema.extend({
+  type: z.literal('processSteps'),
+  heading: z.string().optional(),
+  items: z.array(
+    z.object({
+      title: z.string().optional(),
+      text: z.string().optional(),
+    }).passthrough()
+  ).default([]),
+});
+
+// Advantages / trust items — restrained titled rows.
+export const featuresBlockSchema = blockBaseSchema.extend({
+  type: z.literal('features'),
+  heading: z.string().optional(),
+  items: z.array(
+    z.object({
+      title: z.string().optional(),
+      text: z.string().optional(),
+    }).passthrough()
+  ).default([]),
+});
+
+// FAQ: real question/answer pairs recovered from source accordions.
+export const faqBlockSchema = blockBaseSchema.extend({
+  type: z.literal('faq'),
+  heading: z.string().optional(),
+  items: z.array(
+    z.object({
+      question: z.string(),
+      answer: z.string(),
+      sourceUrl: z.string().optional(),
+      evidenceIds: z.array(z.string()).optional(),
+    }).passthrough()
+  ).default([]),
+});
+
 // Unknown block types (e.g. legacy team/stats/map written by older Studio
 // versions) are not part of the canonical schema, but they must survive
 // open/save round-trips instead of being silently dropped or rejected.
 const KNOWN_BLOCK_TYPES: readonly string[] = [
   'hero', 'text', 'image', 'gallery', 'services', 'projects',
-  'news', 'reviews', 'about', 'vacancies', 'cta', 'contacts',
+  'news', 'reviews', 'about', 'vacancies', 'cta', 'contacts', 'certificates',
+  'richText', 'processSteps', 'features', 'faq',
 ];
 
 export const unknownBlockSchema = z.object({
@@ -127,6 +204,11 @@ export const contentBlockSchema = z.union([
   vacanciesBlockSchema,
   ctaBlockSchema,
   contactsBlockSchema,
+  certificatesBlockSchema,
+  richTextBlockSchema,
+  processStepsBlockSchema,
+  featuresBlockSchema,
+  faqBlockSchema,
   unknownBlockSchema,
 ]);
 
@@ -145,6 +227,11 @@ const blockTypeSchemas: Record<string, z.ZodTypeAny> = {
   vacancies: vacanciesBlockSchema,
   cta: ctaBlockSchema,
   contacts: contactsBlockSchema,
+  certificates: certificatesBlockSchema,
+  richText: richTextBlockSchema,
+  processSteps: processStepsBlockSchema,
+  features: featuresBlockSchema,
+  faq: faqBlockSchema,
 };
 
 export interface BlockValidationResult {
@@ -179,7 +266,11 @@ export function validateContentBlocks(input: unknown): BlockValidationResult {
         errors.push(`blocks[${i}] (${type}): ${res.error.issues.map((x) => x.message).join('; ')}`);
         return;
       }
-      blocks.push({ ...res.data, enabled: res.data.enabled !== false });
+      blocks.push({
+      ...res.data,
+      id: res.data.id || `b${Date.now().toString(36)}${i}_${Math.random().toString(36).slice(2, 6)}`,
+      enabled: res.data.enabled !== false,
+    });
       return;
     }
     const res = schema.safeParse(b);
@@ -189,7 +280,11 @@ export function validateContentBlocks(input: unknown): BlockValidationResult {
       );
       return;
     }
-    blocks.push({ ...res.data, enabled: res.data.enabled !== false });
+    blocks.push({
+      ...res.data,
+      id: res.data.id || `b${Date.now().toString(36)}${i}_${Math.random().toString(36).slice(2, 6)}`,
+      enabled: res.data.enabled !== false,
+    });
   });
   return { ok: errors.length === 0, errors, blocks };
 }

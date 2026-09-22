@@ -171,7 +171,7 @@ export default function LeadDetail({ lead, onClose, onStart, onReview, onSelect 
       const action = failed ? () => handleRetryStage(firstBlocking.id) : () => handleRunFullQualification(false);
       return { label, action, variant: 'primary' as const };
     }
-    if (lead.site || ['DEMO_GENERATED', 'DEMO_APPROVED', 'READY_TO_CONTACT'].includes(lead.redesignStage || '')) {
+    if (lead.site || ['DEMO_GENERATED', 'HUMAN_REVIEW_READY', 'DEMO_APPROVED', 'READY_TO_CONTACT'].includes(lead.redesignStage || '')) {
       return { label: 'Open site', action: () => { if (lead.site) window.open(`/showcase/${lead.site.previewToken}`, '_blank'); } };
     }
     if (review === 'GOOD' && lead.redesignStage === 'NOT_SELECTED') {

@@ -24,3 +24,5 @@ export { mediaUrlOf } from './media.js';
 export type { MediaLike } from './media.js';
 export { buildNavItems, navForArea, resolveMenuHref } from './nav.js';
 export type { ResolvedNavItem } from './nav.js';
+export { resolveRoute, collectionRoute, entityRoute, entityPreviewPath, collectionKindOf, paginate, clampPageSize, COLLECTION_SLUG_HINTS, DEFAULT_PAGE_SIZE } from './routes.js';
+export type { ResolvedRoute, RouteKind, CollectionKind, PageSlice, PagerLink } from './routes.js';

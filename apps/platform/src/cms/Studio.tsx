@@ -13,6 +13,7 @@ import Media from './Media'
 import NavEditor from './NavEditor'
 import Contacts from './Contacts'
 import SiteSettings from './SiteSettings'
+import Versions from './RevisionHistory'
 import Users from './Users'
 
 const EDITOR_SCREENS: Screen[] = ['page-editor', 'project-editor', 'news-editor', 'service-editor', 'product-editor', 'vacancy-editor']
@@ -34,6 +35,7 @@ const SCREEN_LABELS: Record<Screen, string> = {
   media: 'Media',
   navigation: 'Navigation',
   contacts: 'Contacts',
+  versions: 'Version History',
   'site-settings': 'Site Settings',
   users: 'Users'
 };
@@ -124,6 +126,7 @@ export default function Studio({ siteId, user }: { siteId: string; user?: any })
             {screen === 'media' && <Media onNavigate={navigate} />}
             {screen === 'navigation' && <NavEditor onNavigate={navigate} />}
             {screen === 'contacts' && <Contacts onNavigate={navigate} />}
+            {screen === 'versions' && <Versions />}
             {screen === 'site-settings' && <SiteSettings onNavigate={navigate} />}
             {screen === 'users' && <Users onNavigate={navigate} />}
           </main>

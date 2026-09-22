@@ -2,6 +2,8 @@ import type { PrismaClient } from '@prisma/client';
 import type pino from 'pino';
 import { evaluateWebsiteEligibility } from '../../../collector/src/utils/evaluateWebsiteEligibility.js';
 import { normalizeWebsiteDomain } from '../../../collector/src/utils/normalizeWebsiteDomain.js';
+import { canonicalizeWebsite } from '../../../collector/src/utils/canonicalizeWebsite.js';
+import { classifyWebsiteOwnership } from '../../../collector/src/utils/websiteOwnershipClassifier.js';
 import { classifyRelevance } from './relevance.js';
 import { semanticRelevance } from './semantic.js';
 
@@ -152,8 +154,28 @@ export class DiscoveryGatingService {
       };
     }
 
-    const canonicalDomain = eligibility.canonicalDomain;
-    const canonicalUrl = eligibility.canonicalUrl;
+    // Registrable-domain canonicalization (PSL-aware) — the strong dedup key.
+    const cw = canonicalizeWebsite(candidate.website);
+    const canonicalDomain = cw.domainKey || eligibility.canonicalDomain;
+    const canonicalUrl = cw.canonicalUrl || eligibility.canonicalUrl;
+
+    // Ownership classification runs BEFORE any lead creation: aggregator and
+    // directory websites are never actionable leads. Rejected candidates stay
+    // in DiscoveryCandidate history with the full signal trail.
+    const ownership = classifyWebsiteOwnership({
+      url: candidate.website || '',
+      companyName: candidate.companyName,
+    });
+    if (ownership.decision !== 'DIRECT_COMPANY_SITE' && ownership.decision !== 'UNCERTAIN') {
+      return {
+        decision: 'REJECT',
+        reason: `SITE_KIND_${ownership.decision}`,
+        matchedConcepts: ownership.matchedSignals,
+        confidence: ownership.confidence,
+        canonicalUrl,
+        canonicalDomain,
+      };
+    }
 
     const seenLeadId = seenCanonicalDomains.get(canonicalDomain ?? '');
     if (canonicalDomain && seenLeadId) {
@@ -170,7 +192,7 @@ export class DiscoveryGatingService {
     }
 
     const existingByDomain = canonicalDomain
-      ? await this.prisma.lead.findFirst({ where: { websiteDomain: canonicalDomain }, select: { id: true } })
+      ? await this.prisma.lead.findFirst({ where: { websiteDomain: canonicalDomain, mergeStatus: 'NONE' }, select: { id: true } })
       : null;
     if (canonicalDomain && existingByDomain) {
       return {
@@ -185,7 +207,7 @@ export class DiscoveryGatingService {
       };
     }
 
-    const cheap = classifyRelevance(candidate, run.intent, run.query);
+    const cheap = classifyRelevance(candidate, run.intent ?? undefined, run.query);
     if (cheap.decision === 'REJECT') {
       return {
         decision: 'REJECT',
@@ -300,6 +322,7 @@ export class DiscoveryGatingService {
     if (!candidate.companyName) return null;
     const where: any = {
       websiteDomain: { not: canonicalDomain },
+      mergeStatus: 'NONE',
       companyName: { equals: candidate.companyName, mode: 'insensitive' },
     };
     if (candidate.phone) {

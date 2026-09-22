@@ -1,11 +1,16 @@
 import 'dotenv/config';
 import pino from 'pino';
 import { PrismaClient } from '@prisma/client';
+import { ActivityService } from '../apps/dashboard/src/activity/ActivityService.js';
+import { OperationService } from '../apps/dashboard/src/operations/OperationService.js';
 import { DiscoveryService } from '../apps/dashboard/src/discovery/service.js';
 
 const prisma = new PrismaClient();
 const logger = pino({ level: process.env.LOG_LEVEL ?? 'info' });
-const discovery = new DiscoveryService({ prisma, logger, env: process.env });
+const activity = new ActivityService({ prisma, logger });
+const discovery = new DiscoveryService({ prisma, logger, env: process.env, activity });
+const operations = new OperationService({ prisma, logger, env: process.env, discovery, activity });
+discovery.setQualificationOrchestrator(operations.qualification);
 
 async function main() {
   const request = {

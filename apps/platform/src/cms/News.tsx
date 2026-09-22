@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Screen } from './types'
 import { IconEdit, IconEye, IconMore, IconTrash, IconChevronLeft, IconPlus, IconCheck, IconUpload } from './icons'
 import { Badge, Button, SearchInput, FilterTabs, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
 import { useStudio, formatDate } from './context'
 import { api, uiStatus, apiStatus } from './api'
 import { mediaUrlOf } from './mediaUrl'
+import { StructuredBlocksEditor } from './StructuredBlocksEditor'
 
 interface NewsListProps {
   onNavigate: (s: Screen, id?: string) => void
@@ -81,7 +82,8 @@ export function NewsList({ onNavigate }: NewsListProps) {
                   <td className="px-4 py-2 text-[12px] text-text-subtle whitespace-nowrap">{formatDate(n.updatedAt)}</td>
                   <td className="px-4 py-2 text-right w-10">
                     <DropdownMenu
-                      trigger={<button className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:bg-surface-hover hover:text-text-muted transition-colors opacity-0 group-hover:opacity-100"><IconMore size={13} /></button>}
+                      trigger={<span className="inline-flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"><IconMore size={13} /></span>}
+                      ariaLabel="Row actions"
                       items={[
                         { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('news-editor', n.id) },
                         { label: 'Preview', icon: <IconEye size={12} />, onClick: () => window.open(`/showcase/${n.site?.previewToken || ''}/news/${n.slug}`, '_blank') },
@@ -125,7 +127,7 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
   const [title, setTitle] = useState('')
   const [slug, setSlug] = useState('')
   const [excerpt, setExcerpt] = useState('')
-  const [content, setContent] = useState('')
+  const [blocks, setBlocks] = useState<any[]>([])
   const [status, setStatus] = useState<ReturnType<typeof uiStatus>>('draft')
   const [coverImageId, setCoverImageId] = useState('')
   const [seoTitle, setSeoTitle] = useState('')
@@ -135,27 +137,29 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
   const [uploading, setUploading] = useState(false)
   const { toast, show } = useToast()
 
+  // Populate once per entity — a bundle refetch must not wipe unsaved edits.
+  const loadedFor = useRef<string | null>(null)
   useEffect(() => {
+    const key = item ? `id:${item.id}` : `new:${newsId ?? ''}`
+    if (loadedFor.current === key) return
+    loadedFor.current = key
     if (item) {
       setTitle(item.title || ''); setSlug(item.slug || ''); setExcerpt(item.excerpt || ''); setStatus(uiStatus(item.status))
       setCoverImageId(item.coverImageId || ''); setSeoTitle(item.seoTitle || ''); setSeoDesc(item.seoDescription || '')
       setPublishedAt(item.publishedAt ? new Date(item.publishedAt).toISOString().slice(0, 10) : '')
-      const text = ((item.blocks || []).map((b: any) => b.content || '').join('\n\n'))
-      setContent(text)
+      setBlocks(item.blocks || [])
     } else {
-      setTitle(''); setSlug(''); setExcerpt(''); setContent(''); setStatus('draft'); setCoverImageId(''); setSeoTitle(''); setSeoDesc(''); setPublishedAt('')
+      setTitle(''); setSlug(''); setExcerpt(''); setBlocks([]); setStatus('draft'); setCoverImageId(''); setSeoTitle(''); setSeoDesc(''); setPublishedAt('')
     }
     setSaveState('saved')
   }, [newsId, item])
 
   const markDirty = () => setSaveState('unsaved')
 
-  const blocksFromContent = (text: string) => text.split(/\n{2,}/).filter(Boolean).map((content: string) => ({ type: 'text', content }))
-
   const handleSave = async (publish = false) => {
     setSaveState('saving')
     try {
-      const payload: any = { title, slug, excerpt, blocks: blocksFromContent(content), coverImageId, publishedAt, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(status) }
+      const payload: any = { title, slug, excerpt, blocks, coverImageId, publishedAt, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(status) }
       if (isNew) { await api.createNews(siteId, payload); show(publish ? 'News published' : 'News saved') }
       else { await api.updateNews(siteId, item!.id, payload); show(publish ? 'News updated' : 'News saved') }
       await refresh(); onNavigate('news')
@@ -180,7 +184,15 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
         </div>
         <SaveIndicator state={saveState} />
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Button variant="ghost" size="sm" onClick={() => window.open(slug ? `/showcase/${site?.previewToken || ''}/news/${slug}` : `/showcase/${site?.previewToken || ''}`, '_blank')}><IconEye size={12} />Preview</Button>
+          {(() => {
+            const path = item?.previewPath
+            return (
+              <Button variant="ghost" size="sm" disabled={!path}
+                onClick={() => path && window.open(`/showcase/${site?.previewToken || ''}${path}`, '_blank')}>
+                <IconEye size={12} />{path ? 'Preview' : 'Detail preview unavailable'}
+              </Button>
+            )
+          })()}
           <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>
           <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>
         </div>
@@ -190,15 +202,14 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
         <div className="flex-1 overflow-y-auto bg-bg p-6">
           <div className="max-w-[680px] mx-auto flex flex-col gap-5">
             <div className="bg-surface border border-border rounded px-5 py-4">
-              <input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Post title" className="w-full text-[20px] font-semibold text-text placeholder-text-subtle bg-transparent border-0 focus:outline-none leading-tight" />
+              <div data-cms-control="news:title"><input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Post title" className="w-full text-[20px] font-semibold text-text placeholder-text-subtle bg-transparent border-0 focus:outline-none leading-tight" /></div>
             </div>
 
             <div className="bg-surface border border-border rounded p-4 flex flex-col gap-3.5">
-              <Textarea label="Excerpt" value={excerpt} onChange={v => { setExcerpt(v); markDirty() }} rows={2} placeholder="Short summary shown in listings…" />
+              <div data-cms-control="news:excerpt"><Textarea label="Excerpt" value={excerpt} onChange={v => { setExcerpt(v); markDirty() }} rows={2} placeholder="Short summary shown in listings…" /></div>
               <div className="flex flex-col gap-1">
-                <label className="text-[12px] font-medium text-text-muted">Content</label>
-                <textarea value={content} onChange={e => { setContent(e.target.value); markDirty() }} rows={12} placeholder="Write the post content here. Use blank lines between paragraphs." className="w-full border border-border rounded text-[13px] text-text placeholder-text-subtle px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent resize-y leading-relaxed" />
-                <p className="text-[10px] text-text-subtle text-right">{content.length} chars</p>
+                <label className="text-[12px] font-medium text-text-muted">Content blocks</label>
+                <StructuredBlocksEditor key={item?.id || 'new'} entityKind="news" value={blocks} onChange={b => { setBlocks(b); markDirty() }} />
               </div>
             </div>
 

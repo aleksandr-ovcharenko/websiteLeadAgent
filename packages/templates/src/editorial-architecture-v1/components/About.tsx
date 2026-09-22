@@ -1,4 +1,4 @@
-import { cms, type CmsItem, type CmsSection } from '../cms';
+import { cms, t, tf, type CmsItem, type CmsSection } from '../cms';
 
 export function About({ section, anchor, chapter, services }: { section: CmsSection; anchor: string; chapter?: string; services: CmsItem[] }) {
   const company = cms.COMPANY;
@@ -7,18 +7,18 @@ export function About({ section, anchor, chapter, services }: { section: CmsSect
 
   const facts: [string, string][] = (
     [
-      ['Основана', company.founded],
-      ['Команда', company.employees],
-      ['УНП', company.unp],
-      ['Адрес', company.address],
+      [t('about.founded'), company.founded],
+      [t('about.team'), company.employees],
+      [t('about.unp'), company.unp],
+      [t('about.address'), company.address],
     ] as [string, string | undefined][]
-  ).filter(([, v]) => !!v) as [string, string][];
+  ).filter(([k, v]) => !!k && !!v) as [string, string][];
 
   return (
     <section id={anchor} className="about" aria-labelledby={`${anchor}-heading`}>
       <div className="chapter">
-        <span className="chapter__label">{chapter ? `Глава ${chapter}` : ''}</span>
-        <h2 id={`${anchor}-heading`} className="chapter__title">{section.heading || 'Компания'}</h2>
+        <span className="chapter__label">{chapter ? tf('chapter.label', { n: chapter }) : ''}</span>
+        <h2 id={`${anchor}-heading`} className="chapter__title">{section.heading || t('about.companyHeading')}</h2>
       </div>
 
       <div className="about__layout">
@@ -33,7 +33,7 @@ export function About({ section, anchor, chapter, services }: { section: CmsSect
           {section.image && (
             <figure className="case__image" style={{ marginTop: '2rem' }}>
               <div className="reveal-mask">
-                <img src={section.image} alt={section.heading || company.name} loading="lazy" width="960" height="600" />
+                <img src={section.image} alt={section.heading || company.name} loading="lazy" />
               </div>
             </figure>
           )}
@@ -42,14 +42,14 @@ export function About({ section, anchor, chapter, services }: { section: CmsSect
         <aside className="about__aside">
           {services.length > 0 && (
             <>
-              <p className="about__aside-label">Направления</p>
+              <p className="about__aside-label">{t('about.directions')}</p>
               <ul className="about__aside-list">
                 {services.map((s) => <li key={s.id}>{s.title}</li>)}
               </ul>
             </>
           )}
           {facts.length > 0 && (
-            <div className="detail__meta" style={{ marginTop: '1.5rem' }} aria-label="Факты о компании">
+            <div className="detail__meta" style={{ marginTop: '1.5rem' }} aria-label={t('about.factsAria') || undefined}>
               {facts.map(([k, v]) => (
                 <div className="detail__meta-item" key={k}><b>{k}</b>{v}</div>
               ))}

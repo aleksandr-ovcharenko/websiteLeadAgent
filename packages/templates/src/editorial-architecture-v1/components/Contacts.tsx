@@ -1,21 +1,21 @@
-import { cms, type CmsSection } from '../cms';
+import { cms, t, tf, type CmsSection } from '../cms';
 
 export function Contacts({ section, anchor, chapter }: { section: CmsSection; anchor: string; chapter?: string }) {
   const c = cms.COMPANY;
   const rows: [string, string, string?][] = (
     [
-      ['Телефон', c.phone, c.phoneHref],
-      ['Email', c.email, c.email ? `mailto:${c.email}` : undefined],
-      ['Адрес', c.address, undefined],
-      ['Режим работы', c.workingHours, undefined],
+      [t('contacts.phone'), c.phone, c.phoneHref],
+      [t('contacts.email'), c.email, c.email ? `mailto:${c.email}` : undefined],
+      [t('contacts.address'), c.address, undefined],
+      [t('contacts.hours'), c.workingHours, undefined],
     ] as [string, string | undefined, string | undefined][]
-  ).filter(([, v]) => !!v) as [string, string, string?][];
+  ).filter(([k, v]) => !!k && !!v) as [string, string, string?][];
 
   return (
     <section id={anchor} className="about" aria-labelledby={`${anchor}-heading`}>
       <div className="chapter">
-        <span className="chapter__label">{chapter ? `Глава ${chapter}` : ''}</span>
-        <h2 id={`${anchor}-heading`} className="chapter__title">{section.heading || 'Контакты'}</h2>
+        <span className="chapter__label">{chapter ? tf('chapter.label', { n: chapter }) : ''}</span>
+        <h2 id={`${anchor}-heading`} className="chapter__title">{section.heading || t('contacts.heading')}</h2>
       </div>
       {rows.length > 0 ? (
         <ul className="service-index" role="list">

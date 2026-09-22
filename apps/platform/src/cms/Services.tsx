@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Screen } from './types'
 import { IconEdit, IconTrash, IconMore, IconChevronLeft, IconPlus, IconGrip, IconCopy, IconX, IconCheck, IconUpload, IconEye } from './icons'
 import { Badge, Button, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
 import { useStudio, formatDate } from './context'
 import { api, uiStatus, apiStatus } from './api'
 import { mediaUrlOf } from './mediaUrl'
+import { StructuredBlocksEditor } from './StructuredBlocksEditor'
 
 interface ServicesListProps {
   onNavigate: (s: Screen, id?: string) => void
@@ -42,7 +43,8 @@ export function ServicesList({ onNavigate }: ServicesListProps) {
                 <td className="px-4 py-2 text-[12px] text-text-subtle whitespace-nowrap">{formatDate(item.updatedAt)}</td>
                 <td className="px-4 py-2 w-10 text-right">
                   <DropdownMenu
-                    trigger={<button className="w-6 h-6 flex items-center justify-center rounded text-text-subtle hover:bg-surface-hover hover:text-text-muted transition-colors opacity-0 group-hover:opacity-100"><IconMore size={13} /></button>}
+                    trigger={<span className="inline-flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"><IconMore size={13} /></span>}
+                      ariaLabel="Row actions"
                     items={[
                       { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('service-editor', item.id) },
                       { label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(item.id), danger: true, divider: true },
@@ -86,7 +88,7 @@ export function ServiceEditor({ serviceId, onNavigate }: ServiceEditorProps) {
   const [shortDesc, setShortDesc] = useState('')
   const [status, setStatus] = useState<ReturnType<typeof uiStatus>>('draft')
   const [orderNum, setOrderNum] = useState('')
-  const [content, setContent] = useState('')
+  const [blocks, setBlocks] = useState<any[]>([])
   const [imageId, setImageId] = useState('')
   const [seoTitle, setSeoTitle] = useState('')
   const [seoDesc, setSeoDesc] = useState('')
@@ -94,25 +96,29 @@ export function ServiceEditor({ serviceId, onNavigate }: ServiceEditorProps) {
   const [uploading, setUploading] = useState(false)
   const { toast, show } = useToast()
 
+  // Populate once per entity: a bundle refetch gives `item` a new identity —
+  // re-running this then would wipe unsaved in-flight edits.
+  const loadedFor = useRef<string | null>(null)
   useEffect(() => {
+    const key = item ? `id:${item.id}` : `new:${serviceId ?? ''}`
+    if (loadedFor.current === key) return
+    loadedFor.current = key
     if (item) {
       setTitle(item.title || ''); setSlug(item.slug || ''); setShortDesc(item.shortDescription || ''); setStatus(uiStatus(item.status)); setOrderNum(String(item.sortOrder || 0))
-      setContent((item.blocks || []).map((b: any) => b.content || '').join('\n\n'))
+      setBlocks(item.blocks || [])
       setImageId(item.imageId || ''); setSeoTitle(item.seoTitle || ''); setSeoDesc(item.seoDescription || '')
     } else {
-      setTitle(''); setSlug(''); setShortDesc(''); setStatus('draft'); setOrderNum(''); setContent(''); setImageId(''); setSeoTitle(''); setSeoDesc('')
+      setTitle(''); setSlug(''); setShortDesc(''); setStatus('draft'); setOrderNum(''); setBlocks([]); setImageId(''); setSeoTitle(''); setSeoDesc('')
     }
     setSaveState('saved')
   }, [serviceId, item])
 
   const markDirty = () => setSaveState('unsaved')
 
-  const blocksFromContent = (text: string) => text.split(/\n{2,}/).filter(Boolean).map((content: string) => ({ type: 'text', content }))
-
   const handleSave = async (publish = false) => {
     setSaveState('saving')
     try {
-      const payload: any = { title, slug, shortDescription: shortDesc, blocks: blocksFromContent(content), imageId, sortOrder: Number(orderNum) || 0, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(status) }
+      const payload: any = { title, slug, shortDescription: shortDesc, blocks, imageId, sortOrder: Number(orderNum) || 0, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(status) }
       if (isNew) { await api.createService(siteId, payload); show(publish ? 'Service published' : 'Service saved') }
       else { await api.updateService(siteId, item!.id, payload); show(publish ? 'Service updated' : 'Service saved') }
       await refresh(); onNavigate('services')
@@ -137,7 +143,18 @@ export function ServiceEditor({ serviceId, onNavigate }: ServiceEditorProps) {
         </div>
         <SaveIndicator state={saveState} />
         <div className="flex items-center gap-2 flex-shrink-0">
-          <Button variant="ghost" size="sm" onClick={() => window.open(`/showcase/${site?.previewToken || ''}/services`, '_blank')}><IconEye size={12} />Preview</Button>
+          {(() => {
+            // Shared resolver: previewPath comes from the CMS API (Phase 5).
+            // Disabled with an explicit label when no detail route resolves —
+            // never fall back to the collection path.
+            const path = item?.previewPath
+            return (
+              <Button variant="ghost" size="sm" disabled={!path}
+                onClick={() => path && window.open(`/showcase/${site?.previewToken || ''}${path}`, '_blank')}>
+                <IconEye size={12} />{path ? 'Preview' : 'Detail preview unavailable'}
+              </Button>
+            )
+          })()}
           <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>
           <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>
         </div>
@@ -147,14 +164,16 @@ export function ServiceEditor({ serviceId, onNavigate }: ServiceEditorProps) {
         <div className="flex-1 overflow-y-auto bg-bg p-6">
           <div className="max-w-[680px] mx-auto flex flex-col gap-5">
             <div className="bg-surface border border-border rounded px-5 py-4">
-              <input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Service title" className="w-full text-[20px] font-semibold text-text placeholder-text-subtle bg-transparent border-0 focus:outline-none leading-tight" />
-              <div className="mt-3 pt-3 border-t border-border">
+              <div data-cms-control="service:title">
+                <input value={title} onChange={e => { setTitle(e.target.value); markDirty() }} placeholder="Service title" className="w-full text-[20px] font-semibold text-text placeholder-text-subtle bg-transparent border-0 focus:outline-none leading-tight" />
+              </div>
+              <div className="mt-3 pt-3 border-t border-border" data-cms-control="service:shortDescription">
                 <textarea value={shortDesc} onChange={e => { setShortDesc(e.target.value); markDirty() }} placeholder="Short description — shown in service cards on the site" rows={2} className="w-full text-[13px] text-text-muted placeholder-text-subtle bg-transparent border-0 focus:outline-none resize-none leading-relaxed" />
                 <p className="text-[11px] text-text-subtle text-right mt-1">{shortDesc.length}/240</p>
               </div>
             </div>
 
-            <div>
+            <div data-cms-control="service:imageId">
               <p className="text-[11px] font-semibold text-text-subtle uppercase tracking-wider mb-2">Service image</p>
               <div className="bg-surface border border-border rounded p-4">
                 {(() => { const m = (media || []).find((x: any) => x.id === imageId); return m && mediaUrlOf(siteId, m) ? (
@@ -176,18 +195,18 @@ export function ServiceEditor({ serviceId, onNavigate }: ServiceEditorProps) {
             </div>
 
             <div className="bg-surface border border-border rounded p-4 flex flex-col gap-3">
-              <label className="text-[12px] font-medium text-text-muted">Full description</label>
-              <textarea value={content} onChange={e => { setContent(e.target.value); markDirty() }} placeholder="Detailed description of the service…" rows={8} className="w-full border-0 text-[13px] text-text placeholder-text-subtle focus:outline-none resize-y leading-relaxed" />
+              <label className="text-[12px] font-medium text-text-muted">Content blocks</label>
+              <StructuredBlocksEditor key={item?.id || 'new'} entityKind="service" value={blocks} onChange={b => { setBlocks(b); markDirty() }} />
             </div>
           </div>
         </div>
 
         <aside className="w-[272px] flex-shrink-0 border-l border-border bg-surface overflow-y-auto">
-          <SideSection title="Publication"><Select label="Status" value={status} onChange={v => { setStatus(v as any); markDirty() }} options={[{ value: 'published', label: 'Published' }, { value: 'draft', label: 'Draft' }]} /></SideSection>
-          <SideSection title="Display order"><Input label="Order" type="number" value={orderNum} onChange={v => { setOrderNum(v); markDirty() }} placeholder="1" /></SideSection>
-          <SideSection title="URL"><Input label="Slug" value={slug} onChange={v => { setSlug(v); markDirty() }} prefix="/" /></SideSection>
+          <SideSection title="Publication"><div data-cms-control="service:status"><Select label="Status" value={status} onChange={v => { setStatus(v as any); markDirty() }} options={[{ value: 'published', label: 'Published' }, { value: 'draft', label: 'Draft' }]} /></div></SideSection>
+          <SideSection title="Display order"><div data-cms-control="service:sortOrder"><Input label="Order" type="number" value={orderNum} onChange={v => { setOrderNum(v); markDirty() }} placeholder="1" /></div></SideSection>
+          <SideSection title="URL"><div data-cms-control="service:slug"><Input label="Slug" value={slug} onChange={v => { setSlug(v); markDirty() }} prefix="/" /></div></SideSection>
           <SideSection title="SEO">
-            <Input label="Title" value={seoTitle} onChange={v => { setSeoTitle(v); markDirty() }} placeholder="Defaults to service title" />
+            <div data-cms-control="service:seoTitle"><Input label="Title" value={seoTitle} onChange={v => { setSeoTitle(v); markDirty() }} placeholder="Defaults to service title" /></div>
             <div className="flex flex-col gap-1 mt-3"><label className="text-[12px] font-medium text-text-muted">Description</label><textarea value={seoDesc} onChange={e => { setSeoDesc(e.target.value); markDirty() }} rows={3} placeholder="Brief description for search results" className="w-full border border-border rounded text-[12px] text-text placeholder-text-subtle px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent resize-none leading-relaxed" /><p className="text-[10px] text-text-subtle text-right">{seoDesc.length}/160</p></div>
           </SideSection>
           {!isNew && (

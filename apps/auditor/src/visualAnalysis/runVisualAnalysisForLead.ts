@@ -150,7 +150,7 @@ export async function runVisualAnalysisForLead(input: {
     : null;
 
   const maxAttempts = 2;
-  const attemptErrors: { message: string; details?: any; attempt: number }[] = [];
+  const attemptErrors: { message: string; details?: any; attempt: number; retryable?: boolean }[] = [];
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {

@@ -5,10 +5,11 @@ import path from 'node:path';
 import fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { showcaseSecurityHeaders } from '../../dashboard/src/security/headers.js';
+import { resolveRepoRoot } from './repoRoot.js';
 // @ts-expect-error no declaration file for built templates
-import { templates, resolveHomepageSections } from '../../../packages/templates/dist/index.js';
+import { templates, resolveHomepageSections, resolveRoute } from '../../../packages/templates/dist/index.js';
 
-const REPO_ROOT = process.cwd();
+const REPO_ROOT = resolveRepoRoot(import.meta.url);
 
 const prisma = new PrismaClient();
 const app = express();
@@ -85,9 +86,9 @@ async function renderPreview(req: Request, res: Response) {
   const variantThemeConfig = (variant?.themeConfig as any) || {};
   const themeConfig = { ...baseThemeConfig, ...variantThemeConfig };
   const theme = { ...themeConfig };
-  const hero = { ...baseThemeConfig.hero, ...variantThemeConfig.hero } || {};
-  const about = { ...baseThemeConfig.about, ...variantThemeConfig.about } || {};
-  const cta = { ...baseThemeConfig.cta, ...variantThemeConfig.cta } || {};
+  const hero = { ...baseThemeConfig.hero, ...variantThemeConfig.hero };
+  const about = { ...baseThemeConfig.about, ...variantThemeConfig.about };
+  const cta = { ...baseThemeConfig.cta, ...variantThemeConfig.cta };
   // Canonical homepage composition (V3.4):
   //   1. published homepage Page.blocks for preferred variant / site preview
   //   2. variant themeConfig.homepageSections for non-preferred concept previews
@@ -106,7 +107,7 @@ async function renderPreview(req: Request, res: Response) {
   const favicon = settings.faviconMediaId ? mediaMap.get(settings.faviconMediaId) : undefined;
 
   const render = templates[templateId] || templates['construction-modern-v1'];
-  const html = render({
+  const ctx = {
     site,
     settings,
     theme,
@@ -127,10 +128,15 @@ async function renderPreview(req: Request, res: Response) {
     route,
     subRoute,
     previewToken,
+    page: Math.max(1, Math.floor(Number(req.query.page) || 1)),
     stylePreset: (req.query.style as string | undefined) || (variant?.themeConfig as any)?.stylePreset
-  });
+  };
+  const html = render(ctx);
+  // Honest 404: an unknown route renders the 404 view AND reports 404 —
+  // HTTP 200 with fallback/homepage content is not a valid response.
+  const routeInfo = resolveRoute(ctx as any);
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-  res.type('html').send(html);
+  res.status(routeInfo.kind === 'NOT_FOUND' ? 404 : 200).type('html').send(html);
 }
 
 // Showcase (canonical) and preview (legacy alias)

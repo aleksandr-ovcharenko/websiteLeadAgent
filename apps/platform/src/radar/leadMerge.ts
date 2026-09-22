@@ -3,8 +3,8 @@ import type { Filters, PrimaryView } from './RadarFilters';
 const GENERATION_STAGE_MAP: Record<string, string[]> = {
   NOT_SELECTED: ['NOT_SELECTED'],
   SELECTED: ['SELECTED_FOR_REDESIGN'],
-  GENERATING: ['CRAWL_READY', 'CONTENT_EXTRACTED', 'CONTENT_TRANSFORMED', 'CMS_IMPORTED', 'SITE_RENDERED', 'AUDIT_DONE'],
-  GENERATED: ['DEMO_GENERATED', 'DEMO_APPROVED', 'READY_TO_CONTACT'],
+  GENERATING: ['CRAWL_READY', 'CONTENT_EXTRACTED', 'CONTENT_VALIDATED', 'GRAPH_BUILT', 'CMS_IMPORT_READY', 'CONTENT_TRANSFORMED', 'CMS_IMPORTED', 'SITE_RENDERED', 'RENDER_VALIDATED', 'VISUAL_VALIDATED', 'AUDIT_DONE'],
+  GENERATED: ['DEMO_GENERATED', 'HUMAN_REVIEW_READY', 'DEMO_APPROVED', 'READY_TO_CONTACT'],
   FAILED: ['CRAWL_FAILED'],
 };
 
@@ -27,6 +27,10 @@ function qualificationFailed(lead: any): boolean {
  * match — the next authoritative refresh will correct the row set.
  */
 export function leadMatchesFilters(lead: any, filters: Filters, _view: PrimaryView): boolean {
+  // Merged/blocked duplicates never appear in actionable views — only the
+  // survivor carries the company forward.
+  if (lead.mergeStatus && lead.mergeStatus !== 'NONE') return false;
+  if (lead.archivedAt) return false;
   if (filters.q) {
     const s = filters.q.toLowerCase();
     const hay = [lead.companyName, lead.website, lead.websiteDomain, lead.phone, lead.address, lead.manualReviewNote]

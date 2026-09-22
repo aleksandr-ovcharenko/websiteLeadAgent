@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import { Screen } from './types'
 import { IconPlus, IconTrash, IconEye, IconEyeOff, IconChevronRight, IconChevronDown } from './icons'
 import { Button, Input, useToast, Toast } from './ui'
@@ -158,7 +158,12 @@ export default function NavEditor({ onNavigate }: NavEditorProps) {
   const [saving, setSaving] = useState(false)
   const { toast, show } = useToast()
 
-  useEffect(() => { setItems(flatToTree(menu || [])) }, [menu])
+  const navLoaded = useRef(false)
+  useEffect(() => {
+    if (navLoaded.current) return
+    navLoaded.current = true
+    setItems(flatToTree(menu || []))
+  }, [menu])
 
   const updateTree = (tree: MenuTreeItem[], id: string, patch: Partial<MenuTreeItem>): MenuTreeItem[] => tree.map(node => {
     if (node.id === id) return { ...node, ...patch }
