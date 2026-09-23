@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import { constants } from 'node:fs';
 
 const prisma = new PrismaClient();
-const fixturePath = new URL('../../../apps/dashboard/data/redesign/cmthnoa4f004dtnq3jt3hcleo/content.json', import.meta.url).pathname;
+const fixturePath = new URL('./fixtures/import-contract-content.json', import.meta.url).pathname;
 
 async function loadMapidContent() {
   const raw = await readFile(fixturePath, 'utf8');
