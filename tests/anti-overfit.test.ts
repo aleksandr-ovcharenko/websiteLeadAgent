@@ -6,7 +6,7 @@
 //
 // Allowed locations for client values:
 //   - test files and test fixtures (tests/**, **/*.test.*, **/fixtures/**)
-//   - the quarantined scripts/legacy/** tree (marked non-production)
+//   - the quarantined archive/legacy-scenarios/** tree (marked non-production)
 //   - reports/docs (*.md), generated data (data/**)
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
@@ -18,7 +18,8 @@ const ROOT = join(__dirname, '..');
 const SCAN_ROOTS = ['apps', 'packages', 'scripts', 'prisma'];
 
 const ALLOWED = [
-  /(^|\/)legacy\//,                 // quarantined non-production scenarios
+  /(^|\/)archive\/legacy-scenarios\//, // quarantined non-production scenarios
+  /(^|\/)legacy\//,
   /\.(test|spec)\.(ts|tsx|js|jsx|mjs)$/, // tests may carry fixture inputs
   /(^|\/)fixtures?\//,              // test fixtures
   /\.md$/,                          // docs/reports
@@ -49,7 +50,7 @@ function* walk(dir: string): Generator<string> {
     const p = join(dir, e);
     const st = statSync(p);
     if (st.isDirectory()) {
-      if (['node_modules', 'dist', '.git', 'generated-sites', 'legacy'].includes(e)) continue;
+      if (['node_modules', 'dist', '.git', 'generated-sites', 'legacy', 'archive'].includes(e)) continue;
       yield* walk(p);
     } else if (/\.(ts|tsx|mjs|js)$/.test(e)) {
       yield p;

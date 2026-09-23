@@ -78,6 +78,3 @@ packages/redesign-engine/test/data/
 V37-TWO-SITE-GENERALIZATION-REPORT.md
 V371-CONTENT-MEDIA-LINK-QA-REPORT.md
 V374-CMS-RECOVERY-AND-VERSIONING-REPORT.md
-
-# Quarantined one-off/site-specific scripts — not production code
-scripts/legacy/

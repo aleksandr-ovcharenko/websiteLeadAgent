@@ -18,6 +18,7 @@ import { ensureDependencySnapshot, linkSiteBuildSnapshot } from '../security/sna
 import { gateResult, STAGE_TO_RUN_STAGE, STAGE_ORDER } from './stageContract.js';
 import { createPrismaRevisionStore, type RevisionStore } from './revisions.js';
 import { publishForgePreview } from './forgePreview.js';
+import { loadRunForResume, mergeStageResult, resolveActiveVariant, resolveCanonicalSite } from './resume.js';
 import { createHash } from 'node:crypto';
 import type { PipelineStage, StageGateResult } from './stageContract.js';
 import type { CrawlResult } from '../types.js';
@@ -258,28 +259,10 @@ export async function generateSite(options: GenerateOptions) {
   let crawlJsonPath: string;
 
   if (options.crawlRunId) {
-    const existingRun = await (prisma as any).redesignRun.findUnique({
-      where: { id: options.crawlRunId },
-      include: { lead: true }
-    });
-    if (!existingRun) throw new Error(`Crawl run not found: ${options.crawlRunId}`);
-    if (existingRun.leadId !== l.id) throw new Error(`Crawl run ${options.crawlRunId} does not belong to lead ${l.id}`);
-    if (!options.force && existingRun.stage !== 'CRAWL_READY' && existingRun.stage !== 'SELECTED_FOR_REDESIGN' && existingRun.stage !== 'CRAWL_FAILED') {
-      throw new Error(`Crawl run ${options.crawlRunId} is already ${existingRun.stage}. Use force to regenerate.`);
-    }
-    if (!existingRun.crawlJsonPath) throw new Error(`Crawl run ${options.crawlRunId} has no crawl artifact`);
-
-    crawlJsonPath = existingRun.crawlJsonPath;
-    const raw = await readFile(crawlJsonPath, 'utf8');
-    crawlResult = JSON.parse(raw) as CrawlResult;
-    run = existingRun;
-
-    if (options.force) {
-      await (prisma as any).redesignRun.update({
-        where: { id: run.id },
-        data: { errorMessage: null, stage: 'CRAWL_READY' }
-      });
-    }
+    const rr = await loadRunForResume(prisma, options.crawlRunId, l.id, options.force);
+    crawlJsonPath = rr.crawlJsonPath;
+    crawlResult = rr.crawlResult as CrawlResult;
+    run = rr.run;
   } else {
     // Backward compatibility: crawl now and continue.
     const cr = await runCrawl({
@@ -300,17 +283,7 @@ export async function generateSite(options: GenerateOptions) {
   // Force now means "regenerate imported/generated content while preserving Site.id".
   // The lead's own site link can point at an ARCHIVED row after a canonical
   // merge — resolve the canonical site by domain, same rule as importToCms.
-  let existingSite = l.site;
-  const leadDomain = l.websiteDomain || (l.website || '').replace(/^https?:\/\//, '').replace(/\/+$/, '');
-  if ((!existingSite || existingSite.mergedIntoSiteId || existingSite.status === 'ARCHIVED') && leadDomain) {
-    existingSite = await (prisma as any).site.findFirst({
-      where: {
-        mergedIntoSiteId: null,
-        status: { not: 'ARCHIVED' },
-        OR: [{ canonicalDomain: leadDomain }, { domain: leadDomain }],
-      },
-    }) || existingSite;
-  }
+  const existingSite = await resolveCanonicalSite(prisma, l);
   const baseUrl = crawlResult.homepage?.url || l.website;
   const artifactDir = dirname(crawlJsonPath);
 
@@ -358,8 +331,7 @@ export async function generateSite(options: GenerateOptions) {
     if (r.status !== 'FAIL' && typeof r.durationMs === 'number' && r.durationMs > stageTimeoutMs) {
       r = { ...r, status: 'FAIL', errors: [...r.errors, `stage timeout: ${r.stage} took ${Math.round(r.durationMs / 1000)}s (budget ${Math.round(stageTimeoutMs / 1000)}s)`] };
     }
-    const prevIdx = stageResults.findIndex((x) => x.stage === r.stage);
-    if (prevIdx >= 0) stageResults[prevIdx] = r; else stageResults.push(r);
+    mergeStageResult(stageResults, r);
     if (revisionStore && revisionId) {
       await revisionStore.checkpoint(revisionId, r.stage, r.durationMs).catch(() => undefined);
     }
@@ -598,11 +570,7 @@ export async function generateSite(options: GenerateOptions) {
     // active variant — resolve it from the DB (the import already ran in a
     // previous attempt).
     if (siteId && !demoVariantId) {
-      const v = await (prisma as any).demoVariant.findFirst({
-        where: { siteId, status: 'ACTIVE' },
-        orderBy: [{ isPreferred: 'desc' }, { createdAt: 'desc' }],
-      });
-      demoVariantId = v?.id;
+      demoVariantId = (await resolveActiveVariant(prisma, siteId))?.id;
     }
 
     // V3.7.4 — open the revision for this run. `resume` when the run is a
