@@ -550,7 +550,7 @@ export function sectionsToBlocks(doc: SourceDocument | undefined, opts: Sections
     }
 
     // Bare heading + anonymous run: a heading atom with no own body/items whose
-    // content lives in the following heading-less atoms ("Почему NextTrade?" +
+    // content lives in the following heading-less atoms ("Почему <brand>?" +
     // proof list, "Для кого информация?" + audience list). Same adjacency
     // evidence as the label rule; the run stops at the next heading or label.
     if (heading && !body && !sec.lists.flat().length && !ownFaqs.length) {
@@ -981,9 +981,9 @@ export function graphToImportContent(opts: GraphToContentOptions): {
       h.sec.heading && !serviceTitles.has(norm(h.sec.heading)) &&
       !norm(h.sec.heading).match(/^наши направления|последние проекты|почему|услуги|портфолио|проекты/) &&
       h.text.length > 80);
-  // Distinctive company words (strip legal-form prefixes): "ООО \"Лишэн\"" →
-  // ["лишэн"], so a manifesto heading "«Лишэн» — это стройка…" still matches
-  // even when displayName is transliterated ("Lishen").
+  // Distinctive company words (strip legal-form prefixes): "ООО \"Акме\"" →
+  // ["акме"], so a manifesto heading "«Акме» — это стройка…" still matches
+  // even when displayName is transliterated ("Acme").
   const companyWords = new Set(
     companyTokens
       .flatMap((t) => norm(t).replace(/ооо|одо|ип|чтуп|зао|оао|llc|ltd|inc|["'«»]/g, ' ').split(/\s+/))

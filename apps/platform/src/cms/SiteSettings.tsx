@@ -109,8 +109,8 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
           {tab === 'General' && (
             <div className="flex flex-col gap-5">
               <SettingsGroup title="Site identity">
-                <Input label="Company name" value={form.companyName || ''} onChange={v => update({ companyName: v })} />
-                <Input label="Site title" value={form.siteTitle || ''} onChange={v => update({ siteTitle: v })} hint="Shown in browser tabs and default SEO" />
+                <div data-cms-control="settings:companyName"><Input label="Company name" value={form.companyName || ''} onChange={v => update({ companyName: v })} /></div>
+                <div data-cms-control="settings:siteTitle"><Input label="Site title" value={form.siteTitle || ''} onChange={v => update({ siteTitle: v })} hint="Shown in browser tabs and default SEO" /></div>
               </SettingsGroup>
               <div className="border-t border-border pt-4">
                 <SettingsGroup title="Locale">
@@ -143,7 +143,7 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
               <SettingsGroup title="Brand colors">
                 <div className="grid grid-cols-2 gap-3">
                   {[{ label: 'Primary color', key: 'primaryColor' }, { label: 'Accent color', key: 'accentColor' }].map(c => (
-                    <div key={c.key} className="flex flex-col gap-1">
+                    <div key={c.key} className="flex flex-col gap-1" data-cms-control={`settings:${c.key}`}>
                       <label className="text-[12px] font-medium text-text-muted">{c.label}</label>
                       <div className="flex items-center gap-2 h-[30px] border border-border rounded px-2.5">
                         <input type="color" value={form[c.key] || '#000000'} onChange={e => update({ [c.key]: e.target.value })} className="w-4 h-4 rounded cursor-pointer border-0 p-0 bg-transparent" />
@@ -164,7 +164,7 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
                   These are CMS-owned — the renderer never falls back to hardcoded text.
                 </p>
                 {Object.keys(form.templateCopy || {}).sort().map((k) => (
-                  <div key={k} className="flex items-center gap-2">
+                  <div key={k} className="flex items-center gap-2" data-cms-control={`copy:${k}`}>
                     <span className="text-[11px] mono text-text-subtle w-[200px] shrink-0 truncate" title={k}>{k}</span>
                     <input
                       value={form.templateCopy[k] ?? ''}
@@ -183,7 +183,7 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
           {tab === 'SEO' && (
             <div className="flex flex-col gap-5">
               <SettingsGroup title="Default metadata">
-                <Input label="Default SEO title" value={form.seoTitle || ''} onChange={v => update({ seoTitle: v })} hint="Used when a page doesn't specify its own title" />
+                <div data-cms-control="settings:seoTitle"><Input label="Default SEO title" value={form.seoTitle || ''} onChange={v => update({ seoTitle: v })} hint="Used when a page doesn't specify its own title" /></div>
                 <div className="flex flex-col gap-1">
                   <label className="text-[12px] font-medium text-text-muted">Meta description</label>
                   <textarea value={form.seoDescription || ''} onChange={e => update({ seoDescription: e.target.value })} rows={3} className="w-full border border-border rounded text-[13px] text-text px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent resize-y leading-relaxed" />
@@ -196,7 +196,7 @@ export default function SiteSettings({ onNavigate }: SiteSettingsProps) {
           {tab === 'Domain' && (
             <div className="flex flex-col gap-5">
               <SettingsGroup title="Domain configuration">
-                <Input label="Primary domain" value={form.domain || ''} onChange={v => update({ domain: v })} hint="Do not include https://" />
+                <div data-cms-control="settings:domain"><Input label="Primary domain" value={form.domain || ''} onChange={v => update({ domain: v })} hint="Do not include https://" /></div>
                 <Input label="Preview URL" value={form.previewUrl || ''} onChange={v => update({ previewUrl: v })} />
               </SettingsGroup>
             </div>

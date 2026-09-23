@@ -3,6 +3,8 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { escapeHtml, escapeHtmlAttribute, escapeJsonForScript } from '@minsk/security';
 import { resolveShowcaseTarget as _resolveShowcaseTarget } from './linkResolver.js';
+import { resolveRoute } from '../routes.js';
+import { mediaUrlOf } from '../media.js';
 import type { RenderContext } from '../types.js';
 import { constructionModernV1Manifest } from './manifest.js';
 import { isPresetId, presetCSS } from './stylePresets.js';
@@ -61,13 +63,7 @@ function findPhoneNumbers(text: string, limit = 10): string[] {
 }
 
 function mediaUrl(ctx: RenderContext, id?: string): string | undefined {
-  if (!id) return undefined;
-  const media = ctx.mediaMap.get(id);
-  if (!media) return undefined;
-  if (media.sourceUrl && media.sourceUrl.startsWith('http')) return media.sourceUrl;
-  const filename = media.filename || media.storagePath?.split('/').pop();
-  if (filename) return `/site-media/${ctx.site.id}/${filename}`;
-  return undefined;
+  return mediaUrlOf(ctx.site?.id, ctx.mediaMap.get(id ?? ''));
 }
 
 function buildCompany(ctx: RenderContext) {
@@ -175,7 +171,9 @@ export function constructionModernV1(ctx: RenderContext): string {
       return `${base}/${key}`;
     }
     if (targetType === 'PAGE') {
-      const slug = item.page?.slug || target || '';
+      // Only a resolved page record yields a route — an unresolved target
+      // would render a dead link, so the item falls through to '#'.
+      const slug = item.page?.slug || '';
       if (slug) return `${base}/${slug}`;
     }
     if (targetType === 'CONTENT_DETAIL') {
@@ -347,7 +345,11 @@ export function constructionModernV1(ctx: RenderContext): string {
   --border: ${borderColor};
   --card-bg: ${surfaceColor};
   --overlay: ${hexToRgba(darkColor, 0.55)};
-}</style>`;
+}
+/* Long unbreakable tokens (URLs, emails, glued crawled text) must never
+   overflow the viewport — allow emergency breaks anywhere in text nodes. */
+h1,h2,h3,h4,h5,h6,p,li,a,span,td,th,blockquote,figcaption,dd,dt { overflow-wrap: anywhere; min-width: 0; }
+</style>`;
 
   const resolveShowcaseTarget = (raw?: string) => _resolveShowcaseTarget(base, raw);
 
@@ -356,39 +358,68 @@ export function constructionModernV1(ctx: RenderContext): string {
   const heroImageUrl = mediaUrl(ctx, ctx.hero?.imageId);
   const aboutImageUrl = mediaUrl(ctx, ctx.about?.imageId);
 
+  const resolved = resolveRoute(ctx);
+
+  // Homepage furniture (hero/about/cta) renders from the resolved homepage
+  // composition — the canonical, editor-owned source. Page block edits take
+  // effect here; themeConfig values are only the generation seed/fallback.
+  const homeSec = (type: string) =>
+    (homepageSections || []).find((s: any) => String(s?.type || '').toLowerCase() === type && s.enabled !== false);
+  const heroSec = homeSec('hero');
+  const aboutSec = homeSec('about');
+  const ctaSec = homeSec('cta');
+  const heroBlock = heroSec?.block || {};
+  const aboutBlock = aboutSec?.block || {};
+  const ctaBlock = ctaSec?.block || {};
+
+  // PAGE carries the backing Page record incl. blocks — the editability audit
+  // resolves rendered strings onto `page:block:{id}` controls.
+  const homepagePage = (ctx.pages || []).find((p: any) => p.isHomepage);
+  const payloadPage = resolved.page || (resolved.kind === 'HOME' ? homepagePage : undefined);
+
   const cmsPayload = {
     route: ctx.route,
     subRoute: ctx.subRoute,
+    ROUTE: {
+      type: resolved.kind,
+      path: resolved.path,
+      slug: resolved.slug,
+      title: resolved.title || '',
+    },
+    ENTITY: resolved.entity
+      ? { id: resolved.entity.id, kind: resolved.kind.replace(/_DETAIL$/, '').toLowerCase(), title: resolved.entity.title || '' }
+      : undefined,
+    PAGE: payloadPage ? { id: payloadPage.id, slug: payloadPage.slug, blocks: payloadPage.blocks } : undefined,
+    // CMS-owned template copy dictionary — every furniture string (menu,
+    // pager, 404, back links, footer headings) renders from COPY.
+    COPY: (ctx.settings as any)?.templateCopy || {},
     PREVIEW_TOKEN: token,
     SITE_ID: ctx.site?.id || '',
     MANIFEST: constructionModernV1Manifest,
-    THEME: theme,
-    THEME_CSS: themeStyle,
-    SETTINGS: ctx.settings,
     COMPANY: company,
     LOGO: logoUrl,
     FAVICON: faviconUrl,
     HERO: {
-      title: ctx.hero?.title || company.name,
-      subtitle: ctx.hero?.subtitle || '',
-      image: heroImageUrl,
-      buttonLabel: ctx.hero?.buttonLabel || 'Связаться',
-      buttonUrl: resolveShowcaseTarget(ctx.hero?.buttonUrl),
-      secondaryCtaLabel: ctx.hero?.secondaryCtaLabel,
-      secondaryCtaUrl: resolveShowcaseTarget(ctx.hero?.secondaryCtaTarget),
-      location: ctx.hero?.location || '',
-      industry: ctx.hero?.industry || 'Компания'
+      title: heroSec?.heading || heroBlock.heading || heroBlock.title || ctx.hero?.title || company.name,
+      subtitle: heroBlock.subheading ?? heroBlock.subtitle ?? ctx.hero?.subtitle ?? '',
+      image: mediaUrl(ctx, heroBlock.imageId || ctx.hero?.imageId) || heroImageUrl,
+      buttonLabel: heroBlock.buttonLabel ?? ctx.hero?.buttonLabel,
+      buttonUrl: resolveShowcaseTarget(heroBlock.buttonUrl || ctx.hero?.buttonUrl),
+      secondaryCtaLabel: heroBlock.secondaryCtaLabel ?? ctx.hero?.secondaryCtaLabel,
+      secondaryCtaUrl: resolveShowcaseTarget(heroBlock.secondaryCtaTarget || ctx.hero?.secondaryCtaTarget),
+      location: heroBlock.location ?? ctx.hero?.location ?? '',
+      industry: heroBlock.industry ?? ctx.hero?.industry ?? ''
     },
     ABOUT: {
-      heading: ctx.about?.heading || 'О компании',
-      content: ctx.about?.content || '',
-      image: aboutImageUrl
+      heading: aboutSec?.heading || aboutBlock.heading || ctx.about?.heading || '',
+      content: aboutBlock.content ?? ctx.about?.content ?? '',
+      image: mediaUrl(ctx, aboutBlock.imageId || ctx.about?.imageId) || aboutImageUrl
     },
     CTA: {
-      title: ctx.cta?.title || 'Обсудим ваш проект',
-      description: ctx.cta?.description || '',
-      buttonLabel: ctx.cta?.buttonLabel || 'Связаться',
-      buttonUrl: ctx.cta?.buttonUrl ? resolveShowcaseTarget(ctx.cta.buttonUrl) : `${base}/#contacts`
+      title: ctaSec?.heading || ctaBlock.heading || ctaBlock.title || ctx.cta?.title || '',
+      description: ctaBlock.description ?? ctx.cta?.description ?? '',
+      buttonLabel: ctaBlock.buttonLabel ?? ctx.cta?.buttonLabel,
+      buttonUrl: (ctaBlock.buttonUrl || ctx.cta?.buttonUrl) ? resolveShowcaseTarget(ctaBlock.buttonUrl || ctx.cta?.buttonUrl) : `${base}/#contacts`
     },
     HOME_SECTIONS: homepageSections,
     NAV: nav,
@@ -399,7 +430,12 @@ export function constructionModernV1(ctx: RenderContext): string {
     DYNAMIC: dynamicSections,
     NEWS_ITEMS: news,
     VACANCIES: vacancies,
-    PROCESS_STEPS: []
+    PROCESS_STEPS: [],
+    // Raw config dumps trail the editable roots — audit resolves ownership
+    // against the canonical projections above, not these mirrors.
+    THEME: theme,
+    THEME_CSS: themeStyle,
+    SETTINGS: ctx.settings,
   };
 
   const scriptBlock = `<script>window.__CMS__=${escapeJsonForScript(cmsPayload)};window.__CMS_ROUTE__=${escapeJsonForScript({ route: ctx.route, subRoute: ctx.subRoute })};</script>`;

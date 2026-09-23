@@ -6,6 +6,16 @@ export interface LeadEnrichmentResult {
   source?: string;
 }
 
+/** Minimal identity a website-resolution provider needs — a Lead satisfies
+ *  this shape, and so does a pre-lead discovery candidate. */
+export interface EnrichmentSubject {
+  companyName: string;
+  city?: string | null;
+  address?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
 export interface LeadEnrichmentProvider {
-  enrich(input: { lead: Lead }): Promise<LeadEnrichmentResult>;
+  enrich(input: { lead: EnrichmentSubject }): Promise<LeadEnrichmentResult>;
 }

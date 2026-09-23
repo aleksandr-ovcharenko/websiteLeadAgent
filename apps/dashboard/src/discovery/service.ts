@@ -5,7 +5,6 @@ import { getDiscoveryProvider, listDiscoveryProviders } from './registry.js';
 import { DISCOVERY_PRESETS } from './presets.js';
 import type { DiscoveryRequest, DiscoveryContext } from './types.js';
 import { DiscoveryGatingService } from './gate.js';
-import { enrichLeads } from '../../../collector/src/enrichment/enrichLeads.js';
 import { createRegistry } from '../operations/registry.js';
 import { ActivityService } from '../activity/ActivityService.js';
 import type { QualificationOrchestrator } from '../qualification/QualificationOrchestrator.js';
@@ -101,6 +100,14 @@ export class DiscoveryService {
       },
     });
 
+    await this.activity.log({
+      module: 'DISCOVERY',
+      eventType: 'DISCOVERY_RUN_STARTED',
+      message: `Discovery started: ${request.provider} "${request.query}" ${request.location || ''}`.trim(),
+      discoveryRunId: run.id,
+      details: { provider: request.provider, query: request.query, location: request.location, limit: request.limit },
+    }).catch(() => undefined);
+
     try {
       const result = await provider.search(request, {
         prisma: this.prisma,
@@ -108,6 +115,33 @@ export class DiscoveryService {
         env: this.env,
         onProgress,
       });
+
+      if (result.warning || result.rawSample?.length || result.diagnostics) {
+        await this.prisma.discoveryRun.update({
+          where: { id: run.id },
+          data: {
+            providerOptions: {
+              ...(run.providerOptions as Record<string, any> || {}),
+              evidence: {
+                warning: result.warning ?? null,
+                ...(result.diagnostics ?? {}),
+                rawSample: (result.rawSample ?? []).slice(0, 3),
+              },
+            } as any,
+          },
+        });
+      }
+
+      if (result.diagnostics?.contactGroupsUnavailable) {
+        await this.activity.log({
+          level: 'WARN',
+          module: 'DISCOVERY',
+          eventType: 'DISCOVERY_PROVIDER_WARNING',
+          message: '2GIS API key lacks contact_groups permission (DGIS_CONTACT_GROUPS_UNAVAILABLE) — websites resolved via enrichment',
+          discoveryRunId: run.id,
+          details: { provider: request.provider, reason: 'DGIS_CONTACT_PERMISSION_MISSING' },
+        }).catch(() => undefined);
+      }
 
       const gating = new DiscoveryGatingService({ prisma: this.prisma, logger: this.logger, env: this.env });
 
@@ -127,22 +161,23 @@ export class DiscoveryService {
 
       const gateResult = await gating.process(run as any, gatedCandidates);
 
+      // Website resolution happened inside the gate (provider → enrichment →
+      // eligibility). Leads created here already have confirmed direct sites.
       await this.prisma.discoveryRun.update({
         where: { id: run.id },
         data: {
-          status: 'ENRICHING',
+          status: 'QUALIFYING',
           errorMessage: result.warning || null,
         },
       });
 
-      if (gateResult.leadIds.length) {
-        await enrichLeads({ prisma: this.prisma, logger: this.logger, runId: run.id, leadIds: gateResult.leadIds });
-      }
-
-      await this.prisma.discoveryRun.update({
-        where: { id: run.id },
-        data: { status: 'QUALIFYING' },
-      });
+      await this.activity.log({
+        module: 'DISCOVERY',
+        eventType: 'DISCOVERY_RUN_GATED',
+        message: `Discovery gated: ${gateResult.created} accepted, ${gateResult.duplicates} duplicates, ${gateResult.rejected} rejected`,
+        discoveryRunId: run.id,
+        details: { created: gateResult.created, duplicates: gateResult.duplicates, rejected: gateResult.rejected, uncertain: gateResult.uncertain, reasonBreakdown: gateResult.reasonBreakdown },
+      }).catch(() => undefined);
 
       await this.qualifyRun(run.id, 2, onProgress);
 
@@ -154,12 +189,28 @@ export class DiscoveryService {
         },
       });
 
+      await this.activity.log({
+        module: 'DISCOVERY',
+        eventType: 'DISCOVERY_RUN_COMPLETED',
+        message: `Discovery completed: ${completed.collected} found, ${completed.createdCount} added`,
+        discoveryRunId: run.id,
+        details: { status: 'COMPLETED', collected: completed.collected, createdCount: completed.createdCount, warning: result.warning ?? null },
+      }).catch(() => undefined);
+
       return { run: completed, warning: result.warning };
     } catch (err: any) {
       const failed = await this.prisma.discoveryRun.update({
         where: { id: run.id },
         data: { status: 'FAILED', errorMessage: err?.message || 'Unknown discovery error' },
       });
+      await this.activity.log({
+        level: 'ERROR',
+        module: 'DISCOVERY',
+        eventType: 'DISCOVERY_RUN_FAILED',
+        message: `Discovery failed: ${err?.message || 'Unknown discovery error'}`,
+        discoveryRunId: run.id,
+        details: { status: 'FAILED', error: err?.message || 'Unknown discovery error' },
+      }).catch(() => undefined);
       throw { run: failed, error: err?.message || 'Unknown discovery error' };
     }
   }

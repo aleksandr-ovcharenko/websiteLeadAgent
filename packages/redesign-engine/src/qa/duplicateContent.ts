@@ -97,7 +97,7 @@ export function detectSummaryDuplication(summary: string | null | undefined, blo
   if (s.length < 12) return [];
   const first = blocks[0];
   const body = norm([first?.content, first?.heading, ...(first?.items || []).map((i: any) => (typeof i === 'string' ? i : i?.title))].filter(Boolean).join(' ')).toLowerCase();
-  if (body.includes(s) || s.includes(body)) {
+  if (body.length >= 12 && (body.includes(s) || s.includes(body))) {
     return [{ kind: 'summary-duplicated', text: summary.slice(0, 120), occurrences: 2, detail: 'summary text repeated by first content block' }];
   }
   return [];
@@ -244,23 +244,36 @@ export function unglueText(s: string, opts: { sentenceBreaks?: boolean } = {}): 
       if (isCompoundToken(s, off, m.length)) return m;
       fixed.push(m); return `${a}${sep}${b}`;
     })
-    .replace(/([)»”])([А-ЯЁ][а-яё]+)/g, (m, a, b) => { fixed.push(m); return `${a}${sep}${b}`; });
+    .replace(/([)»”])([А-ЯЁ][а-яё]+)/g, (m, a, b) => { fixed.push(m); return `${a}${sep}${b}`; })
+    // Lost space after a sentence-end punctuation: "оборудования.План" →
+    // "оборудования. План". Cyrillic capital+lowercase avoids decimals,
+    // abbreviations (т.д.) and Latin compounds; initials (С.Пушкин →
+    // С. Пушкин) are still correct output.
+    .replace(/([.!?…])([А-ЯЁ][а-яё]+)/g, (m, a, b) => { fixed.push(m); return `${a} ${b}`; });
   return { text, fixed };
 }
 
-/** Strip a normalized prefix from raw text: walks raw chars until the
- *  normalized prefix is consumed, returns the remainder (formatting kept). */
-function stripNormPrefix(raw: string, normPrefix: string): string | null {
-  let need = normPrefix.replace(/\s+/g, ' ').trim().toLowerCase();
-  let i = 0, matched = '';
-  while (i < raw.length && need.length) {
-    const ch = raw[i];
-    const c = /\s/.test(ch) ? ' ' : ch.toLowerCase();
-    if (/\s/.test(ch) && (matched.endsWith(' ') || !matched.length)) { i++; continue; }
-    if (need[0] === c) { matched += c; need = need.slice(1); i++; continue; }
-    return null;
+/** Remove a normalized substring from raw text at any position: builds the
+ *  normalized form with a per-char index map back into the raw string, finds
+ *  the needle, and excises its raw span. Covers prefix, mid-content and
+ *  trailing duplication. Returns null when the needle is absent. */
+function removeNormSubstring(raw: string, normSub: string): string | null {
+  const needle = normSub.replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!needle) return null;
+  const map: number[] = [];
+  let normStr = '';
+  let pendingSpace = false;
+  for (let i = 0; i < raw.length; i++) {
+    if (/\s/.test(raw[i])) { if (normStr.length) pendingSpace = true; continue; }
+    if (pendingSpace) { normStr += ' '; map.push(i); pendingSpace = false; }
+    normStr += raw[i].toLowerCase();
+    map.push(i);
   }
-  return need.length ? null : raw.slice(i).replace(/^[\s\n.]+/, '');
+  const idx = normStr.indexOf(needle);
+  if (idx === -1) return null;
+  const rawStart = map[idx];
+  const rawEnd = map[idx + needle.length - 1] + 1;
+  return (raw.slice(0, rawStart) + '\n' + raw.slice(rawEnd)).replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 /**
@@ -298,15 +311,18 @@ export function normalizeEntityContent(entity: { title?: string; summary?: strin
   }
   summary = summary.toLowerCase();
   const blocks: any[] = [];
-  for (const [bi, raw] of (entity.blocks || []).entries()) {
+  let summaryDedupeDone = false;
+  for (const raw of entity.blocks || []) {
     const b: any = { ...raw };
-    // First block repeats the entity summary (renders twice). If the block
-    // has nothing else, drop it; if it has a heading/items/more content,
-    // strip the duplicated summary prefix and keep the rest.
-    if (bi === 0 && summary.length >= 12 && b.type === 'richText') {
+    // The first SURVIVING block must not repeat the entity summary — it
+    // renders twice. Summary is often a glued concat of the page's first
+    // sections, so the duplication can be a verbatim block, a prefix, or a
+    // mid-content substring. If an earlier block is dropped as a pure echo,
+    // the check carries to the next block.
+    if (!summaryDedupeDone && summary.length >= 12 && (typeof b.content === 'string' || typeof b.heading === 'string' || b.items?.length)) {
       const bc = norm(b.content || '').toLowerCase();
       const bcRaw = String(b.content || '');
-      if (!b.heading && !b.items?.length && (bc === summary || (bc && summary.includes(bc)) || (bc && bc.includes(summary)))) {
+      if (!b.heading && !b.items?.length && bc && (bc === summary || summary.includes(bc) || bc.includes(summary))) {
         repairs.push({ blockId: b.id, kind: 'dropped-duplicate-summary', detail: 'first block verbatim duplicates entity summary', removed: [b.content] });
         continue;
       }
@@ -315,14 +331,23 @@ export function normalizeEntityContent(entity: { title?: string; summary?: strin
         repairs.push({ blockId: b.id, kind: 'deduped-lines', detail: 'first block heading duplicates entity summary', removed: [b.heading] });
         delete b.heading;
       }
-      if (bc.startsWith(summary)) {
-        const stripped = stripNormPrefix(bcRaw, summary);
+      if (bc && summary.includes(bc)) {
+        // Whole block content lives inside the summary (mid-substring echo).
+        repairs.push({ blockId: b.id, kind: 'deduped-lines', detail: 'first block content fully duplicated by summary', removed: [bcRaw] });
+        delete b.content;
+      } else if (bc && bc.includes(summary)) {
+        const stripped = removeNormSubstring(bcRaw, summary);
         if (stripped !== null && (stripped.length >= 12 || b.heading || b.items?.length)) {
-          repairs.push({ blockId: b.id, kind: 'deduped-lines', detail: 'summary prefix stripped from first block', removed: [bcRaw.slice(0, bcRaw.length - stripped.length)] });
+          repairs.push({ blockId: b.id, kind: 'deduped-lines', detail: 'duplicated summary span stripped from first block', removed: [bcRaw.slice(0, bcRaw.length - stripped.length)] });
           b.content = stripped;
           if (!b.content) delete b.content;
         }
       }
+      if (!b.content && !b.heading && !b.items?.length && b.type === 'richText') {
+        repairs.push({ blockId: b.id, kind: 'dropped-duplicate-summary', detail: 'first block empty after summary dedupe', removed: [] });
+        continue;
+      }
+      summaryDedupeDone = true;
     }
     for (const field of ['heading', 'description']) {
       if (typeof b[field] === 'string' && b[field]) {

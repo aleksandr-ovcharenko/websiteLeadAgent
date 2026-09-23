@@ -12,6 +12,16 @@ import {
 } from 'lucide-react';
 
 const CMS = (typeof window !== 'undefined' && (window as any).__CMS__) || {};
+const COPY: Record<string, string> = (CMS as any).COPY || {};
+
+// CMS-owned furniture copy — a missing key renders the fallback literal or
+// omits the optional element; the template never invents user-facing text.
+const t = (key: string, fallback = ''): string => COPY[key] || fallback;
+const tf = (key: string, params: Record<string, string | number>, fallback = ''): string => {
+  const tpl = COPY[key];
+  if (!tpl) return fallback;
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? `{${k}}`));
+};
 
 function Arrow() {
   return <ArrowUpRight aria-hidden="true" />;
@@ -51,7 +61,9 @@ function Link({
 
 function mediaUrl(id?: string | null) {
   if (!id) return '';
-  return CMS.MEDIA?.[id]?.url || `/${id}`;
+  // A bare `/<id>` is a guaranteed-broken URL — emit nothing rather than a
+  // dead <img> when the media map lacks the row.
+  return CMS.MEDIA?.[id]?.url || '';
 }
 
 function formatDate(d?: string | null) {
@@ -113,22 +125,22 @@ function Header() {
       <div className="container header-inner">
         <Link href="/" className="wordmark" onClick={closeMenus}>
           <span className="wordmark-mark">{(company.name || 'N').slice(0, 1)}</span>
-          <span>{company.name || 'Company'}<span className="wordmark-sub">/ {company.industry || 'Подрядчик'}</span></span>
+          <span>{company.name || 'Company'}<span className="wordmark-sub">/ {company.industry || ''}</span></span>
         </Link>
-        <nav className="main-nav" aria-label="Основная навигация">
+        <nav className="main-nav" aria-label={t('menu.aria')}>
           {nav.map((item: any) => <NavigationBranch key={item.label} item={item} pathname={pathname} onNavigate={closeMenus} />)}
         </nav>
         <div className="header-actions">
           {company.phone ? <a className="header-phone" href={`tel:${company.phone}`}>{company.phone}</a> : null}
-          <Link href="/contact" className="nav-contact">Оставить заявку <Arrow /></Link>
+          <Link href="/contact" className="nav-contact">{t('cta.request')} <Arrow /></Link>
           <button className="menu-toggle" onClick={() => setMobileMenu(!mobileMenu)}>
-            {mobileMenu ? <X /> : <Menu />}<span>Меню</span>
+            {mobileMenu ? <X /> : <Menu />}<span>{t('menu.open')}</span>
           </button>
         </div>
       </div>
       <div className={`mobile-nav ${mobileMenu ? 'is-open' : ''}`} aria-hidden={!mobileMenu}>
         <div className="container mobile-nav-inner">
-          <p className="eyebrow">Навигация</p>
+          <p className="eyebrow">{t('footer.navigation')}</p>
           {nav.map((item: any) => <NavigationBranch key={`mobile-${item.label}`} item={item} pathname={pathname} mobile onNavigate={closeMenus} />)}
           {company.phone ? <a className="mobile-phone" href={`tel:${company.phone}`}>{company.phone}</a> : null}
         </div>
@@ -144,7 +156,7 @@ function Hero() {
   const subtitle = h.subtitle || '';
   return (
     <section className="hero">
-      {image ? <div className="hero-image"><img src={image} alt={title} /></div> : null}
+      {image ? <div className="hero-image hero__figure"><img src={image} alt={title} /></div> : null}
       <div className="hero-rule" />
       <div className="container hero-content">
         <div className="hero-copy">
@@ -152,17 +164,17 @@ function Hero() {
           <h1>{title}</h1>
           {subtitle ? <p className="hero-description">{subtitle}</p> : null}
           <div className="hero-actions">
-            <Link className="button button-accent" href="/contact">Обсудить проект <Arrow /></Link>
-            <Link className="text-link hero-secondary" href="/projects">Смотреть проекты <Arrow /></Link>
+            <Link className="button button-accent hero__cta" href="/contact">{t('cta.discuss')} <Arrow /></Link>
+            <Link className="text-link hero-secondary" href="/projects">{t('cta.viewProjects')} <Arrow /></Link>
           </div>
         </div>
         <div className="hero-meta">
-          <span>{(CMS.SERVICES || []).length} компетенций</span>
-          <span>{(CMS.PROJECTS || []).length} объектов</span>
-          <span>{company.city || 'Минск'}</span>
+          <span>{tf('hero.statsServices', { n: (CMS.SERVICES || []).length })}</span>
+          <span>{tf('hero.statsProjects', { n: (CMS.PROJECTS || []).length })}</span>
+          {company.city ? <span>{company.city}</span> : null}
         </div>
       </div>
-      <div className="hero-index">01 / 04</div>
+      <div className="hero-index">{tf('hero.index', { n: '01', total: String((CMS.HOME_SECTIONS || []).filter((s: any) => s?.enabled !== false).length || 4) })}</div>
     </section>
   );
 }
@@ -173,18 +185,18 @@ function Intro() {
   return (
     <section className="intro-section">
       <div className="container intro-grid">
-        <p className="eyebrow">01 / О компании</p>
+        <p className="eyebrow">{tf('section.numberedEyebrow', { n: '01', name: t('section.about') })}</p>
         <div>
-          <h2>Надёжная основа для <em>смелых</em> идей.</h2>
-          <p className="large-copy">{company.name || 'Наша компания'} — {text}</p>
-          <Link className="text-link" href="/about">Больше о компании <Arrow /></Link>
+          <h2>{t('intro.title.pre')}<em>{t('intro.title.em')}</em>{t('intro.title.post')}</h2>
+          <p className="large-copy">{company.name || t('about.companyHeading')} — {text}</p>
+          <Link className="text-link" href="/about">{t('about.more')} <Arrow /></Link>
         </div>
       </div>
     </section>
   );
 }
 
-function SectionIntro({ eyebrow, title, text, href, linkLabel = 'Смотреть все' }: { eyebrow: string; title: string; text?: string; href?: string; linkLabel?: string }) {
+function SectionIntro({ eyebrow, title, text, href, linkLabel = t('viewAll.default') }: { eyebrow: string; title: string; text?: string; href?: string; linkLabel?: string }) {
   return (
     <div className="section-intro">
       <div><p className="eyebrow">{eyebrow}</p><h2>{title}</h2></div>
@@ -214,7 +226,7 @@ function ProjectCard({ project, featured = false }: { project: any; featured?: b
       {image ? <div className="project-image"><img src={image} alt={project.title} /></div> : null}
       <div className="project-caption">
         <div>
-          <p className="eyebrow">{project.category || 'Объект'} / {year}</p>
+          <p className="eyebrow">{project.category || t('entity.project')} / {year}</p>
           <h3>{project.title}</h3>
         </div>
         <p>{project.location || ''}</p>
@@ -227,7 +239,7 @@ function Services() {
   return (
     <section className="section-block">
       <div className="container">
-        <SectionIntro eyebrow="02 / Что мы делаем" title="Работаем на ваш результат." text="Практическая экспертиза для сложных задач в строительстве, инфраструктуре и инженерии." href="/services" linkLabel="Наши компетенции" />
+        <SectionIntro eyebrow={t('industrial.servicesEyebrow')} title={t('industrial.servicesTitle')} text={t('industrial.servicesText')} href="/services" linkLabel={t('industrial.servicesLink')} />
         <div className="services-grid">{services.map((s: any, i: number) => <ServiceCard key={s.slug} service={s} number={String(i + 1).padStart(2, '0')} />)}</div>
       </div>
     </section>
@@ -238,7 +250,7 @@ function Projects() {
   return (
     <section className="section-block">
       <div className="container">
-        <SectionIntro eyebrow="03 / Объекты" title="Проекты с весом." text="Избранные объекты, выполненные с вниманием к деталям." href="/projects" linkLabel="Все объекты" />
+        <SectionIntro eyebrow={t('industrial.projectsEyebrow')} title={t('industrial.projectsTitle')} text={t('industrial.projectsText')} href="/projects" linkLabel={t('industrial.projectsLink')} />
         <div className="projects-grid">{projects.slice(0, 3).map((p: any) => <ProjectCard key={p.slug} project={p} featured />)}</div>
       </div>
     </section>
@@ -250,12 +262,12 @@ function News() {
   return (
     <section className="section-block">
       <div className="container">
-        <SectionIntro eyebrow="04 / Новости" title="Новости компании." href="/news" linkLabel="Все новости" />
+        <SectionIntro eyebrow={t('industrial.newsEyebrow')} title={t('industrial.newsTitle')} href="/news" linkLabel={t('industrial.newsLink')} />
         <div className="news-list">
           {news.slice(0, 4).map((item: any) => (
             <Link className="news-row" key={item.slug} href={`/news/${item.slug}`}>
               <span>{formatDate(item.publishedAt || item.date)}</span>
-              <span>{item.category || 'Компания'}</span>
+              <span>{item.category || t('about.companyHeading')}</span>
               <h3>{item.title}</h3>
               <Arrow />
             </Link>
@@ -271,10 +283,10 @@ function ContactStrip() {
     <section className="contact-strip">
       <div className="container contact-inner">
         <div>
-          <p className="eyebrow">Есть проект?</p>
-          <h2>Давайте создадим<br /><em>основу</em> вместе.</h2>
+          <p className="eyebrow">{t('cta.eyebrow')}</p>
+          <h2>{t('cta.heading.pre')}<br /><em>{t('cta.heading.em')}</em>{t('cta.heading.post')}</h2>
         </div>
-        <Link className="button button-dark" href="/contact">Связаться с нами <Arrow /></Link>
+        <Link className="button button-dark" href="/contact">{t('cta.contactUs')} <Arrow /></Link>
       </div>
     </section>
   );
@@ -282,8 +294,8 @@ function ContactStrip() {
 
 function Footer() {
   const footerGroups = [
-    { title: 'Навигация', links: (CMS.NAV || []).filter((n: any) => n.showInFooter !== false).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any) => [n.label, n.href]) },
-    { title: 'Компания', links: (CMS.PAGES || []).filter((p: any) => p.status !== 'ARCHIVED').slice(0, 4).map((p: any) => [p.title, `/${p.slug}`]) }
+    { title: t('footer.navigation'), links: (CMS.NAV || []).filter((n: any) => n.showInFooter !== false).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any) => [n.label, n.href]) },
+    { title: t('about.companyHeading'), links: (CMS.PAGES || []).filter((p: any) => p.status !== 'ARCHIVED').slice(0, 4).map((p: any) => [p.title, `/${p.slug}`]) }
   ].filter((g) => g.links.length);
   return (
     <footer className="footer">
@@ -291,20 +303,20 @@ function Footer() {
         <div>
           <Link href="/" className="wordmark">
             <span className="wordmark-mark">{(company.name || 'N').slice(0, 1)}</span>
-            <span>{company.name || 'Company'}<span className="wordmark-sub">/ {company.industry || 'Подрядчик'}</span></span>
+            <span>{company.name || 'Company'}<span className="wordmark-sub">/ {company.industry || ''}</span></span>
           </Link>
-          <p className="footer-note">{company.tagline || 'Генеральный подрядчик для инфраструктурных, промышленных и коммерческих объектов.'}</p>
+          <p className="footer-note">{company.tagline || t('footer.companyTagline')}</p>
         </div>
         {company.address?.formatted || company.address?.street ? (
           <div className="footer-contact">
-            <p className="eyebrow">Главный офис</p>
+            <p className="eyebrow">{t('contacts.office')}</p>
             <p>{(company.address?.formatted || company.address?.street).split('\n').slice(0, 2).join('<br />')}</p>
             {company.email ? <a href={`mailto:${company.email}`}>{company.email}</a> : null}
           </div>
         ) : null}
         {company.phone ? (
           <div className="footer-contact">
-            <p className="eyebrow">Телефон</p>
+            <p className="eyebrow">{t('contacts.phone')}</p>
             <a href={`tel:${company.phone}`}>{company.phone}</a>
             {company.hours ? <p>{company.hours}</p> : null}
           </div>
@@ -319,9 +331,9 @@ function Footer() {
         ))}
       </div>
       <div className="container footer-bottom">
-        <span>© {new Date().getFullYear()} {company.name || 'Company'}</span>
+        <span>{tf('footer.copyrightShort', { year: new Date().getFullYear(), name: company.name })}</span>
         <span>{company.domain || ''}</span>
-        <span>Строим среду для жизни и бизнеса</span>
+        <span>{t('footer.tagline')}</span>
       </div>
     </footer>
   );
@@ -349,7 +361,7 @@ function ContactDetails() {
     <div className="contact-details">
       <div><MapPin /><p>{(company.address?.formatted || company.address?.street || '').replace(/\n/g, '<br />')}</p></div>
       <div><Phone /><p><a href={`tel:${company.phone}`}>{company.phone}</a><br />{company.hours}</p></div>
-      <div><Mail /><p><a href={`mailto:${company.email}`}>{company.email}</a><br />Ответим в течение двух рабочих дней.</p></div>
+      <div><Mail /><p><a href={`mailto:${company.email}`}>{company.email}</a><br />{t('contacts.responseTime')}</p></div>
     </div>
   );
 }
@@ -372,12 +384,12 @@ function HomePage() {
 function CollectionPage({ type }: { type: 'services' | 'projects' | 'news' }) {
   const isServices = type === 'services';
   const isProjects = type === 'projects';
-  const title = isServices ? 'Компетенции, которым можно доверять.' : isProjects ? 'Проекты с весом.' : 'Новости компании.';
-  const text = isServices ? 'Практическая экспертиза для сложных задач в строительстве.' : isProjects ? 'Избранные проекты.' : 'Новости, идеи и истории.';
+  const title = t(`collection.${type}Title`);
+  const text = t(`collection.${type}Text`);
   const list = isServices ? services : isProjects ? projects : news;
   return (
     <SiteShell>
-      <PageHero eyebrow={`Раздел / ${type === 'services' ? 'компетенции' : type === 'projects' ? 'проекты' : 'новости'}`} title={title} text={text} />
+      <PageHero eyebrow={tf('collection.eyebrow', { name: t(`collection.${type}Name`) })} title={title} text={text} />
       <main className="collection-page">
         <div className="container">
           {isServices ? (
@@ -389,7 +401,7 @@ function CollectionPage({ type }: { type: 'services' | 'projects' | 'news' }) {
               {list.map((item: any) => (
                 <Link className="news-row" key={item.slug} href={`/news/${item.slug}`}>
                   <span>{formatDate(item.publishedAt || item.date)}</span>
-                  <span>{item.category || 'Компания'}</span>
+                  <span>{item.category || t('about.companyHeading')}</span>
                   <h3>{item.title}</h3>
                   <Arrow />
                 </Link>
@@ -411,7 +423,7 @@ function DetailPage({ kind, slug }: { kind: 'service' | 'project' | 'news'; slug
   if (!item) {
     return (
       <SiteShell>
-        <PageHero eyebrow="Ошибка" title="Страница не найдена" text="Запрашиваемый контент не существует." />
+        <PageHero eyebrow={t('notFound.eyebrow')} title={t('notFound.title')} text={t('notFound.detail')} />
       </SiteShell>
     );
   }
@@ -420,15 +432,15 @@ function DetailPage({ kind, slug }: { kind: 'service' | 'project' | 'news'; slug
   const image = kind === 'service' ? (item.imageUrl || mediaUrl(item.imageId)) : kind === 'project' ? (item.imageUrl || mediaUrl(item.coverImageId || item.imageId)) : (item.imageUrl || mediaUrl(item.coverImageId));
   return (
     <SiteShell>
-      <PageHero eyebrow={`${kind === 'project' ? 'Объект' : kind === 'service' ? 'Услуга' : 'Новость'} / ${item.category || 'Компания'}`} title={title} text={text} />
+      <PageHero eyebrow={tf('detail.eyebrow', { kind: t(`entity.${kind}`), category: item.category || t('about.companyHeading') })} title={title} text={text} />
       <main className="detail-page">
         <div className="container detail-grid">
           {image ? <div className="detail-media"><img src={image} alt={title} /></div> : null}
           <article>
-            <p className="eyebrow">Продуманный подход</p>
-            <h2>Сложное становится <em>выполнимым.</em></h2>
+            <p className="eyebrow">{t('detail.approachEyebrow')}</p>
+            <h2>{t('detail.approachTitle.pre')}<em>{t('detail.approachTitle.em')}</em></h2>
             <p className="large-copy">{item.content || text}</p>
-            <Link className="button button-accent" href="/contact">Обсудить проект <Arrow /></Link>
+            <Link className="button button-accent" href="/contact">{t('cta.discuss')} <Arrow /></Link>
           </article>
         </div>
       </main>
@@ -442,13 +454,13 @@ function PageView({ slug }: { slug: string }) {
   if (!page) {
     return (
       <SiteShell>
-        <PageHero eyebrow="Ошибка" title="Страница не найдена" text="К сожалению, запрашиваемая страница не существует." />
+        <PageHero eyebrow={t('notFound.eyebrow')} title={t('notFound.title')} text={tf('notFound.lede', { path: slug })} />
       </SiteShell>
     );
   }
   return (
     <SiteShell>
-      <PageHero eyebrow="Страница" title={page.title} text={page.seoDescription || ''} />
+      <PageHero eyebrow={t('page.eyebrow')} title={page.title} text={page.seoDescription || ''} />
       <main className="generic-page">
         <div className="container narrow-copy">
           <div dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(page.content || '') }} />
@@ -462,16 +474,16 @@ function PageView({ slug }: { slug: string }) {
 function VacanciesPage() {
   return (
     <SiteShell>
-      <PageHero eyebrow="Компания / Вакансии" title="Работа, которая имеет значение." text="Присоединяйтесь к команде." />
+      <PageHero eyebrow={t('vacancies.eyebrow')} title={t('vacancies.title')} text={t('vacancies.text')} />
       <main className="collection-page">
         <div className="container vacancies-list">
           {vacancies.map((v: any) => (
             <Link key={v.slug} className="vacancy-row" href={`/vacancies/${v.slug}`}>
-              <span>{v.location || 'Минск'} / Полный день</span>
+              <span>{v.location || ''} / {t('vacancy.fullTime')}</span>
               <h2>{v.title}</h2>
               <Arrow />
             </Link>
-          )) || <p className="container">Вакансий пока нет.</p>}
+          )) || <p className="container">{t('vacancy.empty')}</p>}
         </div>
       </main>
       <ContactStrip />
@@ -482,15 +494,15 @@ function VacanciesPage() {
 function ContactPage() {
   return (
     <SiteShell>
-      <PageHero eyebrow="Контакты / Начнём здесь" title="Обсудим следующий шаг." text="Расскажите, что вы строите, на каком этапе находитесь и каким видите результат." />
+      <PageHero eyebrow={t('contacts.eyebrow')} title={t('contacts.heroTitle')} text={t('contacts.heroText')} />
       <main className="contact-page">
         <div className="container contact-page-grid">
           <ContactDetails />
           <form className="contact-form" onSubmit={(e) => e.preventDefault()}>
-            <label>Имя<input required name="name" /></label>
-            <label>Рабочая почта<input required type="email" name="email" /></label>
-            <label>Чем можем помочь?<textarea required name="message" rows={5} /></label>
-            <button className="button button-accent" type="submit">Отправить запрос <Arrow /></button>
+            <label>{t('form.name')}<input required name="name" /></label>
+            <label>{t('form.email')}<input required type="email" name="email" /></label>
+            <label>{t('form.message')}<textarea required name="message" rows={5} /></label>
+            <button className="button button-accent" type="submit">{t('form.submit')} <Arrow /></button>
           </form>
         </div>
       </main>
@@ -503,7 +515,7 @@ export default function App() {
   useEffect(() => {
     if (typeof document !== 'undefined') {
       document.documentElement.lang = 'ru';
-      document.title = `${company.name} — ${route ? route : 'Главная'}`;
+      document.title = `${company.name} — ${route ? route : t('nav.home')}`;
     }
   }, [route]);
 

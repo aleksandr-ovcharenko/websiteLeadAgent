@@ -34,7 +34,7 @@ export async function collect2gisLeads(input: Collect2gisLeadsInput): Promise<Co
   const leadIds: string[] = [];
 
   for (let page = 1; page <= maxPages && collected < limit; page++) {
-    const items = await fetch2gisItems({ apiKey, city, query, page, pageSize });
+    const { items } = await fetch2gisItems({ apiKey, city, query, page, pageSize });
 
     if (items.length === 0) break;
 

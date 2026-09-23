@@ -46,12 +46,17 @@ const POLICY: Rule[] = [
   { type: 'suffix', value: 'deal.by', reason: 'MARKETPLACE', category: 'MARKETPLACE' },
   { type: 'suffix', value: 'rubrikator.by', reason: 'DIRECTORY', category: 'AGGREGATOR' },
   { type: 'suffix', value: 'minsk-city.by', reason: 'DIRECTORY', category: 'AGGREGATOR' },
+  // Directory platform: /builder-* company profiles are listings, not
+  // company sites.
+  { type: 'suffix', value: 'domovita.by', reason: 'DIRECTORY', category: 'AGGREGATOR' },
 
   // Government
   { type: 'suffix', value: 'gov.by', reason: 'GOVERNMENT', category: 'GOVERNMENT' },
 
   // Map / search / social / marketplace
   { type: 'suffix', value: '2gis.ru', reason: 'MAP_PROVIDER', category: 'MAP_PROVIDER' },
+  { type: 'suffix', value: '2gis.by', reason: 'MAP_PROVIDER', category: 'MAP_PROVIDER' },
+  { type: 'suffix', value: '2gis.com.by', reason: 'MAP_PROVIDER', category: 'MAP_PROVIDER' },
   { type: 'suffix', value: '2gis.kz', reason: 'MAP_PROVIDER', category: 'MAP_PROVIDER' },
   { type: 'suffix', value: '2gis.com', reason: 'MAP_PROVIDER', category: 'MAP_PROVIDER' },
   { type: 'exact', value: 'yandex.ru', reason: 'SEARCH_ENGINE', category: 'SEARCH_ENGINE' },

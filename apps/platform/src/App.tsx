@@ -356,6 +356,19 @@ function DetailPanel({
                   <span className="text-text truncate">{v.name || v.templateId}</span>
                   <div className="flex items-center gap-2">
                     {v.isPreferred && <span className="text-[10px] text-warning">preferred</span>}
+                    {!v.isPreferred && (
+                      <button
+                        onClick={async () => {
+                          const r = await fetch(`/api/platform/sites/${site.id}/variants/${v.id}/prefer`, { method: 'POST', credentials: 'include' });
+                          const body = await r.json().catch(() => ({}));
+                          if (!r.ok) { alert(body.reason || 'Failed to set preferred variant'); return; }
+                          window.location.reload();
+                        }}
+                        className="px-2 h-6 border border-border rounded hover:bg-surface-raised"
+                      >
+                        Prefer
+                      </button>
+                    )}
                     <button
                       onClick={() => window.open(`/showcase/${v.previewToken}`, '_blank')}
                       className="px-2 h-6 border border-border rounded hover:bg-surface-raised"

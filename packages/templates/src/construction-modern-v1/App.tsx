@@ -35,13 +35,13 @@ const DEFAULT_CMS: any = {
     title: '',
     subtitle: '',
     image: '',
-    buttonLabel: 'Связаться',
+    buttonLabel: '',
     buttonUrl: '',
     location: '',
     industry: ''
   },
   ABOUT: { heading: '', content: '', image: '' },
-  CTA: { title: '', description: '', buttonLabel: 'Связаться', buttonUrl: '' },
+  CTA: { title: '', description: '', buttonLabel: '', buttonUrl: '' },
   HOME_SECTIONS: [],
   NAV: [],
   PAGES: [],
@@ -66,6 +66,16 @@ function getCmsData() {
 
 const cms = getCmsData();
 const { COMPANY, NAV, PAGES, SERVICES, PROJECTS, PRODUCTS = [], DYNAMIC = [], NEWS_ITEMS, VACANCIES, PROCESS_STEPS: PROCESS_STEPS_RAW, HERO, ABOUT, CTA, LOGO, FAVICON, THEME, SETTINGS, HOME_SECTIONS } = cms;
+const COPY: Record<string, string> = (cms as any).COPY || {};
+
+// CMS-owned furniture copy — a missing key renders nothing (optional element)
+// or the fallback literal, never an invented string.
+const t = (key: string, fallback = ''): string => COPY[key] || fallback;
+const tf = (key: string, params: Record<string, string | number>, fallback = ''): string => {
+  const tpl = COPY[key];
+  if (!tpl) return fallback;
+  return tpl.replace(/\{(\w+)\}/g, (_, k) => String(params[k] ?? `{${k}}`));
+};
 const PROCESS_STEPS = (PROCESS_STEPS_RAW?.length ? PROCESS_STEPS_RAW : (DYNAMIC.find((d: any) => (d.kind || '').toLowerCase() === 'process')?.items || []).map((it: any, i: number) => ({ n: String(i + 1).padStart(2, '0'), label: it.title || '', desc: it.text || '', href: '#', linkLabel: '' })));
 const PREVIEW_TOKEN = (cms as any).PREVIEW_TOKEN || '';
 const SITE_ID = (cms as any).SITE_ID || '';
@@ -101,11 +111,11 @@ function clampCopy(text: string | undefined, max = 180): string {
 function sectionConfig(type: string) {
   return (HOME_SECTIONS || []).find((s: any) => s.type === type && s.enabled !== false);
 }
-function sectionHeading(type: string, fallback: string) {
-  return sectionConfig(type)?.title || fallback;
+function sectionHeading(type: string) {
+  return sectionConfig(type)?.title || t(`collection.${type}`) || t(`section.${type}`) || (type === 'contacts' ? t('contacts.heading') : '');
 }
-function sectionEyebrow(type: string, fallback: string) {
-  return sectionConfig(type)?.eyebrow || fallback;
+function sectionEyebrow(type: string) {
+  return sectionConfig(type)?.eyebrow || '';
 }
 function homeSectionEnabled(type: string) {
   return !!sectionConfig(type);
@@ -247,15 +257,16 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
           </div>
         </a>
 
-        {/* Desktop nav */}
-        <nav className="hidden lg:flex items-center gap-7">
+        {/* Desktop nav — bounded: arbitrary item counts scroll inside the
+            header instead of forcing horizontal page overflow */}
+        <nav className="hidden lg:flex flex-1 min-w-0 items-center gap-7 overflow-x-auto">
           {(FLAT_NAV || []).filter((n: any) => n.showInHeader).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any) => (
             <a
               key={n.id}
               href={n.href}
               target={n.external ? '_blank' : undefined}
               rel={n.external ? 'noopener noreferrer' : undefined}
-              className="text-[12px] uppercase tracking-[0.12em] font-medium transition-colors"
+              className="shrink-0 whitespace-nowrap text-[12px] uppercase tracking-[0.12em] font-medium transition-colors"
               style={{ color: 'var(--fg)' }}
               onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
               onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}
@@ -287,7 +298,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
               el.style.color = 'var(--fg)'
             }}
           >
-            {HERO.buttonLabel || 'Связаться'}
+            {HERO.buttonLabel || t('cta.primary')}
           </a>
         </div>
 
@@ -295,7 +306,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
         <button
           onClick={() => setMenuOpen(!menuOpen)}
           className="lg:hidden flex flex-col justify-center gap-[5px] p-2 -mr-2"
-          aria-label="Открыть меню"
+          aria-label={t('menu.openAria')}
         >
           <span
             className="block h-px w-6 transition-all duration-200 origin-center"
@@ -360,7 +371,7 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
               className="text-center py-3.5 border text-sm uppercase tracking-wider font-medium"
               style={{ borderColor: 'var(--brass)', color: 'var(--brass)' }}
             >
-              {HERO.buttonLabel || 'Связаться'}
+              {HERO.buttonLabel || t('cta.primary')}
             </a>
           </div>
         </nav>
@@ -378,19 +389,21 @@ function Hero() {
   return (
     <section
       data-hero="hero"
-      className="relative overflow-hidden"
+      className="hero relative overflow-hidden"
       style={hasImage
         ? { minHeight: '88svh', background: 'var(--dark)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }
         : { minHeight: '420px', background: 'var(--dark)', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}
     >
       {/* Full-bleed background photo, or a composed accent panel when none exists */}
       {hasImage ? (
-        <img
-          src={HERO.image}
-          alt={title}
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{ objectPosition: 'right center' }}
-        />
+        <div className="hero__figure absolute inset-0">
+          <img
+            src={HERO.image}
+            alt={title}
+            className="w-full h-full object-cover"
+            style={{ objectPosition: 'right center' }}
+          />
+        </div>
       ) : (
         <div
           className="absolute inset-0"
@@ -496,7 +509,7 @@ function Hero() {
             {HERO.buttonUrl ? (
             <a
               href={HERO.buttonUrl}
-              className="inline-flex items-center px-7 py-3.5 text-[11px] uppercase font-bold tracking-[0.18em] transition-all"
+              className="hero__cta inline-flex items-center px-7 py-3.5 text-[11px] uppercase font-bold tracking-[0.18em] transition-all"
               style={{ background: 'var(--brass)', color: 'var(--dark)' }}
               onMouseEnter={e => {
                 const el = e.currentTarget as HTMLElement
@@ -509,7 +522,7 @@ function Hero() {
                 el.style.color = 'var(--dark)'
               }}
             >
-              {HERO.buttonLabel || 'Связаться'}
+              {HERO.buttonLabel || t('cta.primary')}
             </a>
             ) : null}
             {HERO.secondaryCtaLabel && HERO.secondaryCtaUrl ? (
@@ -568,7 +581,7 @@ function NoImageTile({ title, num, dark }: { title?: string; num?: string; dark?
         border: '1px solid var(--border)',
         minHeight: '220px',
       }}
-      aria-label={title ? `${title} — без фотографии` : 'Без фотографии'}
+      aria-label={title ? tf('media.noPhotoTitled', { title }) : t('media.noPhoto')}
     >
       <span
         className="text-[10px] uppercase tracking-[0.35em] font-semibold"
@@ -605,9 +618,9 @@ function Projects() {
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 pt-24 md:pt-36 pb-14 md:pb-20">
         <div className="flex items-end justify-between">
           <div>
-            <Eyebrow>{sectionEyebrow('projects', 'Портфолио')}</Eyebrow>
+            <Eyebrow>{sectionEyebrow('projects')}</Eyebrow>
             <h2 className="text-4xl md:text-5xl font-bold leading-[1.05]" style={{ ...GEO, color: 'var(--fg)' }}>
-              {sectionHeading('projects', 'Реализованные объекты')}
+              {sectionHeading('projects')}
             </h2>
           </div>
           <a
@@ -617,7 +630,7 @@ function Projects() {
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
             onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}
           >
-            Все объекты
+            {tf('viewAll.template', { name: sectionHeading('projects') })}
             <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
           </a>
         </div>
@@ -687,7 +700,7 @@ function Projects() {
                 el.style.borderBottomColor = 'var(--border)'
               }}
             >
-              Подробнее об объекте
+              {t('detail.projectMore')}
               <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
             </a>
           </div>
@@ -790,7 +803,7 @@ function Projects() {
                 el.style.borderBottomColor = 'var(--border)'
               }}
             >
-              Подробнее об объекте
+              {t('detail.projectMore')}
               <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
             </a>
           </div>
@@ -868,7 +881,7 @@ function Projects() {
         style={{ borderColor: 'var(--border)' }}
       >
         <p className="text-sm" style={{ color: 'var(--muted)' }}>
-          Реализованные объекты компании
+          {t('collection.projectsText')}
         </p>
         <a
           href={collectionHref('PROJECTS')}
@@ -877,7 +890,7 @@ function Projects() {
           onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
           onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}
         >
-          Все объекты
+          {tf('viewAll.template', { name: sectionHeading('projects') })}
           <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
         </a>
       </div>
@@ -900,18 +913,18 @@ function Services() {
             <div className="flex items-center gap-4 mb-5">
               <div className="h-px w-8 shrink-0" style={{ background: 'var(--brass)' }} />
               <span className="text-[11px] uppercase tracking-[0.3em] font-medium" style={{ color: 'rgba(242,244,245,0.4)' }}>
-                {sectionEyebrow('services', 'Что мы делаем')}
+                {sectionEyebrow('services')}
               </span>
             </div>
             <h2
               className="font-bold leading-[1.05]"
               style={{ ...GEO, color: 'white', fontSize: 'clamp(2.5rem, 5vw, 3.5rem)' }}
             >
-              {sectionHeading('services', 'Наши услуги')}
+              {sectionHeading('services')}
             </h2>
           </div>
           <p className="text-sm md:text-base leading-relaxed lg:pb-1" style={{ color: 'rgba(242,244,245,0.45)' }}>
-            Услуги и направления работы компании.
+            {t('collection.servicesText')}
           </p>
         </div>
       </div>
@@ -992,7 +1005,7 @@ function Services() {
         style={{ borderColor: 'rgba(242,244,245,0.08)' }}
       >
         <p className="text-xs uppercase tracking-[0.25em]" style={{ color: 'rgba(242,244,245,0.22)' }}>
-          Работаем с заказчиками по договору
+          {t('services.footerNote')}
         </p>
         <a
           href={sectionHref('CONTACTS')}
@@ -1001,7 +1014,7 @@ function Services() {
           onMouseEnter={e => (e.currentTarget.style.color = 'white')}
           onMouseLeave={e => (e.currentTarget.style.color = 'var(--brass)')}
         >
-          Обсудить задачу →
+          {t('cta.discussTask')}
         </a>
       </div>
 
@@ -1055,13 +1068,13 @@ function About() {
             }}
           >
             <BrandMark size={34} style={{ marginBottom: '0.75rem' }} />
-            <Eyebrow>{sectionEyebrow('about', 'О компании')}</Eyebrow>
+            <Eyebrow>{sectionEyebrow('about')}</Eyebrow>
 
             <h2
               className="font-bold leading-[1.05] mb-6"
               style={{ ...GEO, color: 'var(--fg)', fontSize: 'clamp(1.75rem, 2.8vw, 2.35rem)' }}
             >
-              {sectionHeading('about', 'О компании')}
+              {sectionHeading('about')}
             </h2>
 
             <div
@@ -1095,16 +1108,16 @@ function Process() {
 
           {/* ── LEFT: sticky editorial heading ── */}
           <div className="lg:sticky lg:top-28">
-            <Eyebrow>{sectionEyebrow('process', 'Как мы работаем')}</Eyebrow>
+            <Eyebrow>{sectionEyebrow('process')}</Eyebrow>
             <h2
               className="font-bold leading-[1.0] mb-7"
               style={{ ...GEO, color: 'var(--fg)', fontSize: 'clamp(2.25rem, 4.5vw, 3.25rem)' }}
             >
-              От идеи<br />до готового<br />объекта
+              {sectionHeading('process')}
             </h2>
             <div className="w-10 h-px mb-7" style={{ background: 'var(--brass)' }} />
             <p className="text-sm leading-relaxed" style={{ color: 'var(--muted)', maxWidth: '272px' }}>
-              Этапы работы над проектом — от первого контакта до результата.
+              {t('section.processLede')}
             </p>
           </div>
 
@@ -1244,7 +1257,7 @@ function ProductCard({ p, i }: { p: any; i: number }) {
           ) : null}
           {p.price ? <p className="mt-3 text-sm font-semibold" style={{ color: 'var(--brass)' }}>{p.price}</p> : null}
           <span className="inline-flex items-center gap-1.5 mt-4 text-[11px] uppercase font-bold tracking-[0.16em] group-hover:gap-3 transition-all" style={{ color: 'var(--brass)' }}>
-            Подробнее <span>→</span>
+            {t('detail.more')} <span>→</span>
           </span>
         </div>
       </a>
@@ -1253,26 +1266,27 @@ function ProductCard({ p, i }: { p: any; i: number }) {
 }
 
 function ProductList({ preview = false }: { preview?: boolean }) {
+  const H: any = preview ? 'h2' : 'h1' 
   if (PRODUCTS.length === 0) return null
-  if (typeof document !== 'undefined' && !preview) document.title = `Каталог — ${COMPANY.name}`
+  if (typeof document !== 'undefined' && !preview) document.title = `${t('collection.products') || ''} — ${COMPANY.name}`
   const items = preview ? PRODUCTS.slice(0, 6) : PRODUCTS
   return (
     <section id="products" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
         <div className="flex items-end justify-between mb-12">
           <div>
-            <Eyebrow>{sectionEyebrow('products', 'Каталог')}</Eyebrow>
-            <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>
-              {sectionHeading('products', 'Каталог')}
-            </h2>
+            <Eyebrow>{sectionEyebrow('products')}</Eyebrow>
+            <H className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>
+              {sectionHeading('products')}
+            </H>
           </div>
           {preview ? (
             <a href={collectionHref('PRODUCTS')} className="hidden md:flex items-center gap-2 text-sm font-medium group" style={{ color: 'var(--fg)' }}
               onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}>
-              Весь каталог <span className="transition-transform group-hover:translate-x-1">→</span>
+              {tf('viewAll.template', { name: sectionHeading('products') })} <span className="transition-transform group-hover:translate-x-1">→</span>
             </a>
           ) : (
-            <a href={homeHref()} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к главной</a>
+            <a href={homeHref()} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>{t('back.home')}</a>
           )}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
@@ -1289,14 +1303,14 @@ function ProductDetail({ slug }: { slug: string }) {
   if (typeof document !== 'undefined' && p) document.title = `${p.title} — ${COMPANY.name}`
   if (!p) return (
     <section className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
-      <div className="max-w-[900px] mx-auto px-6 md:px-10"><h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>Товар не найден</h1></div>
+      <div className="max-w-[900px] mx-auto px-6 md:px-10"><h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>{t('notFound.title')}</h1></div>
     </section>
   )
   const attrs = Object.entries(p.attributes || {}).filter(([, v]) => v)
   return (
     <section id="products" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[1100px] mx-auto px-6 md:px-10">
-        <a href={backHref('PRODUCTS', returnTo || 'collection')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к каталогу</a>
+        <a href={backHref('PRODUCTS', returnTo || 'collection')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>{`← ${t('back.products')}`}</a>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 mt-8 items-start">
           <div>
             {p.img ? <img src={p.img} alt={p.title} className="w-full object-cover" style={{ aspectRatio: '4/3', background: 'var(--card-bg)' }} /> : null}
@@ -1307,7 +1321,7 @@ function ProductDetail({ slug }: { slug: string }) {
             ) : null}
           </div>
           <div>
-            <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--muted)' }}>{p.category || 'Каталог'}</p>
+            <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--muted)' }}>{p.category || t('collection.products')}</p>
             <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-5" style={{ ...GEO, color: 'var(--fg)' }}>{p.title}</h1>
             {p.summary ? <p className="text-base leading-relaxed mb-6" style={{ color: 'var(--muted)' }}>{clampCopy(p.summary, 400)}</p> : null}
             {attrs.length ? (
@@ -1323,7 +1337,7 @@ function ProductDetail({ slug }: { slug: string }) {
             {p.price ? <p className="text-xl font-bold mb-6" style={{ color: 'var(--brass)' }}>{p.price}</p> : null}
             <a href={sectionHref('CONTACTS')} className="inline-flex items-center px-7 py-3.5 text-[11px] uppercase font-bold tracking-[0.18em]"
               style={{ background: 'var(--brass)', color: 'var(--dark)' }}>
-              {CTA.buttonLabel || 'Связаться'}
+              {CTA.buttonLabel || t('cta.primary')}
             </a>
             {p.content ? <div className="mt-8 text-sm leading-relaxed" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{clampCopy(p.content, 1200)}</div> : null}
           </div>
@@ -1334,7 +1348,7 @@ function ProductDetail({ slug }: { slug: string }) {
           if (!others.length) return null
           return (
             <div className="mt-16 pt-10" style={{ borderTop: '1px solid var(--border)' }}>
-              <p className="text-[11px] uppercase tracking-[0.22em] mb-6" style={{ color: 'var(--muted)' }}>Другие модели</p>
+              <p className="text-[11px] uppercase tracking-[0.22em] mb-6" style={{ color: 'var(--muted)' }}>{t('detail.otherItems')}</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                 {others.map((x: any) => (
                   <a key={x.slug} href={productHref(x.slug)} className="group block border" style={{ borderColor: 'var(--border)', background: 'var(--card-bg)' }}>
@@ -1343,7 +1357,7 @@ function ProductDetail({ slug }: { slug: string }) {
                     </div>
                     <div className="p-4">
                       <span className="text-sm font-bold" style={{ ...GEO, color: 'var(--fg)' }}>{x.title}</span>
-                      <span className="block text-[10px] uppercase tracking-[0.16em] mt-1 group-hover:underline" style={{ color: 'var(--brass)' }}>Смотреть модель →</span>
+                      <span className="block text-[10px] uppercase tracking-[0.16em] mt-1 group-hover:underline" style={{ color: 'var(--brass)' }}>{tf('detail.viewItem', { name: t('entity.product') })}</span>
                     </div>
                   </a>
                 ))}
@@ -1366,8 +1380,8 @@ function DynSection({ kind }: { kind: string }) {
   if (kind === 'faq') return (
     <section id={id} className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[900px] mx-auto px-6 md:px-10">
-        <Eyebrow>{sec.heading || 'FAQ'}</Eyebrow>
-        <h2 className="text-3xl md:text-4xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>{sec.heading || 'Часто задаваемые вопросы'}</h2>
+        <Eyebrow>{sec.heading || t('section.faq')}</Eyebrow>
+        <h2 className="text-3xl md:text-4xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>{sec.heading || t('section.faq')}</h2>
         <div className="border-t" style={{ borderColor: 'var(--border)' }}>
           {items.map((it: any, i: number) => (
             <details key={i} className="border-b py-5 group" style={{ borderColor: 'var(--border)' }}>
@@ -1385,8 +1399,8 @@ function DynSection({ kind }: { kind: string }) {
   if (kind === 'reviews') return (
     <section id={id} className="py-24 md:py-32 border-t" style={{ background: 'var(--card-bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
-        <Eyebrow>{sec.heading || 'Отзывы'}</Eyebrow>
-        <h2 className="text-3xl md:text-4xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>{sec.heading || 'Отзывы'}</h2>
+        <Eyebrow>{sec.heading || t('section.reviews')}</Eyebrow>
+        <h2 className="text-3xl md:text-4xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>{sec.heading || t('section.reviews')}</h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
           {items.slice(0, 6).map((it: any, i: number) => (
             <figure key={i} className="p-6 border" style={{ borderColor: 'var(--border)', background: 'var(--bg)' }}>
@@ -1402,8 +1416,8 @@ function DynSection({ kind }: { kind: string }) {
   if (kind === 'process') return (
     <section id={id} className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[900px] mx-auto px-6 md:px-10">
-        <Eyebrow>{sec.heading || 'Как мы работаем'}</Eyebrow>
-        <h2 className="text-3xl md:text-4xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>{sec.heading || 'Как мы работаем'}</h2>
+        <Eyebrow>{sec.heading || t('section.process')}</Eyebrow>
+        <h2 className="text-3xl md:text-4xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>{sec.heading || t('section.process')}</h2>
         <div className="border-t" style={{ borderColor: 'var(--border)' }}>
           {items.map((it: any, i: number) => (
             <div key={i} className="flex gap-6 py-6 border-b" style={{ borderColor: 'var(--border)' }}>
@@ -1442,8 +1456,8 @@ function DynSection({ kind }: { kind: string }) {
   if (kind === 'pricing') return (
     <section id={id} className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
-        <Eyebrow>{sec.heading || 'Цены'}</Eyebrow>
-        <h2 className="text-3xl md:text-4xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>{sec.heading || 'Цены'}</h2>
+        <Eyebrow>{sec.heading || t('section.pricing')}</Eyebrow>
+        <h2 className="text-3xl md:text-4xl font-bold mb-10" style={{ ...GEO, color: 'var(--fg)' }}>{sec.heading || t('section.pricing')}</h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {items.map((it: any, i: number) => (
             <div key={i} className="p-6 border" style={{ borderColor: 'var(--border)', background: 'var(--card-bg)' }}>
@@ -1487,10 +1501,10 @@ function News() {
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
         <div className="flex items-end justify-between mb-12">
           <div>
-            <Eyebrow>{sectionEyebrow('news', 'Актуальное')}</Eyebrow>
-            <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>
-              {sectionHeading('news', 'Новости')}
-            </h2>
+            <Eyebrow>{sectionEyebrow('news')}</Eyebrow>
+            <H className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>
+              {sectionHeading('news')}
+            </H>
           </div>
           <a
             href={collectionHref('NEWS')}
@@ -1499,7 +1513,7 @@ function News() {
             onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
             onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}
           >
-            Все новости
+            {tf('viewAll.template', { name: sectionHeading('news') })}
             <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
           </a>
         </div>
@@ -1535,7 +1549,7 @@ function News() {
 
         <div className="mt-8 md:hidden">
           <a href={collectionHref('NEWS')} className="text-sm font-medium transition-colors" style={{ color: 'var(--fg)' }}>
-            Все новости →
+            {tf('viewAll.template', { name: sectionHeading('news') })} →
           </a>
         </div>
       </div>
@@ -1554,7 +1568,7 @@ function NewsDetail({ slug }: { slug: string }) {
     return (
       <section id="news" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
         <div className="max-w-[800px] mx-auto px-6 md:px-10">
-          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>Новость не найдена</h1>
+          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>{t('notFound.title')}</h1>
         </div>
       </section>
     )
@@ -1562,7 +1576,7 @@ function NewsDetail({ slug }: { slug: string }) {
   return (
     <section id="news" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[800px] mx-auto px-6 md:px-10">
-        <a href={backHref('NEWS', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к новостям</a>
+        <a href={backHref('NEWS', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>{`← ${t('back.news')}`}</a>
         <article className="mt-8">
           {item.coverImageUrl ? (
             <div className="mb-8 overflow-hidden" style={{ aspectRatio: '3/2' }}>
@@ -1581,7 +1595,8 @@ function NewsDetail({ slug }: { slug: string }) {
 
 // ─── Project list ─────────────────────────────────────────────────────────────
 function ProjectList({ preview = false }: { preview?: boolean }) {
-  if (typeof document !== 'undefined' && !preview) document.title = `Объекты — ${COMPANY.name}`
+  const H: any = preview ? 'h2' : 'h1' 
+  if (typeof document !== 'undefined' && !preview) document.title = `${t('collection.projects') || ''} — ${COMPANY.name}`
   const returnTo = preview ? 'home' : 'collection'
   const back = sectionHref('PROJECTS')
   return (
@@ -1589,20 +1604,20 @@ function ProjectList({ preview = false }: { preview?: boolean }) {
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
         <div className="flex items-end justify-between mb-12">
           <div>
-            <Eyebrow>{sectionEyebrow('projects', 'Портфолио')}</Eyebrow>
-            <h2 className="text-4xl md:text-5xl font-bold leading-[1.05]" style={{ ...GEO, color: 'var(--fg)' }}>
-              {sectionHeading('projects', 'Реализованные объекты')}
-            </h2>
+            <Eyebrow>{sectionEyebrow('projects')}</Eyebrow>
+            <H className="text-4xl md:text-5xl font-bold leading-[1.05]" style={{ ...GEO, color: 'var(--fg)' }}>
+              {sectionHeading('projects')}
+            </H>
           </div>
           {preview ? (
             <a href={collectionHref('PROJECTS')} className="hidden md:flex items-center gap-2 text-sm font-medium group transition-colors" style={{ color: 'var(--fg)' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}>
-              Все объекты <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+              {tf('viewAll.template', { name: sectionHeading('projects') })} <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
             </a>
           ) : null}
         </div>
 
         {!preview ? (
-          <a href={back} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к главной / Объекты</a>
+          <a href={back} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>{t('back.home')} / {sectionHeading('projects')}</a>
         ) : null}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border-t mt-6" style={{ borderColor: 'var(--border)' }}>
@@ -1640,13 +1655,13 @@ function ProjectList({ preview = false }: { preview?: boolean }) {
               style={{ background: 'var(--dark)', borderColor: 'var(--border)' }}
             >
               <span className="text-[10px] uppercase tracking-[0.35em] font-semibold" style={{ color: 'rgba(242,244,245,0.5)' }}>
-                Портфолио
+                {t('section.portfolio')}
               </span>
               <span className="font-black leading-none tabular-nums" style={{ ...GEO, fontSize: 'clamp(2.5rem, 5vw, 4rem)', color: 'var(--brass)' }}>
                 {String(PROJECTS.length).padStart(2, '0')}
               </span>
               <span className="text-xs uppercase tracking-[0.15em] font-medium transition-colors group-hover:text-[var(--brass)]" style={{ color: 'rgba(242,244,245,0.7)' }}>
-                Смотреть все объекты →
+                {t('viewAll.projects')}
               </span>
             </a>
           ) : null}
@@ -1667,7 +1682,7 @@ function ProjectDetail({ slug }: { slug: string }) {
     return (
       <section id="projects" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
         <div className="max-w-[900px] mx-auto px-6 md:px-10">
-          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>Объект не найден</h1>
+          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>{t('notFound.title')}</h1>
         </div>
       </section>
     )
@@ -1684,9 +1699,9 @@ function ProjectDetail({ slug }: { slug: string }) {
     return (
       <section id="projects" className="py-16 md:py-24 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
         <div className="max-w-[900px] mx-auto px-6 md:px-10">
-          <a href={backHref('PROJECTS', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к объектам</a>
+          <a href={backHref('PROJECTS', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>{`← ${t('back.projects')}`}</a>
           <article className="mt-10">
-            <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--brass)' }}>Объект</p>
+            <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--brass)' }}>{t('entity.project')}</p>
             <h1 className="text-3xl md:text-5xl font-bold leading-tight mb-5" style={{ ...GEO, color: 'var(--fg)' }}>{p.title}</h1>
             {meta.length ? (
               <p className="text-[12px] uppercase tracking-[0.14em] mb-8" style={{ color: 'var(--muted)' }}>{meta.join(' · ')}</p>
@@ -1698,16 +1713,16 @@ function ProjectDetail({ slug }: { slug: string }) {
             <div className="mt-10 pt-8 flex flex-wrap items-center gap-5" style={{ borderTop: '1px solid var(--border)' }}>
               <a href={sectionHref('CONTACTS')} className="inline-flex items-center px-7 py-3.5 text-[11px] uppercase font-bold tracking-[0.18em]"
                 style={{ background: 'var(--brass)', color: 'var(--dark)' }}>
-                Обсудить ваш проект
+                {t('cta.discussProject')}
               </a>
               <a href={collectionHref('PROJECTS')} className="text-sm font-medium group" style={{ color: 'var(--fg)' }}>
-                Все объекты <span className="transition-transform duration-200 group-hover:translate-x-1 inline-block">→</span>
+                {tf('viewAll.template', { name: sectionHeading('projects') })} <span className="transition-transform duration-200 group-hover:translate-x-1 inline-block">→</span>
               </a>
             </div>
           </article>
           {related.length ? (
             <div className="mt-14 pt-10" style={{ borderTop: '1px solid var(--border)' }}>
-              <p className="text-[11px] uppercase tracking-[0.22em] mb-6" style={{ color: 'var(--muted)' }}>Другие проекты</p>
+              <p className="text-[11px] uppercase tracking-[0.22em] mb-6" style={{ color: 'var(--muted)' }}>{t('detail.otherItems')}</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
                 {related.map((x, i) => (
                   <a key={x.slug || x.id} href={projectHref(x.slug)} className="group block border" style={{ borderColor: 'var(--border)', background: 'var(--card-bg)' }}>
@@ -1720,7 +1735,7 @@ function ProjectDetail({ slug }: { slug: string }) {
                     </div>
                     <div className="p-4">
                       <span className="text-sm font-bold" style={{ ...GEO, color: 'var(--fg)' }}>{x.title}</span>
-                      <span className="block text-[10px] uppercase tracking-[0.16em] mt-1 group-hover:underline" style={{ color: 'var(--brass)' }}>Смотреть объект →</span>
+                      <span className="block text-[10px] uppercase tracking-[0.16em] mt-1 group-hover:underline" style={{ color: 'var(--brass)' }}>{tf('detail.viewItem', { name: t('entity.project') })}</span>
                     </div>
                   </a>
                 ))}
@@ -1735,7 +1750,7 @@ function ProjectDetail({ slug }: { slug: string }) {
   return (
     <section id="projects" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[900px] mx-auto px-6 md:px-10">
-        <a href={backHref('PROJECTS', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к объектам</a>
+        <a href={backHref('PROJECTS', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>{`← ${t('back.projects')}`}</a>
         <article className="mt-8">
           {p.img ? (
             <div className="mb-8 overflow-hidden" style={{ aspectRatio: '3/2' }}>
@@ -1761,7 +1776,8 @@ function ProjectDetail({ slug }: { slug: string }) {
 
 // ─── Service list ─────────────────────────────────────────────────────────────
 function ServiceList({ preview = false }: { preview?: boolean }) {
-  if (typeof document !== 'undefined' && !preview) document.title = `Услуги — ${COMPANY.name}`
+  if (typeof document !== 'undefined' && !preview) document.title = `${sectionHeading('services')} — ${COMPANY.name}`
+  const H: any = preview ? 'h2' : 'h1' 
   const returnTo = preview ? 'home' : 'collection'
   const items = preview ? SERVICES.slice(0, 6) : SERVICES
   if (preview && SERVICES.length === 0) return null
@@ -1770,20 +1786,20 @@ function ServiceList({ preview = false }: { preview?: boolean }) {
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
         <div className="flex items-end justify-between mb-12">
           <div>
-            <Eyebrow>{sectionEyebrow('services', 'Специализация')}</Eyebrow>
-            <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'white' }}>
-              {sectionHeading('services', 'Услуги')}
-            </h2>
+            <Eyebrow>{sectionEyebrow('services')}</Eyebrow>
+            <H className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'white' }}>
+              {sectionHeading('services')}
+            </H>
           </div>
           {preview ? (
             <a href={collectionHref('SERVICES')} className="hidden md:flex items-center gap-2 text-sm font-medium group transition-colors" style={{ color: 'var(--fg)' }} onMouseEnter={e => (e.currentTarget.style.color = 'white')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}>
-              Все услуги <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+              {tf('viewAll.template', { name: sectionHeading('services') })} <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
             </a>
           ) : null}
         </div>
 
         {!preview ? (
-          <a href={sectionHref('SERVICES')} className="text-sm font-medium" style={{ color: 'rgba(242,244,245,0.5)' }}>← Назад к главной / Услуги</a>
+          <a href={sectionHref('SERVICES')} className="text-sm font-medium" style={{ color: 'rgba(242,244,245,0.5)' }}>{t('back.home')} / {sectionHeading('services')}</a>
         ) : null}
 
         <div className="max-w-[1280px] mx-auto border-t mt-6" style={{ borderColor: 'rgba(242,244,245,0.08)' }}>
@@ -1826,7 +1842,7 @@ function ServiceDetail({ slug }: { slug: string }) {
     return (
       <section id="services" className="py-24 md:py-32 border-t" style={{ background: 'var(--dark)' }}>
         <div className="max-w-[900px] mx-auto px-6 md:px-10">
-          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'white' }}>Услуга не найдена</h1>
+          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'white' }}>{t('notFound.title')}</h1>
         </div>
       </section>
     )
@@ -1834,14 +1850,14 @@ function ServiceDetail({ slug }: { slug: string }) {
   return (
     <section id="services" className="py-24 md:py-32 border-t" style={{ background: 'var(--dark)' }}>
       <div className="max-w-[900px] mx-auto px-6 md:px-10">
-        <a href={backHref('SERVICES', returnTo)} className="text-sm font-medium" style={{ color: 'rgba(242,244,245,0.5)' }}>← Назад к услугам</a>
+        <a href={backHref('SERVICES', returnTo)} className="text-sm font-medium" style={{ color: 'rgba(242,244,245,0.5)' }}>{`← ${t('back.services')}`}</a>
         <article className="mt-8">
           {s.img ? (
             <div className="mb-8 overflow-hidden" style={{ aspectRatio: '3/2' }}>
               <img src={s.img} alt={s.title} className="w-full h-full object-cover" />
             </div>
           ) : null}
-          <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--brass)' }}>Услуга</p>
+          <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--brass)' }}>{t('entity.service')}</p>
           <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-5" style={{ ...GEO, color: 'white' }}>{s.title}</h1>
           {s.desc ? <p className="text-lg leading-relaxed mb-8" style={{ color: 'rgba(242,244,245,0.6)' }}>{clampCopy(s.desc, 260)}</p> : null}
           <div className="text-base leading-relaxed" style={{ color: 'rgba(242,244,245,0.82)', whiteSpace: 'pre-wrap' }}>{s.content}</div>
@@ -1853,7 +1869,8 @@ function ServiceDetail({ slug }: { slug: string }) {
 
 // ─── News list ─────────────────────────────────────────────────────────────────
 function NewsList({ preview = false }: { preview?: boolean }) {
-  if (typeof document !== 'undefined' && !preview) document.title = `Новости — ${COMPANY.name}`
+  const H: any = preview ? 'h2' : 'h1' 
+  if (typeof document !== 'undefined' && !preview) document.title = `${t('collection.news') || ''} — ${COMPANY.name}`
   const returnTo = preview ? 'home' : 'collection'
   const items = preview ? NEWS_ITEMS.slice(0, 3) : NEWS_ITEMS
   return (
@@ -1861,20 +1878,20 @@ function NewsList({ preview = false }: { preview?: boolean }) {
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
         <div className="flex items-end justify-between mb-12">
           <div>
-            <Eyebrow>{sectionEyebrow('news', 'Актуальное')}</Eyebrow>
-            <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>
-              {sectionHeading('news', 'Новости')}
-            </h2>
+            <Eyebrow>{sectionEyebrow('news')}</Eyebrow>
+            <H className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>
+              {sectionHeading('news')}
+            </H>
           </div>
           {preview ? (
             <a href={collectionHref('NEWS')} className="hidden md:flex items-center gap-2 text-sm font-medium group transition-colors" style={{ color: 'var(--fg)' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}>
-              Все новости <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+              {tf('viewAll.template', { name: sectionHeading('news') })} <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
             </a>
           ) : null}
         </div>
 
         {!preview ? (
-          <a href={sectionHref('NEWS')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к главной / Новости</a>
+          <a href={sectionHref('NEWS')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>{t('back.home')} / {sectionHeading('news')}</a>
         ) : null}
 
         <div className="border-t mt-6" style={{ borderColor: 'var(--border)' }}>
@@ -1897,7 +1914,7 @@ function NewsList({ preview = false }: { preview?: boolean }) {
         {preview ? (
           <div className="mt-8 md:hidden">
             <a href={collectionHref('NEWS')} className="text-sm font-medium transition-colors" style={{ color: 'var(--fg)' }}>
-              Все новости →
+              {tf('viewAll.template', { name: sectionHeading('news') })} →
             </a>
           </div>
         ) : null}
@@ -1916,7 +1933,7 @@ function PageView({ slug }: { slug: string }) {
     return (
       <section className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
         <div className="max-w-[900px] mx-auto px-6 md:px-10">
-          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>Страница не найдена</h1>
+          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>{t('notFound.title')}</h1>
         </div>
       </section>
     )
@@ -1938,27 +1955,28 @@ function PageView({ slug }: { slug: string }) {
 
 // ─── Vacancy list ─────────────────────────────────────────────────────────────
 function VacancyList({ preview = false }: { preview?: boolean }) {
-  if (typeof document !== 'undefined' && !preview) document.title = `Вакансии — ${COMPANY.name}`
+  const H: any = preview ? 'h2' : 'h1' 
+  if (typeof document !== 'undefined' && !preview) document.title = `${t('collection.vacancies') || ''} — ${COMPANY.name}`
   const returnTo = preview ? 'home' : 'collection'
   const items = preview ? VACANCIES.slice(0, 3) : VACANCIES
   return (
     <section id="vacancies" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
         <div className="flex items-end justify-between mb-10">
-          <h2 className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>{sectionHeading('vacancies', 'Вакансии')}</h2>
+          <H className="text-4xl md:text-5xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>{sectionHeading('vacancies')}</H>
           {preview && VACANCIES.length > 0 ? (
             <a href={collectionHref('VACANCIES')} className="hidden md:flex items-center gap-2 text-sm font-medium group transition-colors" style={{ color: 'var(--fg)' }} onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')} onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}>
-              Все вакансии <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
+              {tf('viewAll.template', { name: sectionHeading('vacancies') })} <span className="transition-transform duration-200 group-hover:translate-x-1">→</span>
             </a>
           ) : null}
         </div>
 
         {!preview ? (
-          <a href={sectionHref('VACANCIES')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к главной / Вакансии</a>
+          <a href={sectionHref('VACANCIES')} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>{t('back.home')} / {sectionHeading('vacancies')}</a>
         ) : null}
 
         {VACANCIES.length === 0 ? (
-          <p className="mt-6" style={{ color: 'var(--muted)' }}>Нет открытых вакансий</p>
+          <p className="mt-6" style={{ color: 'var(--muted)' }}>{t('vacancy.empty')}</p>
         ) : (
           <div className="grid grid-cols-1 gap-4 border-t mt-6" style={{ borderColor: 'var(--border)' }}>
             {items.map((v: any) => (
@@ -1985,7 +2003,7 @@ function VacancyDetail({ slug }: { slug: string }) {
     return (
       <section className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
         <div className="max-w-[900px] mx-auto px-6 md:px-10">
-          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>Вакансия не найдена</h1>
+          <h1 className="text-2xl font-bold" style={{ ...GEO, color: 'var(--fg)' }}>{t('notFound.title')}</h1>
         </div>
       </section>
     )
@@ -1993,13 +2011,13 @@ function VacancyDetail({ slug }: { slug: string }) {
   return (
     <section id="vacancies" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[900px] mx-auto px-6 md:px-10">
-        <a href={backHref('VACANCIES', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>← Назад к вакансиям</a>
+        <a href={backHref('VACANCIES', returnTo)} className="text-sm font-medium" style={{ color: 'var(--muted)' }}>{`← ${t('back.vacancies')}`}</a>
         <h1 className="text-3xl md:text-4xl font-bold leading-tight mt-8 mb-5" style={{ ...GEO, color: 'var(--fg)' }}>{v.title}</h1>
         {v.location ? <p className="text-sm uppercase tracking-widest mb-6" style={{ color: 'var(--brass)' }}>{v.location}</p> : null}
         {v.description ? <div className="mb-6" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{v.description}</div> : null}
-        {v.requirements ? <><h3 className="font-bold mb-2" style={{ color: 'var(--fg)' }}>Требования</h3><p className="mb-6" style={{ color: 'var(--muted)' }}>{v.requirements}</p></> : null}
-        {v.conditions ? <><h3 className="font-bold mb-2" style={{ color: 'var(--fg)' }}>Условия</h3><p className="mb-6" style={{ color: 'var(--muted)' }}>{v.conditions}</p></> : null}
-        {v.contact ? <><h3 className="font-bold mb-2" style={{ color: 'var(--fg)' }}>Контакты</h3><p style={{ color: 'var(--muted)' }}>{v.contact}</p></> : null}
+        {v.requirements ? <><h3 className="font-bold mb-2" style={{ color: 'var(--fg)' }}>{t('vacancy.requirements')}</h3><p className="mb-6" style={{ color: 'var(--muted)' }}>{v.requirements}</p></> : null}
+        {v.conditions ? <><h3 className="font-bold mb-2" style={{ color: 'var(--fg)' }}>{t('vacancy.conditions')}</h3><p className="mb-6" style={{ color: 'var(--muted)' }}>{v.conditions}</p></> : null}
+        {v.contact ? <><h3 className="font-bold mb-2" style={{ color: 'var(--fg)' }}>{t('vacancy.contacts')}</h3><p style={{ color: 'var(--muted)' }}>{v.contact}</p></> : null}
       </div>
     </section>
   )
@@ -2052,7 +2070,7 @@ function CallToAction() {
                 {COMPANY.address.street ? (
                   <>
                     <p className="text-[10px] uppercase tracking-[0.28em] font-medium mb-1" style={{ color: 'rgba(242,244,245,0.35)' }}>
-                      Адрес
+                      {t('contacts.address')}
                     </p>
                     <p className="text-sm leading-relaxed" style={{ color: 'rgba(242,244,245,0.65)' }}>
                       {COMPANY.address.street}
@@ -2071,10 +2089,10 @@ function CallToAction() {
             {COMPANY.contacts.tenderEmail ? (
               <div className="mt-8">
                 <p className="text-[10px] uppercase tracking-[0.28em] font-medium mb-3" style={{ color: 'rgba(242,244,245,0.35)' }}>
-                  Пригласить на тендер
+                  {t('contacts.tenderInvite')}
                 </p>
                 <a
-                  href={`mailto:${COMPANY.contacts.tenderEmail}?subject=Приглашение на тендер`}
+                  href={`mailto:${COMPANY.contacts.tenderEmail}?subject=${encodeURIComponent(t('contacts.tenderSubject'))}`}
                   className="inline-flex items-center gap-2 text-sm font-medium transition-colors pb-0.5"
                   style={{ color: 'var(--brass)', borderBottom: '1px solid rgba(255,255,255,0.2)' }}
                   onMouseEnter={e => {
@@ -2100,7 +2118,7 @@ function CallToAction() {
             {/* General / reception */}
             <div>
               <p className="text-[10px] uppercase tracking-[0.3em] mb-3" style={{ color: 'rgba(242,244,245,0.35)' }}>
-                Приёмная / Заказчикам
+                {t('contacts.reception')}
               </p>
               {COMPANY.contacts.general.map(c => (
                 <div key={c.phone} className="flex items-baseline gap-3 mb-1">
@@ -2124,7 +2142,7 @@ function CallToAction() {
             {COMPANY.contacts.procurement.length ? (
             <div className="border-t pt-8" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
               <p className="text-[10px] uppercase tracking-[0.3em] mb-3" style={{ color: 'rgba(242,244,245,0.35)' }}>
-                Отдел закупок
+                {t('footer.procurement')}
               </p>
               {COMPANY.contacts.procurement.map(c => (
                 <a
@@ -2176,7 +2194,7 @@ function CallToAction() {
                     el.style.color = 'var(--brass)'
                   }}
                 >
-                  {CTA.buttonLabel || 'Связаться с нами'} →
+                  {CTA.buttonLabel || t('cta.primary')} →
                 </a>
                 {PRODUCTS.length ? (
                   <a
@@ -2184,7 +2202,7 @@ function CallToAction() {
                     className="inline-flex items-center gap-3 ml-5 px-8 py-4 border text-[12px] uppercase tracking-[0.18em] font-semibold transition-all"
                     style={{ borderColor: 'rgba(255,255,255,0.25)', color: 'rgba(242,244,245,0.75)' }}
                   >
-                    Смотреть каталог →
+                    {t('viewAll.catalog')}
                   </a>
                 ) : null}
               </div>
@@ -2253,7 +2271,7 @@ function Footer() {
 
           {/* Navigation */}
           <div>
-            <FooterHeading>Навигация</FooterHeading>
+            <FooterHeading>{t('footer.navigation')}</FooterHeading>
             <nav className="flex flex-col gap-3">
               {(FLAT_NAV || []).filter((n: any) => n.showInFooter).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any) => (
                 <FooterLink key={n.id} href={n.href} target={n.external ? '_blank' : undefined} rel={n.external ? 'noopener noreferrer' : undefined}>{n.label}</FooterLink>
@@ -2263,7 +2281,7 @@ function Footer() {
 
           {/* Contacts — general */}
           <div>
-            <FooterHeading>Контакты</FooterHeading>
+            <FooterHeading>{t('contacts.heading')}</FooterHeading>
             <div className="flex flex-col gap-2 mb-6">
               {COMPANY.phone ? (
                 <a href={COMPANY.phoneHref} className="text-sm transition-colors block" style={{ color: FOOTER_DIM }} onMouseEnter={e => (e.currentTarget.style.color = 'white')} onMouseLeave={e => (e.currentTarget.style.color = FOOTER_DIM)}>
@@ -2278,7 +2296,7 @@ function Footer() {
             </div>
             {(COMPANY.contacts.email || COMPANY.email) ? (
             <>
-            <FooterHeading>Email</FooterHeading>
+            <FooterHeading>{t('contacts.email')}</FooterHeading>
             <a
               href={`mailto:${COMPANY.contacts.email || COMPANY.email || ''}`}
               className="text-sm transition-colors"
@@ -2295,7 +2313,7 @@ function Footer() {
           {/* Contacts — procurement */}
           {(COMPANY.contacts.procurement.length || COMPANY.contacts.tenderEmail) ? (
           <div>
-            {COMPANY.contacts.procurement.length ? <FooterHeading>Отдел закупок</FooterHeading> : null}
+            {COMPANY.contacts.procurement.length ? <FooterHeading>{t('footer.procurement')}</FooterHeading> : null}
             <div className="flex flex-col gap-2 mb-6">
               {COMPANY.contacts.procurement.map(c => (
                 <a
@@ -2310,16 +2328,16 @@ function Footer() {
                 </a>
               ))}
             </div>
-            {COMPANY.contacts.tenderEmail ? <FooterHeading>Тендеры</FooterHeading> : null}
+            {COMPANY.contacts.tenderEmail ? <FooterHeading>{t('footer.tenders')}</FooterHeading> : null}
             {COMPANY.contacts.tenderEmail ? (
             <a
-              href={`mailto:${COMPANY.contacts.tenderEmail}?subject=Приглашение на тендер`}
+              href={`mailto:${COMPANY.contacts.tenderEmail}?subject=${encodeURIComponent(t('contacts.tenderSubject'))}`}
               className="text-sm transition-colors"
               style={{ color: 'var(--brass)' }}
               onMouseEnter={e => (e.currentTarget.style.color = 'white')}
               onMouseLeave={e => (e.currentTarget.style.color = 'var(--brass)')}
             >
-              Пригласить на тендер →
+              {t('footer.tenderCta')}
             </a>
             ) : null}
           </div>
@@ -2334,8 +2352,8 @@ function Footer() {
         >
           <p className="text-xs" style={{ color: FOOTER_MUTED }}>
             {COMPANY.legalName && COMPANY.founded && COMPANY.unp
-              ? `© ${COMPANY.founded}–2025 ${COMPANY.legalName}. УНП ${COMPANY.unp}. Все права защищены.`
-              : `© 2025 ${COMPANY.name}. Все права защищены.`}
+              ? tf('footer.copyrightLegal', { years: `${COMPANY.founded}–2025`, name: COMPANY.legalName, unp: COMPANY.unp })
+              : tf('footer.copyright', { years: '2025', name: COMPANY.name })}
           </p>
           {COMPANY.domain ? (
             <div className="flex items-center gap-6">

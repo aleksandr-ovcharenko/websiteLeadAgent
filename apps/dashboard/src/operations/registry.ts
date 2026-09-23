@@ -11,7 +11,7 @@ import { OpenAiVisualAnalysisProvider } from '../../../auditor/src/visualAnalysi
 import { computeLeadScoreV2 } from '../../../auditor/src/scoring/scoreLeadV2.js';
 import { enrichLeads } from '../../../collector/src/enrichment/enrichLeads.js';
 import { generateSite, runCrawl } from '@minsk/redesign-engine';
-import { captureSitePreview, captureVariantPreview } from '../../../../packages/screenshot/src/index.js';
+import { captureVariantPreview } from '../../../../packages/screenshot/src/index.js';
 import type { RunContext } from './OperationService.js';
 import { ActivityService } from '../activity/ActivityService.js';
 import { QualificationOrchestrator } from '../qualification/QualificationOrchestrator.js';
@@ -405,13 +405,13 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
     GENERATE_SITE: {
       label: 'Generate site',
       category: 'factory',
-      description: 'Generate the demo site from a previously produced crawl artifact (crawlRunId). Mode: retry (preserve existing CMS), regenerate (replace generated content).',
+      description: 'Generate the demo site end-to-end for a lead: crawl → extract → graph → CMS import → render → QA → screenshots → REVIEW_READY. crawlRunId is optional (reuse a stored crawl artifact); when omitted the pipeline crawls itself. Mode: retry (preserve existing CMS), regenerate (replace generated content).',
       requiredRole: 'SUPER_ADMIN',
       inputSchema: { leadId: 'string', crawlRunId: 'string', force: 'boolean', mode: 'string', templateId: 'string', resumeFromStage: 'string' },
       supportsCancel: false,
       handler: async (ctx, input) => {
         const mode = input.mode ?? 'retry';
-        await ctx.stage('generate', `Starting site generation for ${input.leadId} using crawl ${input.crawlRunId} (${mode})`);
+        await ctx.stage('generate', `Starting site generation for ${input.leadId}${input.crawlRunId ? ` using crawl ${input.crawlRunId}` : ' (fresh crawl)'} (${mode})`);
         const result = await generateSite({
           leadId: input.leadId,
           crawlRunId: input.crawlRunId,
@@ -433,24 +433,23 @@ export function createRegistry(deps: RegistryDeps): Record<string, OperationDefi
           },
         });
 
-        // Best-effort: refresh Forge card + per-variant screenshots after a
-        // successful build so cards never show stale/broken images.
+        // V3.7.5: the site-level Forge preview is a verified pipeline gate
+        // (PREVIEW_PUBLISHED) — generation does not reach REVIEW_READY
+        // without it, so no best-effort post-hoc capture here. Per-variant
+        // detail screenshots stay best-effort and never gate the operation.
         try {
           const site = await deps.prisma.site.findUnique({
             where: { id: result.siteId },
-            include: { demoVariants: { where: { status: 'ACTIVE' } }, builds: { orderBy: { createdAt: 'desc' }, take: 5 } }
+            include: { demoVariants: { where: { status: 'ACTIVE' } } }
           });
           if (site) {
-            const preferred = site.demoVariants.find((v: any) => v.isPreferred) ?? site.demoVariants[0];
             for (const v of site.demoVariants) {
               await captureVariantPreview(site as any, v, deps.prisma).catch((e: any) =>
                 deps.logger.warn({ err: e?.message }, 'variant screenshot failed'));
             }
-            await captureSitePreview({ ...(site as any), previewTokenOverride: preferred?.previewToken }, deps.prisma).catch((e: any) =>
-              deps.logger.warn({ err: e?.message }, 'site screenshot failed'));
           }
         } catch (e: any) {
-          deps.logger.warn({ err: e?.message }, 'post-generate screenshot capture failed');
+          deps.logger.warn({ err: e?.message }, 'post-generate variant screenshots failed');
         }
 
         await ctx.success(`Site generated: ${result.previewSlug}`, { stage: 'demo_generated', metadata: result });

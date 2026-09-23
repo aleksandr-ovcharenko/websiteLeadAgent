@@ -1,10 +1,8 @@
 import type { PrismaClient } from '@prisma/client';
 import type pino from 'pino';
-import { OSMEnrichmentProvider } from './providers/osm/osmEnrichmentProvider.js';
-import { SerpApiEnrichmentProvider } from './providers/serpapi/serpApiEnrichmentProvider.js';
-import { DDGEnrichmentProvider } from './providers/ddg/ddgEnrichmentProvider.js';
 import { normalizeWebsiteDomain } from '../utils/normalizeWebsiteDomain.js';
 import { evaluateWebsiteEligibility } from '../utils/evaluateWebsiteEligibility.js';
+import { defaultEnrichmentProviders } from './enrichCandidate.js';
 
 function sleep(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
@@ -18,15 +16,7 @@ export async function enrichLeads(input: {
 }) {
   const { prisma, logger, runId, leadIds } = input;
 
-  const providers = [new OSMEnrichmentProvider()] as Array<{
-    enrich: (arg: { lead: any }) => Promise<{ website?: string | null; phone?: string | null; source?: string }>;
-  }>;
-
-  if (process.env.SERPAPI_API_KEY) {
-    providers.push(new SerpApiEnrichmentProvider(process.env.SERPAPI_API_KEY));
-  }
-
-  providers.push(new DDGEnrichmentProvider());
+  const providers = defaultEnrichmentProviders(process.env as Record<string, string | undefined>);
 
   let enriched = 0;
   let websitesFound = 0;

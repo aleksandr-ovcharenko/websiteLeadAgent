@@ -135,8 +135,12 @@ async function renderPreview(req: Request, res: Response) {
   // Honest 404: an unknown route renders the 404 view AND reports 404 —
   // HTTP 200 with fallback/homepage content is not a valid response.
   const routeInfo = resolveRoute(ctx as any);
+  // Renderer-ready marker: screenshot capture waits on this, not networkidle.
+  const marked = routeInfo.kind !== 'NOT_FOUND' && html.includes('<html')
+    ? html.replace('<html', '<html data-renderer-ready="true"')
+    : html;
   res.setHeader('X-Robots-Tag', 'noindex, nofollow');
-  res.status(routeInfo.kind === 'NOT_FOUND' ? 404 : 200).type('html').send(html);
+  res.status(routeInfo.kind === 'NOT_FOUND' ? 404 : 200).type('html').send(marked);
 }
 
 // Showcase (canonical) and preview (legacy alias)

@@ -21,6 +21,8 @@ export interface HomepageSection {
   enabled?: boolean;
   sortOrder?: number;
   title?: string;
+  /** Resolved display heading (edited block `heading` preferred over `title`). */
+  heading?: string;
   eyebrow?: string;
   subtitle?: string;
   limit?: number;

@@ -31,7 +31,7 @@
 
 /* Stable CMS navigation: fixed-height targets, color-only states, and recursive menus */
 .header-inner { gap: 1.5rem; }
-.main-nav { flex: 1; justify-content: center; gap: .35rem; min-width: 0; }
+.main-nav { flex: 1; justify-content: center; gap: .35rem; min-width: 0; overflow-x: auto; }
 .main-nav > a, .main-nav > .nav-group > summary { position: relative; display: inline-flex; align-items: center; justify-content: center; gap: .35rem; min-height: 44px; padding: 0 .7rem; color: rgba(255,255,255,.78); font-weight: 600; white-space: nowrap; }
 .main-nav > a::after, .main-nav > .nav-group > summary::after { content: ''; position: absolute; right: .7rem; bottom: .4rem; left: .7rem; height: 1px; background: var(--primary); opacity: 0; transform: scaleX(.4); transition: opacity .2s, transform .2s; }
 .main-nav > a:hover, .main-nav > a.is-current, .main-nav > .nav-group > summary:hover, .main-nav > .nav-group.is-active > summary { color: #fff; }
@@ -61,3 +61,6 @@
 @media (max-width: 900px) { .main-nav { display:none; } .header-actions .nav-contact { display:none; } .menu-toggle { display:inline-flex; } .mobile-nav { position:absolute; top:88px; right:0; left:0; display:block; visibility:hidden; max-height:0; overflow:hidden; background:var(--foreground); border-top:1px solid rgba(255,255,255,.2); opacity:0; transition:opacity .18s, max-height .24s, visibility .24s; } .mobile-nav.is-open { visibility:visible; max-height:calc(100vh - 88px); overflow:auto; opacity:1; } .mobile-nav-inner { display:flex; flex-direction:column; gap:.35rem; padding-top:1.25rem; padding-bottom:2rem; } .mobile-nav .nav-group, .mobile-nav-inner > a { border-bottom:1px solid #454a45; } .mobile-nav-inner > a, .mobile-nav .nav-group > summary { display:flex; align-items:center; justify-content:space-between; min-height:50px; padding:.6rem 0; color:#fff; font-size:1rem; } .mobile-nav .nav-group > summary > a { flex:1; } .mobile-nav .nav-menu { position:static; display:grid; gap:.15rem; min-width:0; padding:.2rem 0 .65rem 1rem; background:transparent; border:0; box-shadow:none; } .mobile-nav .nav-menu .nav-menu { padding-left:1rem; } .mobile-nav .nav-menu > a, .mobile-nav .nav-menu .nav-group > summary { min-height:44px; padding:.5rem .65rem; color:#c7cbc4; font-size:.85rem; } .mobile-nav .is-current, .mobile-nav .nav-group.is-active > summary { color:var(--primary) !important; } .mobile-phone { margin-top:1rem; padding-top:1rem; color:var(--accent-soft); font: .8rem 'Courier New', monospace; } }
 @media (max-width: 480px) { .header-inner { min-height:72px; } .mobile-nav { top:72px; } .mobile-nav.is-open { max-height:calc(100vh - 72px); } .wordmark-sub { display:none; } }
 
+/* Long unbreakable tokens (URLs, emails, glued crawled text) must never
+   overflow the viewport — allow emergency breaks anywhere in text nodes. */
+h1,h2,h3,h4,h5,h6,p,li,a,span,td,th,blockquote,figcaption,dd,dt,summary { overflow-wrap: anywhere; min-width: 0; }

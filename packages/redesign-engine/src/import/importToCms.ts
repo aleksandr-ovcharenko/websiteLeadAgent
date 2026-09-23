@@ -89,8 +89,8 @@ export function isInternalLabel(name?: string | null): boolean {
   return !!name && INTERNAL_NAME_MARKERS_RE.test(name);
 }
 
-/** Strip internal markers from a lead name — "NextTrade Clean Room" →
- *  "NextTrade". Returns '' when nothing usable remains. */
+/** Strip internal markers from a lead name — "Acme Clean Room" →
+ *  "Acme". Returns '' when nothing usable remains. */
 export function stripInternalMarkers(name?: string | null): string {
   if (!name) return '';
   const cleaned = name
@@ -130,7 +130,7 @@ export function resolvePublicBrand(input: {
   if (lead && !isGenericCompanyName(lead) && !isInternalLabel(lead)) return { name: lead, source: 'lead' };
   const stripped = stripInternalMarkers(lead);
   // Prefer source evidence over the stripped residual: the source brand is
-  // more truthful ("100 Кубов" over the domain slug "100m3").
+  // more truthful ("СтройМастер" over the domain slug "sm-2000").
   const extracted = input.extractedName?.trim();
   if (extracted && isNameLike(extracted) && !isGenericCompanyName(extracted) && !isInternalLabel(extracted)) {
     return { name: extracted, source: 'extracted' };
@@ -459,8 +459,17 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
   }
 
   function mapBlocks(blocks: any[]): any[] {
+    const seen = new Map<string, number>();
     return (blocks || []).map((b: any) => {
       const mapped: any = { ...b };
+      // Every block needs a stable id — `page:block:{id}:field` editor
+      // controls (and the editability audit) address blocks by id.
+      if (!mapped.id || typeof mapped.id !== 'string') {
+        const type = String(mapped.type || 'block').toLowerCase();
+        const n = (seen.get(type) || 0) + 1;
+        seen.set(type, n);
+        mapped.id = `${type}-${n}`;
+      }
       if (mapped.imageId && typeof mapped.imageId === 'string') {
         mapped.imageId = mapImageId(mapped.imageId);
       }
@@ -550,6 +559,15 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
     await prisma.siteSettings.create({ data: { siteId, ...siteSettingsBase, templateCopy: mergeTemplateCopy(null), ...ownership } as any });
   } else if (runId && (regenerateContent || existingSettings.generatedByRunId) && !existingSettings.manualModifiedAt) {
     await prisma.siteSettings.update({ where: { siteId }, data: { ...siteSettingsBase, templateCopy: mergeTemplateCopy(existingSettings.templateCopy as any), ...ownership } as any });
+  } else if (existingSettings.manualModifiedAt) {
+    // Manual edits are protected — but the templateCopy merge is additive
+    // only (absent keys are filled, existing values never overwritten), so a
+    // manually-protected row must still gain newly introduced copy keys.
+    const merged = mergeTemplateCopy(existingSettings.templateCopy as any);
+    const prev = (existingSettings.templateCopy as any) || {};
+    if (Object.keys(merged).length !== Object.keys(prev).length) {
+      await prisma.siteSettings.update({ where: { siteId }, data: { templateCopy: merged } as any });
+    }
   }
 
   const keptPageIds = new Set<string>();
@@ -842,9 +860,15 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
     menu = await prisma.menu.create({ data: { siteId, name: 'main', isMain: true, ...ownership } as any });
   }
 
-  const allPages = await prisma.page.findMany({ where: { siteId }, orderBy: { createdAt: 'asc' }, select: { id: true, sourceUrl: true, isHomepage: true, slug: true } });
-  const pageByUrl = new Map<string, string>(allPages.filter((p: any) => p.sourceUrl).map((p: any) => [p.sourceUrl, p.id]));
-  const pageBySlug = new Map<string, string>(allPages.map((p: any) => [p.slug, p.id]));
+  const allPages = await prisma.page.findMany({ where: { siteId }, orderBy: { createdAt: 'asc' }, select: { id: true, sourceUrl: true, isHomepage: true, slug: true, manualModifiedAt: true, generatedByRunId: true, sourceType: true } });
+  // Nav resolution must never target a page this same import will delete as
+  // stale (generated + not re-emitted) — the FK SetNull would leave a dead
+  // PAGE item pointing at a route that does not exist.
+  const pageSurvives = (p: any) =>
+    keptPageIds.has(p.id) || p.manualModifiedAt || (p.generatedByRunId == null && p.sourceType === 'MANUAL');
+  const livePages = allPages.filter(pageSurvives);
+  const pageByUrl = new Map<string, string>(livePages.filter((p: any) => p.sourceUrl).map((p: any) => [p.sourceUrl, p.id]));
+  const pageBySlug = new Map<string, string>(livePages.map((p: any) => [p.slug, p.id]));
   const homepageId = allPages.find((p: any) => p.isHomepage)?.id;
 
   const SECTION_TARGETS: Record<string, string> = {
@@ -1127,7 +1151,26 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
             if ((entityCount[s.type] || 0) > 0) homeBlocks.push(collectionBlock(s));
             break;
           case 'contacts': homeBlocks.push({ id: blockId('contacts'), type: 'contacts', enabled, heading: s.title || L.contacts }); break;
-          default: break;
+          case 'dynamic': {
+            // Dynamic sections (faq/process/reviews/pricing…) stay CMS-owned:
+            // the block carries the section's content so the editor surface
+            // and the editability audit resolve a concrete `page:block:{id}`.
+            const kindKey = String(s.sectionType || '').toLowerCase();
+            const dyn = ((options.content as any).dynamicSections || [])
+              .find((d: any) => String(d?.kind || '').toLowerCase() === kindKey);
+            homeBlocks.push({
+              id: blockId('dynamic'), type: 'dynamic', enabled,
+              heading: s.title || dyn?.heading || s.sectionType,
+              sectionType: s.sectionType,
+              items: Array.isArray(dyn?.items) ? dyn.items : undefined,
+            });
+            break;
+          }
+          default:
+            // Unknown/custom section types are still persisted as opaque
+            // blocks — dropping them would make rendered content uneditable.
+            homeBlocks.push({ id: blockId(String(s.type || 'section').toLowerCase()), type: s.type, enabled, heading: s.title });
+            break;
         }
       }
       // hero/about/cta must live in Page.blocks even if the generator omitted

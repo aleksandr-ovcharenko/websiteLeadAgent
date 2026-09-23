@@ -3,11 +3,33 @@ import { Prisma } from '@prisma/client';
 import path from 'node:path';
 import fs from 'node:fs/promises';
 import { prisma, requireSuperAdmin } from './auth.js';
-import { captureSitePreview, captureVariantPreview, previewImageUrl } from '../../../packages/screenshot/src/index.js';
-import { getPipelineStageLabel, generateSite } from '@minsk/redesign-engine';
+import { captureVariantPreview, previewImageUrl } from '../../../packages/screenshot/src/index.js';
+import { getPipelineStageLabel, generateSite, publishForgePreview, backfillForgePreviews, ForgePreviewError } from '@minsk/redesign-engine';
 
 const router = express.Router();
 router.use(express.json());
+
+// Public read-only image serving: Forge cards render these via <img>, and the
+// publish pipeline verifies this URL server-side — it cannot sit behind the
+// session middleware. Path is confined to the site's screenshots dir; site ids
+// are unguessable and the content is derived from public crawls.
+router.get('/site-screenshots/:siteId/:file', async (req: Request, res: Response) => {
+  const siteId = String(req.params.siteId);
+  const file = String(req.params.file).replace(/[^a-zA-Z0-9_.-]/g, '');
+  const dir = path.resolve('data/generated/sites', siteId, 'screenshots');
+  const p = path.resolve(dir, file);
+  if (!p.startsWith(dir)) { res.status(403).send(); return; }
+  try {
+    await fs.access(p);
+    // Versioned by ?v= (variant id + capture time) — never heuristic-cache the
+    // bare URL, so a regenerated preferred variant can never display stale.
+    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
+    res.sendFile(p);
+  } catch {
+    res.status(404).send();
+  }
+});
+
 router.use(requireSuperAdmin);
 
 function randomToken() {
@@ -31,6 +53,8 @@ function uiStatus(site: any) {
 
 function computeAttention(site: any, screenshot: any) {
   if (!site.domain) return { attention: 'Missing domain', attentionAction: 'Fix' as const };
+  const previewError = (site.settings as any)?.previewError?.reason;
+  if (previewError) return { attention: `Preview failed: ${previewError}`, attentionAction: 'Retry' as const };
   const lastBuild = site.builds?.[0];
   if (lastBuild && lastBuild.status === 'FAILED') return { attention: 'Preview build failed', attentionAction: 'Retry' as const };
   if (!screenshot) return { attention: 'Screenshot missing', attentionAction: 'Retry' as const };
@@ -209,16 +233,13 @@ router.delete('/api/platform/sites/:siteId', async (req: Request, res: Response)
   res.json({ ok: true });
 });
 
-async function captureSiteAndVariants(siteId: string) {
+/** Per-variant detail screenshots — best-effort, never gates generation. */
+async function captureVariantScreenshots(siteId: string) {
   const site = await prisma.site.findUnique({
     where: { id: siteId },
-    include: {
-      demoVariants: { where: { status: 'ACTIVE' } },
-      builds: { orderBy: { createdAt: 'desc' }, take: 5, select: { id: true, status: true, createdAt: true, demoVariantId: true } }
-    }
+    include: { demoVariants: { where: { status: 'ACTIVE' } } }
   });
-  if (!site) return null;
-  const preferred = site.demoVariants.find((v: any) => v.isPreferred) ?? site.demoVariants[0];
+  if (!site) return [];
   const results: { variantId?: string; url: string }[] = [];
   for (const v of site.demoVariants) {
     try {
@@ -228,8 +249,16 @@ async function captureSiteAndVariants(siteId: string) {
       console.error(`[platform] variant screenshot failed for ${v.id}:`, err?.message);
     }
   }
-  // Site-level card shows the preferred variant when one exists.
-  const { url } = await captureSitePreview({ ...(site as any), previewTokenOverride: preferred?.previewToken }, prisma);
+  return results;
+}
+
+async function captureSiteAndVariants(siteId: string) {
+  const site = await prisma.site.findUnique({ where: { id: siteId } });
+  if (!site) return null;
+  const results = await captureVariantScreenshots(siteId);
+  // Site-level Forge card: the verified publish path (showcase 200 → PNG
+  // verified → row persisted → gateway URL verified). Throws on failure.
+  const { url } = await publishForgePreview({ siteId, prisma });
   return { url, variants: results };
 }
 
@@ -237,8 +266,52 @@ router.post('/api/platform/sites/:siteId/screenshot', async (req: Request, res: 
   const siteId = String(req.params.siteId);
   const site = await prisma.site.findUnique({ where: { id: siteId } });
   if (!site) { res.status(404).json({ error: 'not_found' }); return; }
-  const result = await captureSiteAndVariants(siteId);
-  res.json({ ok: true, url: result?.url, variants: result?.variants });
+  try {
+    const result = await captureSiteAndVariants(siteId);
+    res.json({ ok: true, url: result?.url, variants: result?.variants });
+  } catch (err: any) {
+    res.status(502).json({ ok: false, error: 'preview_capture_failed', reason: err?.reason || err?.message });
+  }
+});
+
+// Preferred-variant selection — the Forge card must follow immediately.
+// Atomic: flip preference, then publish a verified preview with a new cache
+// version (?v=<variantId>-<ts>) so no card can show the old variant.
+router.post('/api/platform/sites/:siteId/variants/:variantId/prefer', async (req: Request, res: Response) => {
+  const siteId = String(req.params.siteId);
+  const variantId = String(req.params.variantId);
+  const variant = await (prisma as any).demoVariant.findFirst({ where: { id: variantId, siteId, status: 'ACTIVE' } });
+  if (!variant) { res.status(404).json({ error: 'not_found' }); return; }
+
+  await prisma.$transaction([
+    (prisma as any).demoVariant.updateMany({ where: { siteId, isPreferred: true, id: { not: variantId } }, data: { isPreferred: false } }),
+    (prisma as any).demoVariant.update({ where: { id: variantId }, data: { isPreferred: true } }),
+    prisma.site.update({ where: { id: siteId }, data: { preferredDemoVariantId: variantId, updatedAt: new Date() } }),
+  ]);
+
+  try {
+    const preview = await publishForgePreview({ siteId, prisma });
+    res.json({ ok: true, preferredVariantId: variantId, url: preview.url, source: preview.source });
+  } catch (err: any) {
+    res.status(502).json({ ok: false, error: 'preview_capture_failed', reason: err?.reason || err?.message });
+  }
+});
+
+// Managed backfill: verified previews for every active site missing one.
+// One job, sequential, no site regeneration — screenshots only.
+router.post('/api/platform/screenshots/backfill', requireSuperAdmin, async (req: Request, res: Response) => {
+  const limit = Math.min(100, Math.max(1, Number(req.body?.limit ?? 50)));
+  const report = await backfillForgePreviews({ prisma, limit });
+  await prisma.activityEvent.create({
+    data: {
+      level: report.failed ? 'WARN' : 'INFO',
+      module: 'FACTORY',
+      eventType: 'FORGE_PREVIEW_BACKFILL',
+      message: `Preview backfill: ${report.succeeded} captured, ${report.failed} failed, ${report.skipped} already present`,
+      details: { scanned: report.scanned, succeeded: report.succeeded, failed: report.failed, skipped: report.skipped },
+    },
+  }).catch(() => undefined);
+  res.json({ ok: true, report });
 });
 
 // Human review transitions — the product workflow for generation approval.
@@ -263,23 +336,6 @@ router.post('/api/platform/sites/:siteId/review', requireSuperAdmin, async (req:
   const settings = { ...(site.settings as any || {}), reviewStatus: to, reviewedAt: new Date().toISOString() };
   await prisma.site.update({ where: { id: site.id }, data: { settings } });
   res.json({ ok: true, reviewStatus: to });
-});
-
-router.get('/site-screenshots/:siteId/:file', async (req: Request, res: Response) => {
-  const siteId = String(req.params.siteId);
-  const file = String(req.params.file).replace(/[^a-zA-Z0-9_.-]/g, '');
-  const dir = path.resolve('data/generated/sites', siteId, 'screenshots');
-  const p = path.resolve(dir, file);
-  if (!p.startsWith(dir)) { res.status(403).send(); return; }
-  try {
-    await fs.access(p);
-    // Versioned by ?v= (variant id + capture time) — never heuristic-cache the
-    // bare URL, so a regenerated preferred variant can never display stale.
-    res.setHeader('Cache-Control', 'no-cache, must-revalidate');
-    res.sendFile(p);
-  } catch {
-    res.status(404).send();
-  }
 });
 
 router.get('/api/factory/runs', requireSuperAdmin, async (req: Request, res: Response) => {
@@ -474,9 +530,10 @@ router.post('/api/platform/sites/:siteId/rebuild', async (req: Request, res: Res
     force: true,
     mode: 'retry',
     prisma,
-  }).then(async (result) => {
-    try { await captureSiteAndVariants(result.siteId); }
-    catch (err: any) { console.error('[platform] post-rebuild screenshot capture failed:', err?.message); }
+  }).then(async (result: any) => {
+    // Site preview already published (or failed the run) by PREVIEW_PUBLISHED.
+    try { await captureVariantScreenshots(result.siteId); }
+    catch (err: any) { console.error('[platform] post-rebuild variant screenshots failed:', err?.message); }
   }).catch((err: any) => console.error(`[platform] async rebuild failed for site ${siteId}:`, err?.message || err));
 
   res.status(202).json({ ok: true, async: true, runId: run.id, siteId });
@@ -506,9 +563,10 @@ router.post('/api/factory/runs/:runId/retry', requireSuperAdmin, async (req: Req
     mode: 'retry',
     resumeFromStage,
     prisma,
-  }).then(async (result) => {
-    try { await captureSiteAndVariants(result.siteId); }
-    catch (err: any) { console.error('[platform] post-build screenshot capture failed:', err?.message); }
+  }).then(async (result: any) => {
+    // Site preview already published (or failed the run) by PREVIEW_PUBLISHED.
+    try { await captureVariantScreenshots(result.siteId); }
+    catch (err: any) { console.error('[platform] post-build variant screenshots failed:', err?.message); }
   }).catch((err: any) => console.error(`[platform] async retry failed for run ${runId}:`, err?.message || err));
 
   res.status(202).json({ ok: true, async: true, runId: run.id });

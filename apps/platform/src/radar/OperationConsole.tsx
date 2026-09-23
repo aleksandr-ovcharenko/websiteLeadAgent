@@ -83,6 +83,12 @@ export function OperationConsole({ runId, title, onClose }: { runId: string; tit
         setRun(run);
         setEvents(events ?? []);
         setLastError(null);
+        // Polling exists only while this specific operation is unfinished —
+        // a terminal status stops it immediately.
+        if (run?.status !== 'PENDING' && run?.status !== 'RUNNING' && intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
       } catch (e: any) {
         if (mounted) setLastError(e.message || 'Failed to load operation');
       }

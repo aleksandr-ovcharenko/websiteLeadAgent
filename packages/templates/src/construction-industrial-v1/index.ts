@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 import { escapeHtml, escapeHtmlAttribute, escapeJsonForScript } from '@minsk/security';
 import type { RenderContext } from '../types.js';
 import { constructionIndustrialV1Manifest } from './manifest.js';
+import { resolveRoute } from '../routes.js';
+import { mediaUrlOf } from '../media.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -54,10 +56,7 @@ function mediaUrl(ctx: RenderContext, id?: string): string | undefined {
   if (!id) return undefined;
   const media = ctx.mediaMap.get(id);
   if (!media) return undefined;
-  if (media.sourceUrl && media.sourceUrl.startsWith('http')) return media.sourceUrl;
-  const filename = media.filename || media.storagePath?.split('/').pop();
-  if (filename) return `/site-media/${ctx.site.id}/${filename}`;
-  return undefined;
+  return mediaUrlOf(ctx.site?.id, media);
 }
 
 function buildCompany(ctx: RenderContext) {
@@ -159,7 +158,9 @@ export function constructionIndustrialV1(ctx: RenderContext): string {
       return `${base}/${key}`;
     }
     if (targetType === 'PAGE') {
-      const slug = item.page?.slug || target || '';
+      // Only a resolved page record yields a route — an unresolved target
+      // would render a dead link, so the item falls through to '#'.
+      const slug = item.page?.slug || '';
       if (slug) return `${base}/${slug}`;
     }
     if (targetType === 'CONTENT_DETAIL') {
@@ -233,7 +234,9 @@ export function constructionIndustrialV1(ctx: RenderContext): string {
     title: s.title || 'Услуга',
     desc: s.shortDescription || (Array.isArray(s.blocks) ? s.blocks.map((b: any) => b.content || b.text || '').join(' ').slice(0, 240) : ''),
     content: textFrom(s),
-    img: mediaUrl(ctx, s.imageId)
+    img: mediaUrl(ctx, s.imageId),
+    imageUrl: mediaUrl(ctx, s.imageId),
+    imageId: s.imageId
   }));
 
   function mapBlock(b: any) {
@@ -266,6 +269,8 @@ export function constructionIndustrialV1(ctx: RenderContext): string {
     excerpt: p.excerpt || '',
     content: textFrom(p),
     img: mediaUrl(ctx, p.coverImageId),
+    imageUrl: mediaUrl(ctx, p.coverImageId),
+    coverImageId: p.coverImageId,
     gallery: (p.projectMedia || []).map((pm: any) => mediaUrl(ctx, pm.media?.id) || pm.media?.sourceUrl).filter(Boolean)
   }));
 
@@ -310,7 +315,11 @@ export function constructionIndustrialV1(ctx: RenderContext): string {
   --border: ${borderColor};
   --card-bg: ${surfaceColor};
   --overlay: ${hexToRgba(darkColor, 0.55)};
-}</style>`;
+}
+/* Long unbreakable tokens (URLs, emails, glued crawled text) must never
+   overflow the viewport — allow emergency breaks anywhere in text nodes. */
+h1,h2,h3,h4,h5,h6,p,li,a,span,td,th,blockquote,figcaption,dd,dt { overflow-wrap: break-word; }
+</style>`;
 
   function resolveHeroCta(raw?: string): string {
     if (!raw) return `${base}/contacts`;
@@ -325,39 +334,63 @@ export function constructionIndustrialV1(ctx: RenderContext): string {
   const heroImageUrl = mediaUrl(ctx, ctx.hero?.imageId);
   const aboutImageUrl = mediaUrl(ctx, ctx.about?.imageId);
 
+  const resolved = resolveRoute(ctx);
+
+  // Homepage furniture renders from the resolved homepage composition — the
+  // canonical, editor-owned source (same contract as construction-modern-v1).
+  const homeSec = (type: string) =>
+    (homepageSections || []).find((s: any) => String(s?.type || '').toLowerCase() === type && s.enabled !== false);
+  const heroSec = homeSec('hero');
+  const aboutSec = homeSec('about');
+  const ctaSec = homeSec('cta');
+  const heroBlock = heroSec?.block || {};
+  const aboutBlock = aboutSec?.block || {};
+  const ctaBlock = ctaSec?.block || {};
+  const homepagePage = (ctx.pages || []).find((p: any) => p.isHomepage);
+  const payloadPage = resolved.page || (resolved.kind === 'HOME' ? homepagePage : undefined);
+
   const cmsPayload = {
     route: ctx.route,
     subRoute: ctx.subRoute,
+    ROUTE: {
+      type: resolved.kind,
+      path: resolved.path,
+      slug: resolved.slug,
+      title: resolved.title || '',
+    },
+    ENTITY: resolved.entity
+      ? { id: resolved.entity.id, kind: resolved.kind.replace(/_DETAIL$/, '').toLowerCase(), title: resolved.entity.title || '' }
+      : undefined,
+    PAGE: payloadPage ? { id: payloadPage.id, slug: payloadPage.slug, blocks: payloadPage.blocks } : undefined,
+    // CMS-owned template copy dictionary — furniture strings render from COPY.
+    COPY: (ctx.settings as any)?.templateCopy || {},
     PREVIEW_TOKEN: token,
     SITE_ID: ctx.site?.id || '',
     MANIFEST: constructionIndustrialV1Manifest,
-    THEME: theme,
-    THEME_CSS: themeStyle,
-    SETTINGS: ctx.settings,
     COMPANY: company,
     LOGO: logoUrl,
     FAVICON: faviconUrl,
     HERO: {
-      title: ctx.hero?.title || company.name,
-      subtitle: ctx.hero?.subtitle || '',
-      image: heroImageUrl,
-      buttonLabel: ctx.hero?.buttonLabel || 'Связаться',
-      buttonUrl: resolveHeroCta(ctx.hero?.buttonUrl),
-      secondaryCtaLabel: ctx.hero?.secondaryCtaLabel,
-      secondaryCtaUrl: resolveHeroCta(ctx.hero?.secondaryCtaTarget),
-      location: ctx.hero?.location || '',
-      industry: ctx.hero?.industry || 'Компания'
+      title: heroSec?.heading || heroBlock.heading || heroBlock.title || ctx.hero?.title || company.name,
+      subtitle: heroBlock.subheading ?? heroBlock.subtitle ?? ctx.hero?.subtitle ?? '',
+      image: heroBlock.imageId ? (mediaUrlOf(ctx.site?.id, ctx.mediaMap.get(heroBlock.imageId)) || heroImageUrl) : heroImageUrl,
+      buttonLabel: heroBlock.buttonLabel ?? ctx.hero?.buttonLabel,
+      buttonUrl: resolveHeroCta(heroBlock.buttonUrl || ctx.hero?.buttonUrl),
+      secondaryCtaLabel: heroBlock.secondaryCtaLabel ?? ctx.hero?.secondaryCtaLabel,
+      secondaryCtaUrl: resolveHeroCta(heroBlock.secondaryCtaTarget || ctx.hero?.secondaryCtaTarget),
+      location: heroBlock.location ?? ctx.hero?.location ?? '',
+      industry: heroBlock.industry ?? ctx.hero?.industry ?? ''
     },
     ABOUT: {
-      heading: ctx.about?.heading || 'О компании',
-      content: ctx.about?.content || '',
-      image: aboutImageUrl
+      heading: aboutSec?.heading || aboutBlock.heading || ctx.about?.heading || '',
+      content: aboutBlock.content ?? ctx.about?.content ?? '',
+      image: aboutBlock.imageId ? (mediaUrlOf(ctx.site?.id, ctx.mediaMap.get(aboutBlock.imageId)) || aboutImageUrl) : aboutImageUrl
     },
     CTA: {
-      title: ctx.cta?.title || 'Обсудим ваш проект',
-      description: ctx.cta?.description || '',
-      buttonLabel: ctx.cta?.buttonLabel || 'Связаться',
-      buttonUrl: ctx.cta?.buttonUrl || `${base}/contacts`
+      title: ctaSec?.heading || ctaBlock.heading || ctaBlock.title || ctx.cta?.title || '',
+      description: ctaBlock.description ?? ctx.cta?.description ?? '',
+      buttonLabel: ctaBlock.buttonLabel ?? ctx.cta?.buttonLabel,
+      buttonUrl: (ctaBlock.buttonUrl || ctx.cta?.buttonUrl) ? resolveHeroCta(ctaBlock.buttonUrl || ctx.cta?.buttonUrl) : `${base}/contacts`
     },
     HOME_SECTIONS: homepageSections,
     NAV: nav,
@@ -366,7 +399,17 @@ export function constructionIndustrialV1(ctx: RenderContext): string {
     PROJECTS: projects,
     NEWS_ITEMS: news,
     VACANCIES: vacancies,
-    PROCESS_STEPS: []
+    PROCESS_STEPS: [],
+    MEDIA: Object.fromEntries(
+      [...ctx.mediaMap.entries()]
+        .filter((e): e is [string, any] => e[0] === e[1]?.id)
+        .map(([k, m]): [string, { url: string | undefined }] => [k, { url: mediaUrlOf(ctx.site?.id, m) }])
+        .filter(([, v]) => !!v.url)
+    ),
+    // Raw config dumps trail the editable roots.
+    THEME: theme,
+    THEME_CSS: themeStyle,
+    SETTINGS: ctx.settings,
   };
 
   const scriptBlock = `<script>window.__CMS__=${escapeJsonForScript(cmsPayload)};window.__CMS_ROUTE__=${escapeJsonForScript({ route: ctx.route, subRoute: ctx.subRoute })};</script>`;

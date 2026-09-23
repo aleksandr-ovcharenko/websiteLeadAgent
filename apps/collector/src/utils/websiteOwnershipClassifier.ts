@@ -55,10 +55,10 @@ interface PolicyEntry {
 }
 
 export const KNOWN_NON_COMPANY_DOMAINS: PolicyEntry[] = [
-  { domain: 'gmc.by', decision: 'AGGREGATOR', reason: 'GMC is a company directory/aggregator: numbered company listings (e.g. /16851-flaydero.html), add-company/add-product flows, unrelated sellers on one domain', evidence: 'lead cmtnjmlqr004s99lgcjwcgttl → https://gmc.by/16851-flaydero.html' },
-  { domain: 'deal.by', decision: 'MARKETPLACE', reason: 'deal.by is a marketplace: seller storefronts under /cs/<id>/, catalog of goods from many unrelated sellers', evidence: 'lead cmtnjmlph003j99lgwik0hu9f → https://deal.by/cs/252480/contacts' },
-  { domain: 'rubrikator.by', decision: 'DIRECTORY', reason: 'rubrikator.by is an organization directory (same operator family as rubrikator.org): /place/<slug> listings', evidence: 'lead cmtsjelod005b11ro68f0tn1c → https://rubrikator.by/place/…' },
-  { domain: 'minsk-city.by', decision: 'DIRECTORY', reason: 'minsk-city.by is a city directory: /companies/<slug> listings of unrelated businesses', evidence: 'lead cmtnjmlp9003d99lg04mdzutz → https://minsk-city.by/companies/azhur' },
+  { domain: 'gmc.by', decision: 'AGGREGATOR', reason: 'GMC is a company directory/aggregator: numbered company listings (e.g. /16851-flaydero.html), add-company/add-product flows, unrelated sellers on one domain', evidence: 'https://gmc.by/16851-flaydero.html' },
+  { domain: 'deal.by', decision: 'MARKETPLACE', reason: 'deal.by is a marketplace: seller storefronts under /cs/<id>/, catalog of goods from many unrelated sellers', evidence: 'https://deal.by/cs/252480/contacts' },
+  { domain: 'rubrikator.by', decision: 'DIRECTORY', reason: 'rubrikator.by is an organization directory (same operator family as rubrikator.org): /place/<slug> listings', evidence: 'https://rubrikator.by/place/…' },
+  { domain: 'minsk-city.by', decision: 'DIRECTORY', reason: 'minsk-city.by is a city directory: /companies/<slug> listings of unrelated businesses', evidence: 'https://minsk-city.by/companies/azhur' },
 ];
 
 // ---------------------------------------------------------------------------

@@ -50,7 +50,7 @@ async function main() {
     await page.locator('select[name="provider"]').selectOption('manual');
     await page.waitForTimeout(200);
     await page.screenshot({ path: path.join(OUT, '02-manual-provider.png'), fullPage: true });
-    await page.fill('textarea[placeholder*="garantk.by"]', 'garantk.by\nExample Co;https://example.by');
+    await page.fill('textarea[placeholder*="acme.by"]', 'acme.by\nExample Co;https://example.by');
     const [response] = await Promise.all([
       page.waitForResponse(r => r.url().includes('/api/discovery/runs') && r.request().method() === 'POST', { timeout: 15000 }),
       page.click('button:has-text("Start discovery")'),

@@ -9,6 +9,7 @@ import { LeadScoreRing } from './RadarScoreRing';
 import { LeadSelectionStore } from './selection';
 import { createRadarStore, RadarStore } from './radarStore';
 import { leadMatchesFilters } from './leadMerge';
+import { ACTIVE_RUN_STATUSES, sleep } from './useDiscoveryRuns';
 
 type Mode = 'all' | 'audit' | 'selected';
 
@@ -188,6 +189,7 @@ export default function RadarLeads({ mode = 'all' }: { mode?: Mode }) {
   const [view, setView] = useState<PrimaryView>(initial.view);
   const [filters, setFilters] = useState<Filters>(initial.filters);
   const [stats, setStats] = useState<any>(null);
+  const [runs, setRuns] = useState<any[]>([]);
   const [sseLive, setSseLive] = useState(true);
 
   // Selection: single authoritative identity, isolated from entity data.
@@ -241,19 +243,112 @@ setLoading(true);
     loadView(filters, discoveryRunId);
   }, [view, discoveryRunId, filters.q, filters.websiteStatus, filters.qualificationStatus, filters.manual, filters.generationStatus, filters.sort]);
 
-  // ---- SSE: LEAD_PATCH-style events patch entities by ID only. -------
+  // ---- Stats + discovery runs: one owner, no idle polling. -------------
+  // Updated by (a) mount/run-filter change, (b) terminal activity events,
+  // (c) explicit Refresh, (d) a bounded per-run progress watcher.
+  const loadStats = useCallback(async () => {
+    try {
+      const s = await api.getLeadStats(discoveryRunId || undefined);
+      setStats(s);
+    } catch { /* stats are non-fatal */ }
+  }, [discoveryRunId]);
+
+  const loadRuns = useCallback(async () => {
+    try {
+      const res = await api.getDiscoveryRuns(50, 0);
+      setRuns(res.items || []);
+      return res.items || [];
+    } catch { return []; }
+  }, []);
+
+  /** Patch one run row in place — never rebuilds the list or the lead view. */
+  const patchRun = useCallback((run: any) => {
+    if (!run?.id) return;
+    setRuns((prev) => {
+      const idx = prev.findIndex((r) => r.id === run.id);
+      if (idx < 0) return [run, ...prev];
+      const next = prev.slice();
+      next[idx] = { ...prev[idx], ...run };
+      return next;
+    });
+  }, []);
+
+  const watchersRef = useRef(new Map<string, { stop: boolean }>());
+  const loadStatsRef = useRef(loadStats);
+  loadStatsRef.current = loadStats;
+
+  /**
+   * Run-scoped progress watcher: bounded exponential backoff while the run
+   * is unfinished. It patches only that run's row — the lead table, filters,
+   * selection, scroll and the open lead are untouched — and stops at the
+   * first terminal status.
+   */
+  const startProgressWatcher = useCallback((runId: string) => {
+    if (!runId || watchersRef.current.has(runId)) return;
+    const ctl = { stop: false };
+    watchersRef.current.set(runId, ctl);
+    void (async () => {
+      let delay = 2000;
+      try {
+        while (!ctl.stop) {
+          await sleep(delay);
+          if (ctl.stop) break;
+          let run: any = null;
+          try {
+            const res = await api.getDiscoveryRun(runId);
+            run = res?.run ?? res;
+          } catch {
+            break;
+          }
+          if (!run) break;
+          patchRun(run);
+          if (!ACTIVE_RUN_STATUSES.has(run.status)) {
+            // Terminal: one stats refresh, then the watcher exits.
+            void loadStatsRef.current();
+            break;
+          }
+          delay = Math.min(delay * 2, 30000);
+        }
+      } finally {
+        watchersRef.current.delete(runId);
+      }
+    })();
+  }, [patchRun]);
+
+  useEffect(() => {
+    void loadStats();
+  }, [loadStats]);
+
+  useEffect(() => {
+    void loadRuns().then((items) => items.forEach((r: any) => ACTIVE_RUN_STATUSES.has(r.status) && startProgressWatcher(r.id)));
+    return () => {
+      watchersRef.current.forEach((w) => { w.stop = true; });
+      watchersRef.current.clear();
+    };
+  }, [loadRuns, startProgressWatcher]);
+
+  const refreshAll = useCallback(() => {
+    void loadView(filters, discoveryRunId);
+    void loadStats();
+    void loadRuns();
+  }, [loadView, filters, discoveryRunId, loadStats, loadRuns]);
+
+  // ---- SSE: LEAD_PATCH-style events patch entities by ID only; -------
+  // DISCOVERY events refresh stats/runs once per event or arm a run watcher.
   // EventSource sends Last-Event-ID on reconnect; the server replays missed
   // events, so gaps self-heal. A dead stream falls back to a delta fetch.
   useEffect(() => {
     let es: EventSource | null = null;
     let dead = false;
-    const pending = new Map<string, ReturnType<typeof setTimeout>>();
+    const inFlight = new Set<string>();
+    const seenEventIds = new Set<string>();
     const fetchLead = (id: string) => {
-      api.getLead(id).then((r) => r?.lead && store.patchEntity(r.lead)).catch(() => {});
-    };
-    const schedulePatch = (leadId: string) => {
-      if (pending.has(leadId)) return;
-      pending.set(leadId, setTimeout(() => { pending.delete(leadId); fetchLead(leadId); }, 250));
+      if (inFlight.has(id)) return;
+      inFlight.add(id);
+      api.getLead(id)
+        .then((r) => r?.lead && store.patchEntity(r.lead))
+        .catch(() => {})
+        .finally(() => inFlight.delete(id));
     };
     const connect = () => {
       try {
@@ -274,32 +369,32 @@ setLoading(true);
         es.onmessage = (msg) => {
           try {
             const ev = JSON.parse(msg.data);
+            if (ev?.module === 'DISCOVERY') {
+              const key = ev?.id ? `d:${ev.id}` : `${ev.eventType}:${ev.discoveryRunId ?? ''}`;
+              if (seenEventIds.has(key)) return;
+              seenEventIds.add(key);
+              const runId = ev?.discoveryRunId;
+              if (ev.eventType === 'DISCOVERY_RUN_COMPLETED' || ev.eventType === 'DISCOVERY_RUN_FAILED') {
+                void loadRuns();
+                void loadStatsRef.current();
+              } else if (runId) {
+                api.getDiscoveryRun(runId).then((res) => patchRun(res?.run ?? res)).catch(() => undefined);
+                startProgressWatcher(runId);
+              }
+              return;
+            }
             const leadId = ev?.leadId;
             if (typeof leadId !== 'string') return;
             if (ev?.eventType === 'lead_deleted') { store.noteExternalDelete(leadId); return; }
-            schedulePatch(leadId);
+            fetchLead(leadId);
           } catch { /* malformed event */ }
         };
         es.onerror = () => { setSseLive(false); dead = true; };
       } catch { setSseLive(false); dead = true; }
     };
     connect();
-    return () => { es?.close(); pending.forEach((t) => clearTimeout(t)); };
-  }, [store]);
-
-  // ---- Stats: an independent store region — cannot touch the table. ---
-  useEffect(() => {
-    let mounted = true;
-    const loadStats = async () => {
-      try {
-        const s = await api.getLeadStats(discoveryRunId || undefined);
-        if (mounted) setStats(s);
-      } catch { /* stats are non-fatal */ }
-    };
-    loadStats();
-    const interval = setInterval(loadStats, 15000);
-    return () => { mounted = false; clearInterval(interval); };
-  }, [discoveryRunId]);
+    return () => { es?.close(); };
+  }, [store, loadRuns, patchRun, startProgressWatcher]);
 
   const handleView = (v: PrimaryView) => {
     setView(v);
@@ -397,7 +492,7 @@ setLoading(true);
         <h1 className="text-[14px] font-semibold text-text">Leads</h1>
         <div className="flex items-center gap-2">
           {!sseLive && <span className="text-[11px] text-warning font-mono">Live updates reconnecting…</span>}
-          <Button size="sm" variant="secondary" onClick={() => loadView(filters, discoveryRunId)}>Refresh</Button>
+          <Button size="sm" variant="secondary" onClick={refreshAll}>Refresh</Button>
         </div>
       </div>
 
@@ -424,7 +519,7 @@ setLoading(true);
           </div>
         )}
 
-        <RadarStats discoveryRunId={discoveryRunId} onRunChange={setDiscoveryRunId} onQualify={qualifyRun} qualifying={qualifying} />
+        <RadarStats stats={stats} runs={runs} discoveryRunId={discoveryRunId} onRunChange={setDiscoveryRunId} onQualify={qualifyRun} qualifying={qualifying} />
         <RadarFilters
           filters={filters}
           onChange={(f) => setFilters({ ...filters, ...f })}

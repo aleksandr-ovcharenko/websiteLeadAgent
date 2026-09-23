@@ -1,6 +1,7 @@
 import { crawlSite } from '../packages/redesign-engine/dist/index.js';
 
-const url = process.argv[2] || 'https://versh.by/';
+const url = process.argv[2];
+if (!url) { console.error('usage: node scripts/test-crawl.mjs <url>'); process.exit(2); }
 console.log('Crawling', url);
 const { pages, navigation } = await crawlSite({ baseUrl: url, maxPages: 20, maxDepth: 3 });
 console.log('\n=== NAVIGATION TREE ===');

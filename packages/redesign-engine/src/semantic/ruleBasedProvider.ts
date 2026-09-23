@@ -922,7 +922,7 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
     const alt = norm(image.alt);
     const selector = (image.domPath || '').toLowerCase();
     const src = image.src || '';
-    // Never feed src/href into label regexes: a TLD like `lishen.by` or a
+    // Never feed src/href into label regexes: a TLD like `acme.by` or a
     // WordPress `attachment-*` class must not turn a photo into LANGUAGE_ICON
     // or ADVERTISEMENT. Labels come from alt + DOM class tokens only.
     const labelContext = `${alt} ${selector}`;

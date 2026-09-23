@@ -213,7 +213,11 @@ const TEXT_AUDIT = `(() => {
     if (!node || typeof node !== 'object') return;
     if (Array.isArray(node)) { node.forEach((n, i) => { if (typeof n === 'string' && n.trim().length >= 2) flat.push({ path: path + '[' + i + ']', value: n }); else walk(n, path + '[' + i + ']'); }); return; }
     for (const [k, v] of Object.entries(node)) {
-      if (k === 'MANIFEST' || k === 'PREVIEW_TOKEN' || k === 'SITE_ID' || k === 'BASE') continue;
+      // Skip transport metadata and raw config dumps (THEME/SETTINGS mirror
+      // DB config). Ownership must resolve to the canonical editable roots
+      // (PAGE/COPY/COMPANY/NAV/entity lists) — not to a mirrored config leaf.
+      if (k === 'MANIFEST' || k === 'PREVIEW_TOKEN' || k === 'SITE_ID' || k === 'BASE'
+          || k === 'THEME' || k === 'THEME_CSS' || k === 'SETTINGS') continue;
       if (typeof v === 'string' && v.trim().length >= 2) flat.push({ path: path ? path + '.' + k : k, value: v });
       else if (typeof v === 'object') walk(v, path ? path + '.' + k : k);
     }
@@ -224,12 +228,23 @@ const TEXT_AUDIT = `(() => {
   const findPath = (text) => {
     const t = norm(text);
     if (!t) return null;
+    // Pass 1: exact/template matches — they beat substring matches so a styled
+    // title split into word spans doesn't latch onto an unrelated field.
     for (const f of flat) {
       const v = norm(f.value);
       if (!v) continue;
-      if (v === t || v.includes(t) || t.includes(v)) return f.path;
+      if (v === t) return { path: f.path, exact: true };
       // template-copy interpolation: 'Все {name}' ↔ 'Все объекты'
-      if (/\\{[^}]+\\}/.test(v) && interpRe(v).test(t)) return f.path;
+      if (/\\{[^}]+\\}/.test(v) && interpRe(v).test(t)) return { path: f.path, exact: true };
+    }
+    // Pass 2: substring match (rendered fragment of a longer value, or a
+    // clampCopy-truncated prefix — strip the trailing ellipsis first).
+    const tCore = t.replace(/[…\u2026.]+\s*$/, '').trim();
+    for (const f of flat) {
+      const v = norm(f.value);
+      if (!v) continue;
+      if (v.includes(t) || t.includes(v)) return { path: f.path, exact: false };
+      if (tCore.length >= 8 && v.includes(tCore)) return { path: f.path, exact: false };
     }
     return null;
   };
@@ -239,7 +254,8 @@ const TEXT_AUDIT = `(() => {
     const t = norm(s);
     if (t.length < 2 || seen.has(t)) return;
     seen.add(t);
-    rows.push({ renderedText: t.slice(0, 160), cmsPath: findPath(t), via, routeType: (payload.ROUTE || {}).type || '', entityId: (payload.ENTITY || {}).id || '', entityKind: (payload.ENTITY || {}).kind || '', pageId: (payload.PAGE || {}).id || '', pageSlug: (payload.PAGE || {}).slug || '' });
+    const m = findPath(t) || {};
+    rows.push({ renderedText: t.slice(0, 160), cmsPath: m.path || null, exact: m.exact !== false, via, routeType: (payload.ROUTE || {}).type || '', entityId: (payload.ENTITY || {}).id || '', entityKind: (payload.ENTITY || {}).kind || '', pageId: (payload.PAGE || {}).id || '', pageSlug: (payload.PAGE || {}).slug || '' });
   };
   const tw = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
     acceptNode(n) {
@@ -446,17 +462,18 @@ export async function runVisualQa(opts: {
     // editor control — a value existing in JSON is not ownership (V3.7.4 §4).
     // Desktop routes only — the same strings render at mobile widths.
     if (vw.w >= 1200) {
-      const rows = (await page.evaluate(TEXT_AUDIT)) as { renderedText: string; cmsPath: string | null; via: string; routeType?: string; entityId?: string; entityKind?: string; pageId?: string; pageSlug?: string }[];
+      const rows = (await page.evaluate(TEXT_AUDIT)) as { renderedText: string; cmsPath: string | null; exact?: boolean; via: string; routeType?: string; entityId?: string; entityKind?: string; pageId?: string; pageSlug?: string }[];
       const wordy = rows.filter((r) => /[A-Za-zА-Яа-яЁё]{2,}/.test(r.renderedText));
       const meta = rows[0] || {};
       // Resolve the entity/page row once for block-id lookups.
       const routeEntity = meta.entityId ? await getEntity(meta.entityKind || 'service', meta.entityId) : null;
       const routePage = meta.pageId || meta.pageSlug ? await getPage(meta.pageId || meta.pageSlug || '') : (meta.routeType === 'HOME' ? await homePage() : null);
+      const cmsPayload = (await page.evaluate('window.__CMS__ || {}')) as any;
       const enrich = async (r: (typeof wordy)[number]) => {
         const prov = r.cmsPath ? await provenanceFor(r.cmsPath, meta) : null;
-        const editorControlId = r.cmsPath ? resolveEditorControl(r.cmsPath, meta, { entity: routeEntity, page: routePage }) : null;
+        const editorControlId = r.cmsPath ? resolveEditorControl(r.cmsPath, meta, { entity: routeEntity, page: routePage, home: await homePage(), payload: cmsPayload }) : null;
         return {
-          renderedText: r.renderedText, cmsPath: r.cmsPath,
+          renderedText: r.renderedText, cmsPath: r.cmsPath, exact: r.exact !== false,
           cmsEntityType: meta.entityKind || (meta.pageId ? 'page' : null), cmsEntityId: meta.entityId || meta.pageId || null,
           editorControlId, editable: !!editorControlId,
           ownership: prov?.ownership ?? null, sourceUrl: prov?.sourceUrl ?? null, hardcoded: !r.cmsPath,
@@ -524,9 +541,11 @@ export async function runVisualQa(opts: {
     await ctx.close();
   }
 
-  // Other routes at desktop + 390.
+  // Other routes at desktop + 390. V3.7.6: no cap — the caller passes the
+  // full CMS-derived route manifest and every published route must be
+  // covered, since promotion requires a screenshot per manifest route.
   const ctx2 = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  for (const r of unique.filter((r) => r.route !== '').slice(0, 8)) {
+  for (const r of unique.filter((r) => r.route !== '')) {
     const page = await ctx2.newPage() as unknown as BrowserPage;
     await auditPage(page, r.route, { w: 1440, h: 900 }, r.label);
     await page.setViewportSize({ width: 390, height: 844 });

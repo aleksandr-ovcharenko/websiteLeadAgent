@@ -79,6 +79,67 @@ export async function pickQaRoutes(prisma: PrismaClient, siteId: string): Promis
   return routes.filter((r) => (seen.has(r.route) ? false : (seen.add(r.route), true)));
 }
 
+export interface ManifestRoute {
+  route: string;
+  label: string;
+  kind: 'home' | 'collection' | 'page' | 'entity';
+  entityKind?: string;
+  title?: string;
+}
+
+/** V3.7.6 Phase 4 — the route manifest is derived from actually imported CMS
+ *  entities, never from a hand-written list. Enumerates home, every
+ *  published collection route, every published generic page, and every
+ *  published entity detail route — using the same path evidence the
+ *  renderer's resolveRoute uses (provenance sourceUrl path, else slug). */
+export async function buildRouteManifest(prisma: PrismaClient, siteId: string): Promise<ManifestRoute[]> {
+  const routes: ManifestRoute[] = [{ route: '/', label: 'home', kind: 'home' }];
+  const srcPath = (u?: string | null): string | undefined => {
+    if (!u || u.includes('#')) return undefined; // anchored provenance isn't a routable path
+    try { return new URL(u, 'http://x').pathname.replace(/^\/+|\/+$/g, '') || undefined; } catch { return undefined; }
+  };
+
+  const [pages, services, projects, products, news, vacancies] = await Promise.all([
+    (prisma as any).page.findMany({ where: { siteId, status: 'PUBLISHED' } }).catch(() => []),
+    (prisma as any).service.findMany({ where: { siteId, status: 'PUBLISHED' } }).catch(() => []),
+    (prisma as any).project.findMany({ where: { siteId, status: 'PUBLISHED' } }).catch(() => []),
+    (prisma as any).product.findMany({ where: { siteId, status: 'PUBLISHED' } }).catch(() => []),
+    (prisma as any).newsPost.findMany({ where: { siteId, status: 'PUBLISHED' } }).catch(() => []),
+    (prisma as any).vacancy.findMany({ where: { siteId, status: 'PUBLISHED' } }).catch(() => []),
+  ]);
+
+  // Collection routes: a published page whose slug is a collection hint wins;
+  // otherwise the canonical hint route still resolves to COLLECTION.
+  const collectionHints: Record<string, string> = {
+    services: 'services', projects: 'projects', news: 'news', vacancies: 'vacancies', products: 'products',
+  };
+  const hasEntities: Record<string, any[]> = { services, projects, news, products, vacancies };
+  const claimedByEntity = new Set<string>();
+
+  for (const [kind, items] of Object.entries(hasEntities)) {
+    if (!items.length) continue;
+    const collPage = pages.find((pg: any) => !pg.isHomepage && pg.slug === collectionHints[kind]);
+    const route = `/${collPage?.slug ?? collectionHints[kind]}`;
+    routes.push({ route, label: `${kind}-collection`, kind: 'collection', entityKind: kind });
+    for (const e of items) {
+      const p = srcPath(e.sourceUrl) ?? e.slug;
+      if (!p) continue;
+      claimedByEntity.add(p);
+      routes.push({ route: `/${p}`, label: `${kind.slice(0, -1)}-detail`, kind: 'entity', entityKind: kind.slice(0, -1), title: e.title ?? undefined });
+    }
+  }
+
+  for (const pg of pages) {
+    if (pg.isHomepage || !pg.slug) continue;
+    if (Object.values(collectionHints).includes(pg.slug) && routes.some((r) => r.route === `/${pg.slug}`)) continue;
+    if (claimedByEntity.has(pg.slug)) continue; // detail route already covers it
+    routes.push({ route: `/${pg.slug}`, label: 'page', kind: 'page', title: pg.title ?? undefined });
+  }
+
+  const seen = new Set<string>();
+  return routes.filter((r) => (seen.has(r.route) ? false : (seen.add(r.route), true)));
+}
+
 export async function runPostRenderQa(opts: {
   siteId: string;
   previewToken: string;
@@ -87,6 +148,9 @@ export async function runPostRenderQa(opts: {
   browser?: boolean;
   artifactDir?: string;
   expectedEntityTitles?: { route: string; title: string }[];
+  /** V3.7.6 — full CMS-derived manifest covers every published route instead
+   *  of the bounded pickQaRoutes sample. */
+  exhaustive?: boolean;
 }): Promise<PostRenderQaReport> {
   const baseUrl = (opts.baseUrl || process.env.RENDER_QA_BASE_URL || 'http://localhost:3336').replace(/\/+$/, '');
   const previewBase = `${baseUrl}/showcase/${opts.previewToken}`;
@@ -94,7 +158,12 @@ export async function runPostRenderQa(opts: {
   const errors: string[] = [];
   const warnings: string[] = [];
   const screenshots: string[] = [];
-  const routes = await pickQaRoutes(opts.prisma, opts.siteId);
+  const manifest = opts.exhaustive ? await buildRouteManifest(opts.prisma, opts.siteId) : undefined;
+  const routes = manifest
+    ? [...manifest.map((r) => ({ route: r.route === '/' ? '' : r.route, label: r.label })), { route: '/__definitely-not-a-page-v372__', label: 'deliberate-404' }]
+    : await pickQaRoutes(opts.prisma, opts.siteId);
+  const expectedEntityTitles = opts.expectedEntityTitles
+    ?? manifest?.filter((r) => r.title).map((r) => ({ route: r.route === '/' ? '' : r.route, title: r.title! }));
 
   const push = (route: string, check: string, ok: boolean, detail?: string, severity: 'error' | 'warning' = 'error') => {
     checks.push({ route, check, ok, detail });
@@ -114,18 +183,33 @@ export async function runPostRenderQa(opts: {
     };
   }
 
-  const expectedByRoute = new Map((opts.expectedEntityTitles || []).map((x) => [x.route, x.title]));
+  const expectedByRoute = new Map((expectedEntityTitles || []).map((x) => [x.route, x.title]));
   const internalLinks = new Set<string>();
   const imgSrcs = new Set<string>();
 
   /** Extract the embedded CMS payload — the renderer is client-side React, so
-   *  the window.__CMS__ script IS the content contract for HTTP-tier checks. */
+   *  the window.__CMS__ script IS the content contract for HTTP-tier checks.
+   *  The script block packs several assignments (`__CMS__=…;__CMS_ROUTE__=…`),
+   *  so the JSON object ends at its own balanced closing brace — not at
+   *  `</script>`. */
   const extractPayload = (body: string): Record<string, any> | undefined => {
     const i = body.indexOf('window.__CMS__=');
     if (i < 0) return undefined;
-    const j = body.indexOf('</script>', i);
-    const raw = body.slice(i + 'window.__CMS__='.length, j > i ? j : undefined).replace(/;\s*$/, '');
-    try { return JSON.parse(raw); } catch { return undefined; }
+    const start = body.indexOf('{', i + 'window.__CMS__='.length);
+    if (start < 0 || start - i > 64) return undefined;
+    let depth = 0, inStr = false, esc = false;
+    for (let k = start; k < body.length; k++) {
+      const c = body[k];
+      if (esc) { esc = false; continue; }
+      if (c === '\\' && inStr) { esc = true; continue; }
+      if (c === '"') { inStr = !inStr; continue; }
+      if (inStr) continue;
+      if (c === '{') depth++;
+      else if (c === '}' && --depth === 0) {
+        try { return JSON.parse(body.slice(start, k + 1)); } catch { return undefined; }
+      }
+    }
+    return undefined;
   };
 
   // Recursive href/text walk over the payload: finds dead links and collects
@@ -160,8 +244,14 @@ export async function runPostRenderQa(opts: {
     // Route identity: the payload's resolved route kind must match the request
     // (a 200 on an unknown path that silently renders HOME is a defect).
     const routeType = payload?.ROUTE?.type;
-    if (is404) push(route, 'route kind', routeType === 'NOT_FOUND', `ROUTE.type=${routeType}`);
-    else push(route, 'route kind', !!routeType && routeType !== 'NOT_FOUND', `ROUTE.type=${routeType}`);
+    if (is404) {
+      // The HTTP 404 status above is the contract; a payload-bearing 404
+      // page is additionally required to report ROUTE.type=NOT_FOUND, but a
+      // payload-less error page is valid.
+      if (payload) push(route, 'route kind', routeType === 'NOT_FOUND', `ROUTE.type=${routeType}`);
+    } else {
+      push(route, 'route kind', !!routeType && routeType !== 'NOT_FOUND', `ROUTE.type=${routeType}`);
+    }
 
     // Non-empty content measured on the payload's visible text mass.
     if (!is404) {

@@ -4,12 +4,14 @@ export { buildSourceDocuments, sourceDocumentToCrawledPage } from './extract/bui
 export { extractFromCrawl } from './extract/extractFromCrawl.js';
 export { importToCms } from './import/importToCms.js';
 export { generateSite, runCrawl } from './pipeline/index.js';
+export { publishForgePreview, backfillForgePreviews, ForgePreviewError, verifyPngBuffer } from './pipeline/forgePreview.js';
 export { getPipelineStageLabel } from './pipeline/labels.js';
 export { buildSourceContentGraph, writeSourceContentGraph, loadSourceDocuments } from './semantic/graph.js';
 export { createSemanticProvider } from './semantic/provider.js';
 export { buildSiteContentPlan, computePlanHash, verifyPlanHash } from './plan/siteContentPlan.js';
 export { runEditorialQa, getEditorialQaProvider, registerEditorialQaProvider, DeterministicEditorialQa } from './qa/editorialQa.js';
 export type { EditorialQaProvider, EditorialQaReport, LintIssue, SuggestPatch, QaInput } from './qa/editorialQa.js';
+export { runPostRenderQa, pickQaRoutes, buildRouteManifest } from './qa/postRenderQa.js';
 export { runGeneratedContentQa } from './qa/generatedContentQa.js';
 export type { GeneratedContentQaReport, GeneratedContentFinding, QaSeverity } from './qa/generatedContentQa.js';
 export { buildPlanReport } from './plan/planReport.js';

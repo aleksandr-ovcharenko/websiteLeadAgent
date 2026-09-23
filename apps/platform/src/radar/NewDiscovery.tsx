@@ -239,7 +239,7 @@ export default function NewDiscovery({ open, onClose, onStarted, initialData }: 
                   value={manualEntries}
                   onChange={(e) => setManualEntries(e.target.value)}
                   className="w-full px-3 py-2 text-[13px] border border-border rounded"
-                  placeholder="garantk.by&#10;Company Name;https://example.by&#10;company2.by"
+                  placeholder="acme.by&#10;Company Name;https://example.by&#10;company2.by"
                 />
                 <p className="text-[11px] text-text-subtle">Each line may be a domain, a full URL, or `Company Name;https://website`.</p>
               </>

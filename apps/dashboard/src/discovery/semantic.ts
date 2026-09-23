@@ -39,8 +39,9 @@ export async function semanticRelevance(
   const system = `You classify whether a business is relevant to a discovery search intent. Reply with JSON only. Decision values: RELEVANT, IRRELEVANT, UNCERTAIN. Provide confidence 0..1, a short reason, and matched concepts. Be strict: only return RELEVANT if the business clearly matches the intent; IRRELEVANT if the category is clearly off-target; UNCERTAIN if evidence is insufficient. Do not guess.`;
   const user = `Intent: ${intent || query}\nQuery: ${query}\nCompany name: ${candidate.companyName}\nCategories: ${(candidate.categories || []).join(', ')}\nAddress: ${candidate.address || ''}\nWebsite: ${candidate.website || ''}`;
 
+  const model = process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite';
   try {
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -72,9 +73,12 @@ export async function semanticRelevance(
       matchedConcepts: parsed.matchedConcepts || [],
     };
   } catch (e: any) {
+    // AI failure must never leak into persisted candidate reasons — the gate
+    // stays deterministic: an unavailable classifier means UNCERTAIN, with a
+    // stable machine-readable reason for the run breakdown.
     if (e?.message?.includes('429') || e?.message?.includes('quota') || e?.message?.includes('timeout')) {
-      return { decision: 'UNCERTAIN', confidence: 0, reason: 'AI temporarily unavailable', matchedConcepts: [] };
+      return { decision: 'UNCERTAIN', confidence: 0, reason: 'AI_TEMPORARILY_UNAVAILABLE', matchedConcepts: [] };
     }
-    return { decision: 'UNCERTAIN', confidence: 0, reason: `AI classification failed: ${e?.message || 'unknown'}`, matchedConcepts: [] };
+    return { decision: 'UNCERTAIN', confidence: 0, reason: 'AI_CLASSIFIER_FAILED', matchedConcepts: [] };
   }
 }

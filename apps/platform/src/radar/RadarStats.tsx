@@ -1,6 +1,3 @@
-import { useEffect, useState } from 'react';
-import { api } from '../cms/api';
-
 export interface RadarStatsData {
   total: number;
   withWebsite: number;
@@ -20,34 +17,19 @@ export interface RadarStatsData {
   failed: number;
 }
 
-export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qualifying }: { discoveryRunId: string; onRunChange: (id: string) => void; onQualify?: () => void; qualifying?: boolean }) {
-  // Stats are an isolated display region: they never block/unblock the
-  // table, never change height, and never set themselves to null on a
-  // background refresh. The grid stays mounted with stable geometry.
-  const [stats, setStats] = useState<Partial<RadarStatsData>>({});
-  const [runs, setRuns] = useState<any[]>([]);
-  const [lastUpdate, setLastUpdate] = useState(0);
+interface RadarStatsProps {
+  stats: Partial<RadarStatsData> | null;
+  runs: any[];
+  discoveryRunId: string;
+  onRunChange: (id: string) => void;
+  onQualify?: () => void;
+  qualifying?: boolean;
+}
 
-  const load = () => {
-    Promise.all([
-      api.getLeadStats(discoveryRunId || undefined),
-      api.getDiscoveryRuns()
-    ])
-      .then(([s, r]) => {
-        setStats(s);
-        setRuns(r.items || []);
-        setLastUpdate(Date.now());
-      })
-      .catch((e) => console.error('Radar stats failed', e));
-  };
-
-  useEffect(() => {
-    let mounted = true;
-    load();
-    const interval = setInterval(() => { if (mounted) load(); }, 5000);
-    return () => { mounted = false; clearInterval(interval); };
-  }, [discoveryRunId]);
-
+// Presentational only — data ownership lives in the parent (single stats/run
+// state, updated by activity events, explicit refresh, or a run-scoped
+// watcher). This component issues zero requests of its own.
+export default function RadarStats({ stats, runs, discoveryRunId, onRunChange, onQualify, qualifying }: RadarStatsProps) {
   const cards: { label: string; value: keyof RadarStatsData; positive?: boolean; warn?: boolean }[] = [
     { label: 'Total', value: 'total' },
     { label: 'With website', value: 'withWebsite' },
@@ -90,13 +72,13 @@ export default function RadarStats({ discoveryRunId, onRunChange, onQualify, qua
         {cards.map(({ label, value, positive, warn }) => (
           <div key={label} className="bg-surface-raised border border-border rounded p-2 text-center">
             <div className={`text-[16px] font-mono font-semibold tabular-nums ${positive ? 'text-accent' : warn ? 'text-danger' : 'text-text'}`}>
-              {value in (stats as any) ? (stats as any)[value] : '—'}
+              {stats && value in (stats as any) ? (stats as any)[value] : '—'}
             </div>
             <div className="text-[9px] font-mono text-text-subtle uppercase tracking-wider mt-0.5">{label}</div>
           </div>
         ))}
       </div>
-      {lastUpdate > 0 && (
+      {stats && (
         <div data-testid="stats-timestamp" className="sr-only" aria-live="polite">Stats updated</div>
       )}
     </div>

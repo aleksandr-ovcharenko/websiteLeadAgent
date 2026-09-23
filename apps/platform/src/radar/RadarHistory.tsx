@@ -1,23 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { api } from '../cms/api';
 import { Button } from '../cms/ui';
 import DiscoveryRunDetail from './DiscoveryRunDetail';
-
-interface DiscoveryRun {
-  id: string;
-  provider: string;
-  query: string;
-  location?: string;
-  limit: number;
-  status: 'PENDING' | 'RUNNING' | 'COMPLETED' | 'FAILED';
-  collected: number;
-  createdCount: number;
-  duplicateCount: number;
-  rejectedCount: number;
-  uncertainCount: number;
-  errorMessage?: string;
-  createdAt: string;
-}
+import { useDiscoveryRuns } from './useDiscoveryRuns';
 
 interface RadarHistoryProps {
   onNewDiscovery: (providerId?: string) => void;
@@ -25,36 +10,19 @@ interface RadarHistoryProps {
 }
 
 export default function RadarHistory({ onNewDiscovery, onDuplicate }: RadarHistoryProps) {
-  const [runs, setRuns] = useState<DiscoveryRun[]>([]);
-  const [loading, setLoading] = useState(true);
+  // Shared run list: activity events + run-scoped watchers — no idle polling.
+  const { runs, loading, error: runsError, refresh, startProgressWatcher } = useDiscoveryRuns();
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
 
-  const refresh = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await api.getDiscoveryRuns(50, 0);
-      setRuns(res.items || []);
-    } catch (e: any) {
-      setError(e.message || 'Failed to load runs');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    refresh();
-    const interval = setInterval(refresh, 3000);
-    return () => clearInterval(interval);
-  }, []);
-
   async function runAgain(id: string) {
     setBusy(id);
     try {
-      await api.runDiscoveryAgain(id);
+      const res = await api.runDiscoveryAgain(id);
       await refresh();
+      const runId = res?.run?.id;
+      if (runId) startProgressWatcher(runId);
     } catch (e: any) {
       setError(e.message || 'Run again failed');
     } finally {
@@ -90,12 +58,12 @@ export default function RadarHistory({ onNewDiscovery, onDuplicate }: RadarHisto
         <h1 className="text-[14px] font-semibold text-text">Discovery history</h1>
         <div className="flex items-center gap-2">
           <Button size="sm" onClick={() => onNewDiscovery(undefined)}>+ New discovery</Button>
-          <Button variant="secondary" size="sm" onClick={refresh}>Refresh</Button>
+          <Button variant="secondary" size="sm" onClick={() => { void refresh(); }}>Refresh</Button>
         </div>
       </div>
 
       <div className="p-6">
-        {error && <div className="mb-4 text-[12px] text-danger bg-danger-subtle border border-danger-subtle rounded px-3 py-2">{error}</div>}
+        {(error ?? runsError) && <div className="mb-4 text-[12px] text-danger bg-danger-subtle border border-danger-subtle rounded px-3 py-2">{error ?? runsError}</div>}
         {loading && <div className="text-[13px] text-text-subtle">Loading runs…</div>}
         {!loading && runs.length === 0 && <div className="text-[13px] text-text-subtle">No discovery runs yet</div>}
 
@@ -129,6 +97,11 @@ export default function RadarHistory({ onNewDiscovery, onDuplicate }: RadarHisto
                     </td>
                     <td className="py-2.5 px-3 text-[12px] text-text">
                       {run.collected} found · {run.createdCount} added · {run.duplicateCount} dup · {run.rejectedCount} filtered · {run.uncertainCount} uncertain
+                      {run.reasonBreakdown && Object.keys(run.reasonBreakdown).length > 0 && (
+                        <div className="text-[10px] font-mono text-text-subtle mt-0.5">
+                          {Object.entries(run.reasonBreakdown).map(([k, v]) => `${k}:${v}`).join(' · ')}
+                        </div>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 text-[12px] text-text-subtle">
                       {new Date(run.createdAt).toLocaleString()}

@@ -26,6 +26,7 @@ export type PipelineStage =
   | 'RENDERED'
   | 'RENDER_VALIDATED'
   | 'VISUAL_VALIDATED'
+  | 'PREVIEW_PUBLISHED'
   | 'HUMAN_REVIEW_READY';
 
 export const STAGE_ORDER: PipelineStage[] = [
@@ -38,6 +39,7 @@ export const STAGE_ORDER: PipelineStage[] = [
   'RENDERED',
   'RENDER_VALIDATED',
   'VISUAL_VALIDATED',
+  'PREVIEW_PUBLISHED',
   'HUMAN_REVIEW_READY',
 ];
 
@@ -102,6 +104,7 @@ export const STAGE_TO_RUN_STAGE: Record<PipelineStage, string> = {
   RENDERED: 'SITE_RENDERED',
   RENDER_VALIDATED: 'RENDER_VALIDATED',
   VISUAL_VALIDATED: 'VISUAL_VALIDATED',
+  PREVIEW_PUBLISHED: 'DEMO_GENERATED',
   HUMAN_REVIEW_READY: 'HUMAN_REVIEW_READY',
 };
 
@@ -115,6 +118,7 @@ export const RESUMABLE_STAGES: PipelineStage[] = [
   'RENDERED',
   'RENDER_VALIDATED',
   'VISUAL_VALIDATED',
+  'PREVIEW_PUBLISHED',
 ];
 
 /** True when `stage` can resume using only stored artifacts (no recrawl). */

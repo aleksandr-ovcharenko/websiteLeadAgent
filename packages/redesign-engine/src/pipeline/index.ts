@@ -9,15 +9,15 @@ import type { GraphImportProvenance } from '../import/graphToImportContent.js';
 import { runGeneratedContentQa } from '../qa/generatedContentQa.js';
 import { runRouteIntegrity } from '../qa/routeIntegrity.js';
 import { auditEntityDuplicates, normalizeEntityContent } from '../qa/duplicateContent.js';
-import { runPostRenderQa, pickQaRoutes } from '../qa/postRenderQa.js';
+import { runPostRenderQa, pickQaRoutes, buildRouteManifest } from '../qa/postRenderQa.js';
 import { runVisualQa } from '../qa/visualQa.js';
-import { applyVisualRepairs } from '../qa/visualRepairs.js';
 import { importToCms } from '../import/importToCms.js';
 import { validateGeneratedSite } from './validateSite.js';
 import { buildSourceContentGraph } from '../semantic/graph.js';
 import { ensureDependencySnapshot, linkSiteBuildSnapshot } from '../security/snapshot.js';
 import { gateResult, STAGE_TO_RUN_STAGE, STAGE_ORDER } from './stageContract.js';
 import { createPrismaRevisionStore, type RevisionStore } from './revisions.js';
+import { publishForgePreview } from './forgePreview.js';
 import { createHash } from 'node:crypto';
 import type { PipelineStage, StageGateResult } from './stageContract.js';
 import type { CrawlResult } from '../types.js';
@@ -107,11 +107,21 @@ export async function runCrawl(options: RunCrawlOptions) {
   const baseUrl = l.website;
   if (!baseUrl) throw new Error(`Lead has no website: ${l.id}`);
 
+  // A run is "in progress" only while it is provably alive: a heartbeat row
+  // fresher than a few beat intervals, or a brand-new run whose first beat
+  // has not landed yet. Anything older is a crashed/zombie run — it must not
+  // block a retry forever.
+  const ACTIVE_STALE_MS = 90_000;
+  const aliveCutoff = new Date(Date.now() - ACTIVE_STALE_MS);
   const activeRun = await (prisma as any).redesignRun.findFirst({
     where: {
       leadId: l.id,
       stage: { notIn: ['CRAWL_FAILED', 'DEMO_GENERATED', 'HUMAN_REVIEW_READY', 'DEMO_APPROVED', 'READY_TO_CONTACT'] },
-      errorMessage: null
+      errorMessage: null,
+      OR: [
+        { lastHeartbeatAt: { gte: aliveCutoff } },
+        { lastHeartbeatAt: null, createdAt: { gte: aliveCutoff } },
+      ],
     },
     orderBy: { createdAt: 'desc' }
   });
@@ -133,6 +143,14 @@ export async function runCrawl(options: RunCrawlOptions) {
 
   const artifactDir = join('data', 'redesign', l.id, 'runs', run.id);
   await mkdir(artifactDir, { recursive: true });
+
+  // Liveness heartbeat for the crawl phase — generateSite heartbeats the
+  // same run through the later stages; a standalone CRAWL_SITE call must not
+  // go silent or a long crawl would look like a zombie to the guard above.
+  const crawlHeartbeat = setInterval(() => {
+    (prisma as any).redesignRun.update({ where: { id: run.id }, data: { lastHeartbeatAt: new Date() } }).catch(() => undefined);
+  }, 15000);
+  crawlHeartbeat.unref?.();
 
   try {
     await emit('INFO', 'FACTORY_CRAWL_STARTED', 'Crawling source website', { baseUrl, runId: run.id });
@@ -190,6 +208,8 @@ export async function runCrawl(options: RunCrawlOptions) {
       data: { redesignStage: 'CRAWL_FAILED' }
     });
     throw err;
+  } finally {
+    clearInterval(crawlHeartbeat);
   }
 }
 
@@ -278,13 +298,29 @@ export async function generateSite(options: GenerateOptions) {
 
   // Do NOT delete the existing Site. The canonical Site must survive retries.
   // Force now means "regenerate imported/generated content while preserving Site.id".
-  const existingSite = l.site;
+  // The lead's own site link can point at an ARCHIVED row after a canonical
+  // merge — resolve the canonical site by domain, same rule as importToCms.
+  let existingSite = l.site;
+  const leadDomain = l.websiteDomain || (l.website || '').replace(/^https?:\/\//, '').replace(/\/+$/, '');
+  if ((!existingSite || existingSite.mergedIntoSiteId || existingSite.status === 'ARCHIVED') && leadDomain) {
+    existingSite = await (prisma as any).site.findFirst({
+      where: {
+        mergedIntoSiteId: null,
+        status: { not: 'ARCHIVED' },
+        OR: [{ canonicalDomain: leadDomain }, { domain: leadDomain }],
+      },
+    }) || existingSite;
+  }
   const baseUrl = crawlResult.homepage?.url || l.website;
   const artifactDir = dirname(crawlJsonPath);
 
   // V3.7.2 — gated stage machine. Every stage emits a typed StageGateResult,
   // persists it on the run, and blocks progression on FAIL.
-  const stageResults: StageGateResult[] = [];
+  // Resume reuses the run row — preserve prior gate history so the audit
+  // trail covers the whole run, and overwrite same-stage entries on re-run.
+  const stageResults: StageGateResult[] = Array.isArray(run.stageResults)
+    ? [...(run.stageResults as StageGateResult[])]
+    : [];
   const resumeIdx = options.resumeFromStage ? STAGE_ORDER.indexOf(options.resumeFromStage) : 0;
   const gated = (stage: PipelineStage) => STAGE_ORDER.indexOf(stage) >= resumeIdx;
   // V3.7.4 Phase 2 — revision lifecycle. Created after CMS_IMPORTED once the
@@ -322,7 +358,8 @@ export async function generateSite(options: GenerateOptions) {
     if (r.status !== 'FAIL' && typeof r.durationMs === 'number' && r.durationMs > stageTimeoutMs) {
       r = { ...r, status: 'FAIL', errors: [...r.errors, `stage timeout: ${r.stage} took ${Math.round(r.durationMs / 1000)}s (budget ${Math.round(stageTimeoutMs / 1000)}s)`] };
     }
-    stageResults.push(r);
+    const prevIdx = stageResults.findIndex((x) => x.stage === r.stage);
+    if (prevIdx >= 0) stageResults[prevIdx] = r; else stageResults.push(r);
     if (revisionStore && revisionId) {
       await revisionStore.checkpoint(revisionId, r.stage, r.durationMs).catch(() => undefined);
     }
@@ -555,38 +592,52 @@ export async function generateSite(options: GenerateOptions) {
       });
       await recordGate(r);
       if (r.status === 'FAIL') throw new Error(`Gate CMS_IMPORTED failed: ${r.errors[0]}`);
+    }
 
-      // V3.7.4 — open the revision for this run. `resume` when the run is a
-      // retry of a previous attempt (same variant, GENERATING/QA_FAILED
-      // revision) — never a new Site, never a replacement preview.
-      if (siteId && demoVariantId) {
-        revisionStore = createPrismaRevisionStore(prisma);
-        const rr = await revisionStore.createOrResume({
-          siteId, variantId: demoVariantId, runId: run.id, templateId,
-          resume: !!options.resumeFromStage || mode === 'retry',
-        });
-        revisionId = rr.revision.id;
-        // Immutable CMS snapshot for this build + content hash + route manifest.
-        const [pg, sv, pr, pd, nw, vc] = await Promise.all([
-          prisma.page.findMany({ where: { siteId } }),
-          prisma.service.findMany({ where: { siteId } }),
-          prisma.project.findMany({ where: { siteId } }),
-          prisma.product.findMany({ where: { siteId } }),
-          prisma.newsPost.findMany({ where: { siteId } }),
-          prisma.vacancy.findMany({ where: { siteId } }),
-        ]);
-        const snapshot = { pages: pg, services: sv, projects: pr, products: pd, news: nw, vacancies: vc };
-        const contentHash = createHash('sha256').update(JSON.stringify(snapshot)).digest('hex').slice(0, 16);
-        revisionRoutes = await pickQaRoutes(prisma, siteId)
-          .then((rs) => rs.map((x: any) => x.route || '/'))
-          .then((rs) => rs.filter((r: string) => !r.includes('__definitely-not')))
-          .catch(() => ['/']);
-        await prisma.siteRevision.update({
-          where: { id: revisionId },
-          data: { contentSnapshot: snapshot as any, contentHash, routeManifest: revisionRoutes },
-        });
-        await emit('INFO', 'FACTORY_REVISION_OPENED', `Revision v${rr.revision.version} ${rr.resumed ? 'resumed' : 'created'}`, { revisionId, siteId, variantId: demoVariantId, version: rr.revision.version, resumed: rr.resumed });
-      }
+    // A resume that skips CMS_IMPORTED still needs the canonical site's
+    // active variant — resolve it from the DB (the import already ran in a
+    // previous attempt).
+    if (siteId && !demoVariantId) {
+      const v = await (prisma as any).demoVariant.findFirst({
+        where: { siteId, status: 'ACTIVE' },
+        orderBy: [{ isPreferred: 'desc' }, { createdAt: 'desc' }],
+      });
+      demoVariantId = v?.id;
+    }
+
+    // V3.7.4 — open the revision for this run. `resume` when the run is a
+    // retry of a previous attempt (same variant, GENERATING/QA_FAILED
+    // revision) — never a new Site, never a replacement preview. Runs whether
+    // the import just executed or a resume skipped it.
+    if (siteId && demoVariantId && !revisionStore) {
+      revisionStore = createPrismaRevisionStore(prisma);
+      const rr = await revisionStore.createOrResume({
+        siteId, variantId: demoVariantId, runId: run.id, templateId,
+        resume: !!options.resumeFromStage || mode === 'retry',
+      });
+      revisionId = rr.revision.id;
+      // Immutable CMS snapshot for this build + content hash + route manifest.
+      const [pg, sv, pr, pd, nw, vc] = await Promise.all([
+        prisma.page.findMany({ where: { siteId } }),
+        prisma.service.findMany({ where: { siteId } }),
+        prisma.project.findMany({ where: { siteId } }),
+        prisma.product.findMany({ where: { siteId } }),
+        prisma.newsPost.findMany({ where: { siteId } }),
+        prisma.vacancy.findMany({ where: { siteId } }),
+      ]);
+      const snapshot = { pages: pg, services: sv, projects: pr, products: pd, news: nw, vacancies: vc };
+      const contentHash = createHash('sha256').update(JSON.stringify(snapshot)).digest('hex').slice(0, 16);
+      // V3.7.6 Phase 4 — the revision's route manifest is the full set of
+      // published CMS routes, not a hand-picked sample. Promotion requires
+      // screenshot coverage of every one of them.
+      revisionRoutes = await buildRouteManifest(prisma, siteId)
+        .then((rs) => rs.map((x) => x.route || '/'))
+        .catch(() => ['/']);
+      await prisma.siteRevision.update({
+        where: { id: revisionId },
+        data: { contentSnapshot: snapshot as any, contentHash, routeManifest: revisionRoutes },
+      });
+      await emit('INFO', 'FACTORY_REVISION_OPENED', `Revision v${rr.revision.version} ${rr.resumed ? 'resumed' : 'created'}`, { revisionId, siteId, variantId: demoVariantId, version: rr.revision.version, resumed: rr.resumed });
     }
 
     // ---- RENDERED -----------------------------------------------------------
@@ -632,6 +683,9 @@ export async function generateSite(options: GenerateOptions) {
           baseUrl: options.renderQaBaseUrl,
           browser: options.renderQaBrowser,
           artifactDir,
+          // V3.7.6 — the route manifest is derived from imported CMS entities,
+          // never a hand-written list; QA covers every published route.
+          exhaustive: true,
         });
       } catch (e: any) {
         renderErrors.push(`post-render QA crashed: ${e?.message || e}`);
@@ -669,28 +723,24 @@ export async function generateSite(options: GenerateOptions) {
       const visualWarnings: string[] = [];
       const repairLog: any[] = [];
       let lastReport: any;
-      const MAX_PASSES = 2;
-      for (let pass = 1; pass <= MAX_PASSES; pass++) {
-        try {
-          lastReport = await runVisualQa({
-            siteId: siteId!,
-            previewToken: effectivePreviewSlug,
-            prisma,
-            baseUrl: options.renderQaBaseUrl,
-            artifactDir,
-            pass,
-            routes: await pickQaRoutes(prisma, siteId!),
-          });
-        } catch (e: any) {
-          visualErrors.push(`visual QA crashed (pass ${pass}): ${e?.message || e}`);
-          break;
-        }
-        if (!lastReport.errors.length) break;
-        if (pass < MAX_PASSES && lastReport.repairHints.length) {
-          const applied = await applyVisualRepairs(prisma, siteId!, lastReport.repairHints);
-          repairLog.push(...applied.map((a) => ({ pass, ...a })));
-          if (!applied.length) break; // nothing repairable — don't loop
-        }
+      // V3.7.6 Phase 3 — no post-import CMS repairs. Visual-QA findings are a
+      // gate verdict: a defect means the revision is QA_FAILED and the fix
+      // belongs in the generic extractor/normalizer/importer, after which the
+      // pipeline re-runs from the crawl snapshot.
+      try {
+        lastReport = await runVisualQa({
+          siteId: siteId!,
+          previewToken: effectivePreviewSlug,
+          prisma,
+          baseUrl: options.renderQaBaseUrl,
+          artifactDir,
+          pass: 1,
+          routes: revisionRoutes.length
+            ? revisionRoutes.map((r) => ({ route: r === '/' ? '' : r, label: r === '/' ? 'home' : r.replace(/^\//, '') }))
+            : await pickQaRoutes(prisma, siteId!),
+        });
+      } catch (e: any) {
+        visualErrors.push(`visual QA crashed: ${e?.message || e}`);
       }
       if (lastReport) {
         visualErrors.push(...lastReport.errors);
@@ -728,6 +778,39 @@ export async function generateSite(options: GenerateOptions) {
       });
       await recordGate(r);
       if (r.status === 'FAIL') throw new Error(`Gate VISUAL_VALIDATED failed: ${r.errors[0]}`);
+    }
+
+    // ---- PREVIEW_PUBLISHED — verified Forge preview (V3.7.5) ---------------
+    // preferred variant → canonical showcase 200 → verified PNG →
+    // SitePreviewScreenshot persisted → gateway URL verified. A failure here
+    // blocks REVIEW_READY and marks the site NEEDS_ATTENTION — generation can
+    // never report success while the Forge card has no real preview.
+    if (gated('PREVIEW_PUBLISHED')) {
+      t0 = Date.now();
+      const previewErrors: string[] = [];
+      let published: { url: string; source: string; variantId?: string } | undefined;
+      try {
+        published = await publishForgePreview({
+          siteId: siteId!,
+          prisma,
+          revisionId,
+          renderBaseUrl: options.renderQaBaseUrl,
+        });
+      } catch (e: any) {
+        previewErrors.push(e?.message || String(e));
+      }
+      const r = gateResult('PREVIEW_PUBLISHED', {
+        errors: previewErrors,
+        metrics: {
+          previewUrl: published?.url || '',
+          previewSource: published?.source || '',
+          variantId: published?.variantId || '',
+        },
+        startedAt: t0,
+      });
+      await recordGate(r);
+      if (r.status === 'FAIL') throw new Error(`Gate PREVIEW_PUBLISHED failed: ${r.errors[0]}`);
+      await emit('INFO', 'FACTORY_PREVIEW_PUBLISHED', `Forge preview published (${published?.source})`, { siteId, url: published?.url });
     }
 
     // ---- REVIEW_READY — atomic revision promotion (V3.7.4) ------------------

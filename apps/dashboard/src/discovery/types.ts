@@ -45,6 +45,10 @@ export interface DiscoveryCandidate {
 export interface DiscoverySearchResult {
   candidates: DiscoveryCandidate[];
   warning?: string;
+  /** Redacted raw provider payload sample persisted as run evidence. */
+  rawSample?: any[];
+  /** Diagnostic flags — e.g. contactGroupsUnavailable for 2GIS keys without permission. */
+  diagnostics?: Record<string, any>;
 }
 
 export interface DiscoveryContext {
