@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { auditEntityDuplicates, detectSummaryDuplication, normalizeEntityContent } from './duplicateContent.js';
+import { auditEntityDuplicates, detectIntrablockDuplicates, detectSummaryDuplication, normalizeEntityContent } from './duplicateContent.js';
 
 const SUMMARY = 'Первая секция страницы. Второй абзац текста о продукте и его применении в проектах';
 
@@ -53,5 +53,23 @@ describe('summary duplication — first surviving block', () => {
     expect(out.blocks[0].items).toHaveLength(2);
     expect(out.blocks[0].content).toBeUndefined();
     expect(auditEntityDuplicates(out)).toEqual([]);
+  });
+});
+
+describe('glued-heading detector — Latin brands', () => {
+  it('does not flag pure-Latin camelCase brand tokens', () => {
+    const findings = detectIntrablockDuplicates({
+      type: 'richText',
+      content: 'Связаться: +375 (29) 331-20-17 (Viber, WhatsApp, Telegram) или +375 (33) 39-39-017 (Viber, WhatsApp, Telegram)',
+    });
+    expect(findings.filter((f) => f.kind === 'glued-heading')).toEqual([]);
+  });
+
+  it('still flags real Cyrillic glue', () => {
+    const findings = detectIntrablockDuplicates({
+      type: 'richText',
+      content: 'Мы выполняем работыКачественно и в срок. Также предлагаем услугиСгарантией результата.',
+    });
+    expect(findings.some((f) => f.kind === 'glued-heading')).toBe(true);
   });
 });

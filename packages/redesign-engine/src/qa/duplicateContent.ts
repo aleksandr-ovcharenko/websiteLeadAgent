@@ -80,6 +80,13 @@ export function detectIntrablockDuplicates(block: any): DuplicateFinding[] {
     const real: string[] = [];
     let mm: RegExpExecArray | null;
     while ((mm = re.exec(t))) {
+      // Pure-Latin matches are camelCase brands/jargon ("WhatsApp") — the
+      // Cyrillic-only repairer can never fix them, so flagging is a false
+      // positive that permanently blocks the gate.
+      let a = mm.index, b = mm.index + mm[0].length;
+      while (a > 0 && /\S/.test(t[a - 1])) a--;
+      while (b < t.length && /\S/.test(t[b])) b++;
+      if (!/[а-яёА-ЯЁ]/.test(t.slice(a, b))) continue;
       if (!isCompoundToken(t, mm.index, mm[0].length)) real.push(mm[0]);
     }
     if (real.length >= 2) {
