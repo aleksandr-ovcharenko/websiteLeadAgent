@@ -387,10 +387,21 @@ export async function generateSite(options: GenerateOptions) {
     // ---- CONTENT_VALIDATED: source documents sanity ------------------------
     t0 = Date.now();
     if (gated('CONTENT_VALIDATED')) {
-      const homeDoc = sourceDocuments.find((d) => d.isHomepage) || sourceDocuments[0];
+      // A real homepage document is required — it is the structural source of
+      // the homepage Page and its editable hero. Falling back to an arbitrary
+      // crawled page would fabricate homepage chrome with no CMS ownership,
+      // which downstream editability gates are designed to reject.
+      const homeDoc = sourceDocuments.find((d) => d.isHomepage);
       const errors: string[] = [];
-      if (!homeDoc) errors.push('no homepage source document');
-      else if (!((homeDoc as any).sections?.length || (homeDoc as any).h1)) errors.push('homepage source document has no content sections');
+      if (!homeDoc) {
+        errors.push(
+          crawlResult.homepage?.status === 'FOUND'
+            ? 'resolved homepage was not crawled — no homepage source document'
+            : 'no homepage source document',
+        );
+      } else if (!((homeDoc as any).sections?.length || (homeDoc as any).h1)) {
+        errors.push('homepage source document has no content sections');
+      }
       const r = gateResult('CONTENT_VALIDATED', {
         errors,
         warnings: sourceDocuments.filter((d) => !(d as any).sections?.length).map((d) => `document ${d.id} has no sections`).slice(0, 20),

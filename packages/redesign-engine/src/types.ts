@@ -63,6 +63,8 @@ export interface CrawlOptions {
   rootTimeoutMs?: number;
   /** Bounded retries for root/homepage discovery variants. */
   rootRetries?: number;
+  /** Best-effort settle window after domcontentloaded for JS-rendered content. */
+  networkIdleTimeoutMs?: number;
 }
 
 export type HomepageStatus =

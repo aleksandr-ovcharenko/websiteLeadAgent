@@ -449,9 +449,11 @@ function Hero() {
         </div>
       ) : null}
 
-      {/* ── Main content — bottom-left anchored ── */}
+      {/* ── Main content — bottom-left anchored via the section's
+          justify-end flex column. In-flow (not absolute) so a long h1 grows
+          the section instead of overflowing its top under the sticky header. ── */}
       <div
-        className="absolute bottom-0 left-0 right-0 px-6 sm:px-10 md:px-16 lg:px-20"
+        className="relative px-6 sm:px-10 md:px-16 lg:px-20"
         style={{ zIndex: 2, paddingBottom: 'clamp(3rem, 6vh, 5.5rem)' }}
       >
         {/* Brand signature */}

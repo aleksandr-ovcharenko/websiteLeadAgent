@@ -880,7 +880,7 @@ export function graphToImportContent(opts: GraphToContentOptions): {
    //  Photographic raster formats (jpg/webp/avif) qualify directly; anything
    //  else (opaque PNG, SVG, zero-block shape assets) needs explicit evidence —
    //  meaningful alt text, or reuse as a main-region content image on another
-   //  page. Decorative atoms (the abstract ring on this site) fail all three.
+   //  page. Decorative atoms fail all three.
   const PHOTO_EXT_RE = /\.(jpe?g|webp|avif)(\?|#|$)/i;
   const contentSrcsElsewhere = new Set(
     sourceDocuments

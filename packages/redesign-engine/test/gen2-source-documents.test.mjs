@@ -126,6 +126,28 @@ describe('Source document extraction', () => {
     assert.ok(founding, 'date candidate from JSON-LD foundingDate');
   });
 
+  it('marks the resolved root page as homepage', () => {
+    const docs = buildSourceDocuments(makeCrawlResult(sampleHtml));
+    assert.equal(docs[0].isHomepage, true, 'root page is the homepage document');
+  });
+
+  it('marks no document as homepage when the resolved root was not crawled', () => {
+    // Root resolution succeeded (status FOUND) but the homepage page itself
+    // was dropped from the crawl (e.g. fetch timeout). No surviving document
+    // may claim homepage ownership — downstream the CMS homepage Page and its
+    // editable hero block are built only from a real isHomepage document.
+    const result = makeCrawlResult(sampleHtml, {
+      url: 'https://example.com/about',
+      finalUrl: 'https://example.com/about',
+      path: 'about',
+      depth: 1,
+    });
+    result.homepage = { url: 'https://example.com/', confidence: 0.8, reason: 'root resolved; canonical root not in crawled set', pageIndex: -1, status: 'FOUND' };
+    const docs = buildSourceDocuments(result);
+    assert.equal(docs.length, 1);
+    assert.equal(docs.filter((d) => d.isHomepage).length, 0, 'no fabricated homepage document');
+  });
+
   it('converts source documents back into crawl-compatible pages', () => {
     const docs = buildSourceDocuments(makeCrawlResult(sampleHtml));
     const page = sourceDocumentToCrawledPage(docs[0]);

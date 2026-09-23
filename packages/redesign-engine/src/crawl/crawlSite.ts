@@ -434,7 +434,11 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
       const page = await crawlContext.newPage();
       await attachRoutePolicy(page);
       try {
-        let resp = await page.goto(url, { waitUntil: 'networkidle', timeout: timeoutMs }).catch((e) => {
+        // domcontentloaded is the navigation bound, not networkidle: pages
+        // with always-polling widgets (maps, metric websockets) never reach
+        // networkidle and would every time burn the full timeout then be
+        // skipped. The bounded settle below still gives late JS a window.
+        let resp = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: timeoutMs }).catch((e) => {
           if (/timeout/i.test(String(e?.message))) return 'TIMEOUT' as const;
           return null;
         });
@@ -468,6 +472,10 @@ export async function crawlSite(options: CrawlOptions): Promise<CrawlResult> {
           continue;
         }
         fetchedFinalKeys.add(finalKey);
+
+        // Best-effort settle for JS-rendered content; capped so a page that
+        // never goes idle still yields its DOM instead of being dropped.
+        await page.waitForLoadState('networkidle', { timeout: options.networkIdleTimeoutMs ?? 8000 }).catch(() => undefined);
 
         await handleCookieConsent(page);
         await page.waitForTimeout(200);
