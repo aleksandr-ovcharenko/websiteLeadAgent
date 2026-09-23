@@ -73,3 +73,28 @@ describe('glued-heading detector — Latin brands', () => {
     expect(findings.some((f) => f.kind === 'glued-heading')).toBe(true);
   });
 });
+
+describe('sentence-level dedupe — repeated paragraph inside one line', () => {
+  it('removes a verbatim repeated sentence and clears the audit', () => {
+    const sentence = 'Двускатная крыша, хоть и самая стандартная форма, но при этом надежная и рациональная по своей цене.';
+    const entity = {
+      summary: 'Статья о выборе крыши.',
+      blocks: [
+        { type: 'richText', content: `Вводный абзац о крышах. ${sentence} Уникальный текст между повторами. ${sentence}` },
+      ],
+    };
+    const { entity: out, repairs } = normalizeEntityContent(entity);
+    expect(repairs.some((r) => r.kind === 'deduped-sentences')).toBe(true);
+    expect(String(out.blocks[0].content).match(/двускатная крыша/gi)).toHaveLength(1);
+    expect(auditEntityDuplicates(out)).toEqual([]);
+  });
+
+  it('keeps a single short repeat below the audit threshold', () => {
+    const entity = {
+      summary: 'Инструкция.',
+      blocks: [{ type: 'richText', content: 'Первый пункт. Позвоните нам. Второй пункт. Позвоните нам.' }],
+    };
+    const { entity: out } = normalizeEntityContent(entity);
+    expect(String(out.blocks[0].content).match(/Позвоните нам/g)).toHaveLength(2);
+  });
+});

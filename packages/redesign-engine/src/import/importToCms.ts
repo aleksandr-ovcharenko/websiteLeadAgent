@@ -52,6 +52,22 @@ function randomId() {
   return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+/** Source publication dates come in arbitrary site formats ("26.02.2020",
+ *  ISO, "2020-02-26"). Parse ISO/native first, then DD.MM.YYYY; an
+ *  unparseable source date is evidence-void, never an Invalid Date. */
+function parseSourceDate(raw?: string | null): Date | null {
+  if (!raw) return null;
+  const iso = new Date(raw);
+  if (!Number.isNaN(iso.getTime())) return iso;
+  const m = String(raw).trim().match(/^(\d{1,2})[.\-/](\d{1,2})[.\-/](\d{2,4})/);
+  if (m) {
+    const y = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+    const d = new Date(Date.UTC(y, Number(m[2]) - 1, Number(m[1])));
+    if (!Number.isNaN(d.getTime())) return d;
+  }
+  return null;
+}
+
 export function cleanPhoneDigits(input: string): string {
   return input.replace(/[^\d+]/g, '');
 }
@@ -797,7 +813,7 @@ export async function importToCms(options: ImportOptions, prisma = new PrismaCli
       // Publication date is source evidence only — never import time, and a
       // previously fabricated generated value is corrected to null. Editor-set
       // dates are safe: manualModifiedAt records return early above.
-      publishedAt: n.publishedAt ? new Date(n.publishedAt) : null,
+      publishedAt: parseSourceDate(n.publishedAt),
       fieldProvenance: fieldProv({
         title: { value: n.title, sourceUrl: n.sourceUrl },
         excerpt: { value: n.excerpt, sourceUrl: n.sourceUrl },

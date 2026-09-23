@@ -126,7 +126,7 @@ export function auditEntityDuplicates(entity: { summary?: string; shortDescripti
 
 export interface RepairRecord {
   blockId?: string;
-  kind: 'deduped-lines' | 'deduped-items' | 'joined-fragments' | 'dropped-duplicate-summary' | 'unglued' | 'rebuilt-summary';
+  kind: 'deduped-lines' | 'deduped-items' | 'deduped-sentences' | 'joined-fragments' | 'dropped-duplicate-summary' | 'unglued' | 'rebuilt-summary';
   detail: string;
   removed?: string[];
 }
@@ -209,6 +209,38 @@ export function dedupeLines(content: string): { text: string; removed: string[] 
   }
   // Collapse 3+ blank lines
   return { text: keep.join('\n').replace(/\n{3,}/g, '\n\n').trim(), removed };
+}
+
+/** Remove verbatim repeated sentences inside a single content line, keeping
+ *  first occurrence order. Source pages sometimes repeat a whole paragraph
+ *  inside one element — line-level dedupe cannot see it. Mirrors the audit
+ *  threshold: a repeat only counts when the sentence is ≥20 chars or it
+ *  occurs ≥3 times. */
+export function dedupeSentences(content: string): { text: string; removed: string[] } {
+  const removed: string[] = [];
+  const lines = content.split('\n');
+  const counts = new Map<string, number>();
+  for (const line of lines) {
+    for (const s of sentSplit(line)) {
+      const k = s.toLowerCase();
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
+  }
+  const seen = new Set<string>();
+  const out = lines.map((line) => {
+    const sentences = sentSplit(line);
+    if (!sentences.length) return line;
+    const keep: string[] = [];
+    for (const s of sentences) {
+      const k = s.toLowerCase();
+      const total = counts.get(k) || 0;
+      if (seen.has(k) && (s.length >= 20 || total >= 3)) { removed.push(s); continue; }
+      seen.add(k);
+      keep.push(s);
+    }
+    return keep.join(' ');
+  });
+  return { text: out.join('\n').replace(/\n{3,}/g, '\n\n'), removed };
 }
 
 export function dedupeItems(items: any[]): { items: any[]; removed: any[] } {
@@ -360,17 +392,21 @@ export function normalizeEntityContent(entity: { title?: string; summary?: strin
       if (typeof b[field] === 'string' && b[field]) {
         const u = unglueText(b[field]);
         if (u.fixed.length) { repairs.push({ blockId: b.id, kind: 'unglued', detail: `${field}: ${u.fixed.length} glued fragments`, removed: u.fixed.slice(0, 10) }); b[field] = u.text; }
+        const s = dedupeSentences(b[field]);
+        if (s.removed.length) { repairs.push({ blockId: b.id, kind: 'deduped-sentences', detail: `${field}: ${s.removed.length} repeated sentences removed`, removed: s.removed.slice(0, 20) }); b[field] = s.text; }
       }
     }
     if (typeof b.content === 'string' && b.content) {
-      // 1. unglue (sentence breaks in prose), 2. join fragments, 3. dedupe lines
+      // 1. unglue (sentence breaks in prose), 2. join fragments, 3. dedupe lines, 4. dedupe repeated sentences
       const u = unglueText(b.content, { sentenceBreaks: true });
       if (u.fixed.length >= 2) repairs.push({ blockId: b.id, kind: 'unglued', detail: `${u.fixed.length} glued fragments`, removed: u.fixed.slice(0, 10) });
       const j = joinFragmentedLines(u.text);
       if (j.joined.length) repairs.push({ blockId: b.id, kind: 'joined-fragments', detail: `${j.joined.length} fragment joins`, removed: j.joined.slice(0, 20) });
       const d = dedupeLines(j.text);
       if (d.removed.length) repairs.push({ blockId: b.id, kind: 'deduped-lines', detail: `${d.removed.length} duplicate lines removed`, removed: d.removed.slice(0, 20) });
-      b.content = d.text;
+      const s = dedupeSentences(d.text);
+      if (s.removed.length) repairs.push({ blockId: b.id, kind: 'deduped-sentences', detail: `${s.removed.length} repeated sentences removed`, removed: s.removed.slice(0, 20) });
+      b.content = s.text;
     }
     if (Array.isArray(b.items)) {
       b.items = b.items.map((it: any) => {
