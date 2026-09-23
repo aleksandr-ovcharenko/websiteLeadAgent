@@ -22,7 +22,14 @@ export type Screen =
 export type PubStatus = 'published' | 'draft' | 'archived'
 export type UserRole = 'Admin' | 'Editor'
 
+export interface NavigateOpts {
+  /** Screen the editor's Back control returns to (e.g. 'dashboard' from Recent changes). */
+  returnTo?: Screen
+}
+
+export type Navigate = (screen: Screen, id?: string, opts?: NavigateOpts) => void
+
 export interface NavProps {
-  onNavigate: (screen: Screen, id?: string) => void
+  onNavigate: Navigate
   editingId?: string | null
 }

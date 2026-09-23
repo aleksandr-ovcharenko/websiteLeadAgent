@@ -40,5 +40,15 @@ export const editorialArchitectureV1Manifest: TemplateManifest = {
     news: 'EditorialList',
     vacancies: 'EditorialList',
   },
+  // Sections resolve items through selectBlockItems, which honors section.limit.
+  // When limit is absent the template historically showed everything — the
+  // default preserves that while letting CMS cap each section.
+  collectionSections: {
+    services: { defaultLimit: 24, supportsLimit: true },
+    projects: { defaultLimit: 24, supportsLimit: true },
+    products: { defaultLimit: 24, supportsLimit: true },
+    news: { defaultLimit: 24, supportsLimit: true },
+    vacancies: { defaultLimit: 24, supportsLimit: true },
+  },
   pageRenderer: 'PageView',
 };

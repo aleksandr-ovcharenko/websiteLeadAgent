@@ -11,6 +11,8 @@ import {
   X
 } from 'lucide-react';
 
+import { applySectionLimit } from '../sectionLimits.js';
+
 const CMS = (typeof window !== 'undefined' && (window as any).__CMS__) || {};
 const COPY: Record<string, string> = (CMS as any).COPY || {};
 
@@ -80,6 +82,14 @@ const projects = (CMS.PROJECTS || []).filter((p: any) => p.status === 'PUBLISHED
 const news = (CMS.NEWS_ITEMS || []).filter((n: any) => n.status === 'PUBLISHED' || n.status !== 'ARCHIVED');
 const pages = (CMS.PAGES || []).filter((p: any) => p.status === 'PUBLISHED' || p.status !== 'ARCHIVED');
 const vacancies = (CMS.VACANCIES || []).filter((v: any) => v.status === 'PUBLISHED' || v.status !== 'ARCHIVED');
+
+// Homepage collection previews honor each section's own `limit` (falling back
+// to the manifest's declared default) via the shared contract.
+function homeSectionItems(type: string, items: any[]): any[] {
+  const section = (CMS.HOME_SECTIONS || []).find((s: any) => s?.type === type && s?.enabled !== false)
+    || { type };
+  return applySectionLimit(items, section, CMS.MANIFEST);
+}
 
 function isItemActive(item: any, pathname: string): boolean {
   if (!item.href) return false;
@@ -240,7 +250,7 @@ function Services() {
     <section className="section-block">
       <div className="container">
         <SectionIntro eyebrow={t('industrial.servicesEyebrow')} title={t('industrial.servicesTitle')} text={t('industrial.servicesText')} href="/services" linkLabel={t('industrial.servicesLink')} />
-        <div className="services-grid">{services.map((s: any, i: number) => <ServiceCard key={s.slug} service={s} number={String(i + 1).padStart(2, '0')} />)}</div>
+        <div className="services-grid">{homeSectionItems('services', services).map((s: any, i: number) => <ServiceCard key={s.slug} service={s} number={String(i + 1).padStart(2, '0')} />)}</div>
       </div>
     </section>
   );
@@ -251,7 +261,7 @@ function Projects() {
     <section className="section-block">
       <div className="container">
         <SectionIntro eyebrow={t('industrial.projectsEyebrow')} title={t('industrial.projectsTitle')} text={t('industrial.projectsText')} href="/projects" linkLabel={t('industrial.projectsLink')} />
-        <div className="projects-grid">{projects.slice(0, 3).map((p: any) => <ProjectCard key={p.slug} project={p} featured />)}</div>
+        <div className="projects-grid">{homeSectionItems('projects', projects).map((p: any) => <ProjectCard key={p.slug} project={p} featured />)}</div>
       </div>
     </section>
   );
@@ -264,7 +274,7 @@ function News() {
       <div className="container">
         <SectionIntro eyebrow={t('industrial.newsEyebrow')} title={t('industrial.newsTitle')} href="/news" linkLabel={t('industrial.newsLink')} />
         <div className="news-list">
-          {news.slice(0, 4).map((item: any) => (
+          {homeSectionItems('news', news).map((item: any) => (
             <Link className="news-row" key={item.slug} href={`/news/${item.slug}`}>
               <span>{formatDate(item.publishedAt || item.date)}</span>
               <span>{item.category || t('about.companyHeading')}</span>

@@ -1,12 +1,12 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { Screen } from './types'
+import { Screen, Navigate } from './types'
 import { IconEdit, IconTrash, IconMore, IconChevronLeft, IconPlus, IconEye, IconCheck } from './icons'
 import { Badge, Button, SearchInput, FilterTabs, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
 import { useStudio, formatDate } from './context'
 import { api, uiStatus, apiStatus } from './api'
 
 interface VacanciesListProps {
-  onNavigate: (s: Screen, id?: string) => void
+  onNavigate: Navigate
 }
 
 function useVacancyFilters() {
@@ -38,7 +38,7 @@ function useVacancyFilters() {
 }
 
 export function VacanciesList({ onNavigate }: VacanciesListProps) {
-  const { siteId, vacancies, refresh, site } = useStudio()
+  const { siteId, vacancies, refresh, site, canEdit } = useStudio()
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const { search, setSearch, filter, setFilter, visible, statusFilter } = useVacancyFilters()
   const { show } = useToast()
@@ -53,7 +53,7 @@ export function VacanciesList({ onNavigate }: VacanciesListProps) {
     <div className="p-5 max-w-[1060px]">
       <Toolbar
         title="Вакансии"
-        actions={<Button variant="primary" onClick={() => onNavigate('vacancy-editor', 'new')}><IconPlus size={12} />Добавить вакансию</Button>}
+        actions={canEdit ? <Button variant="primary" onClick={() => onNavigate('vacancy-editor', 'new')}><IconPlus size={12} />Добавить вакансию</Button> : undefined}
         filters={<FilterTabs tabs={statusFilter} active={filter} onChange={setFilter} />}
         search={<SearchInput value={search} onChange={setSearch} placeholder="Search vacancies…" />}
       />
@@ -61,7 +61,7 @@ export function VacanciesList({ onNavigate }: VacanciesListProps) {
       {visible.length === 0 ? (
         <div className="bg-surface border border-border rounded p-12 text-center">
           <p className="text-[13px] text-text-subtle mb-3">No vacancies found.</p>
-          <Button variant="primary" size="sm" onClick={() => onNavigate('vacancy-editor', 'new')}>Add vacancy</Button>
+          {canEdit && <Button variant="primary" size="sm" onClick={() => onNavigate('vacancy-editor', 'new')}>Add vacancy</Button>}
         </div>
       ) : (
         <div className="bg-surface border border-border rounded overflow-hidden">
@@ -84,10 +84,10 @@ export function VacanciesList({ onNavigate }: VacanciesListProps) {
                       trigger={<span className="inline-flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"><IconMore size={13} /></span>}
                       ariaLabel="Row actions"
                       items={[
-                        { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('vacancy-editor', v.id) },
+                        ...(canEdit ? [{ label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('vacancy-editor', v.id) }] : []),
                         // Shared resolver: previewPath comes from the CMS API (Phase 5).
                         { label: v.previewPath ? 'Preview' : 'Detail preview unavailable', icon: <IconEye size={12} />, disabled: !v.previewPath, onClick: () => { if (v.previewPath) window.open(`/showcase/${site?.previewToken || ''}${v.previewPath}`, '_blank') } },
-                        { label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(v.id), danger: true, divider: true },
+                        ...(canEdit ? [{ label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(v.id), danger: true, divider: true }] : []),
                       ]}
                     />
                   </td>
@@ -112,11 +112,12 @@ function SaveIndicator({ state }: { state: SaveState }) {
 
 interface VacancyEditorProps {
   vacancyId?: string | null
-  onNavigate: (s: Screen) => void
+  returnTo?: Screen | null
+  onNavigate: Navigate
 }
 
-export function VacancyEditor({ vacancyId, onNavigate }: VacancyEditorProps) {
-  const { siteId, vacancies, refresh, site } = useStudio()
+export function VacancyEditor({ vacancyId, returnTo, onNavigate }: VacancyEditorProps) {
+  const { siteId, vacancies, refresh, site, canEdit } = useStudio()
   const isNew = !vacancyId || vacancyId === 'new'
   const item = isNew ? null : vacancies.find((v: any) => v.id === vacancyId)
 
@@ -148,9 +149,18 @@ export function VacancyEditor({ vacancyId, onNavigate }: VacancyEditorProps) {
     setSaveState('saving')
     try {
       const payload: any = { title, slug, location, description, requirements, conditions, contact, status: publish ? 'PUBLISHED' : apiStatus(status) }
-      if (isNew) { await api.createVacancy(siteId, payload); show(publish ? 'Vacancy published' : 'Vacancy saved') }
-      else { await api.updateVacancy(siteId, item!.id, payload); show(publish ? 'Vacancy updated' : 'Vacancy saved') }
-      await refresh(); onNavigate('vacancies')
+      if (isNew) {
+        const { vacancy: created } = await api.createVacancy(siteId, payload)
+        show(publish ? 'Vacancy published' : 'Vacancy saved')
+        await refresh()
+        // Stay in the editor — deep-link the new id so refresh/share works.
+        onNavigate('vacancy-editor', created?.id, { returnTo: returnTo ?? undefined })
+      } else {
+        await api.updateVacancy(siteId, item!.id, payload)
+        show(publish ? 'Vacancy updated' : 'Vacancy saved')
+        await refresh()
+        setSaveState('saved')
+      }
     } catch (e: any) { show(e.message || 'Failed to save'); setSaveState('unsaved') }
   }
 
@@ -158,7 +168,7 @@ export function VacancyEditor({ vacancyId, onNavigate }: VacancyEditorProps) {
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-shrink-0 bg-surface border-b border-border px-4 h-[46px] flex items-center gap-3">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <button onClick={() => onNavigate('vacancies')} className="flex items-center gap-1 text-[12px] text-text-subtle hover:text-text transition-colors"><IconChevronLeft size={13} />Vacancies</button>
+          <button onClick={() => onNavigate(returnTo ?? 'vacancies')} className="flex items-center gap-1 text-[12px] text-text-subtle hover:text-text transition-colors"><IconChevronLeft size={13} />{returnTo === 'dashboard' ? 'Dashboard' : 'Vacancies'}</button>
           <span className="text-text-subtle">/</span>
           <span className="text-[13px] font-medium text-text truncate">{title || 'New vacancy'}</span>
           <span className="flex-shrink-0"><Badge variant={status} /></span>
@@ -174,8 +184,8 @@ export function VacancyEditor({ vacancyId, onNavigate }: VacancyEditorProps) {
               </Button>
             )
           })()}
-          <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>
-          <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>
+          {canEdit && <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>}
+          {canEdit && <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>}
         </div>
       </div>
 
@@ -197,9 +207,9 @@ export function VacancyEditor({ vacancyId, onNavigate }: VacancyEditorProps) {
             <div data-cms-control="vacancy:contact"><Input label="Contact" value={contact} onChange={v => { setContact(v); markDirty() }} placeholder="Email or phone for applications" /></div>
           </div>
 
-          {!isNew && (
+          {!isNew && canEdit && (
             <div className="bg-surface border border-border rounded p-4">
-              <button onClick={async () => { try { await api.deleteVacancy(siteId, item!.id); await refresh(); onNavigate('vacancies') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-text-muted hover:text-danger transition-colors py-1.5">Delete vacancy</button>
+              <button onClick={async () => { try { await api.deleteVacancy(siteId, item!.id); await refresh(); onNavigate(returnTo ?? 'vacancies') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-text-muted hover:text-danger transition-colors py-1.5">Delete vacancy</button>
             </div>
           )}
         </div>

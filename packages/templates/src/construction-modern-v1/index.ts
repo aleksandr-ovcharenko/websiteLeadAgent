@@ -247,7 +247,9 @@ export function constructionModernV1(ctx: RenderContext): string {
     title: s.title || 'Услуга',
     desc: s.shortDescription || '',  // never dump raw scraped blocks into cards
     content: cleanDetailText(textFrom(s)),
-    img: mediaUrl(ctx, s.imageId)
+    img: mediaUrl(ctx, s.imageId),
+    // Publish status is the canonical `status`; card display uses other fields.
+    status: s.status,
   }));
 
   function mapBlock(b: any) {
@@ -276,7 +278,10 @@ export function constructionModernV1(ctx: RenderContext): string {
     title: p.title || 'Объект',
     category: p.category || '',
     location: p.location || '',
-    status: p.projectStatus || '',
+    // `status` is the CMS publish status (drives published-only filtering);
+    // the card badge renders `projectStatus` instead.
+    status: p.status,
+    projectStatus: p.projectStatus || '',
     excerpt: p.excerpt || '',
     content: cleanDetailText(textFrom(p)),
     img: mediaUrl(ctx, p.coverImageId),

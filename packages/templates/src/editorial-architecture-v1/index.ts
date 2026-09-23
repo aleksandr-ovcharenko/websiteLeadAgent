@@ -4,10 +4,11 @@ import { fileURLToPath } from 'node:url';
 import { escapeHtml, escapeHtmlAttribute, escapeJsonForScript } from '@minsk/security';
 import type { RenderContext } from '../types.js';
 import { selectBlockItems } from '../resolveHomepage.js';
+import { resolveSectionLimit } from '../sectionLimits.js';
+import { editorialArchitectureV1Manifest } from './manifest.js';
 import { mediaUrlOf } from '../media.js';
 import { buildNavItems, navForArea } from '../nav.js';
 import { resolveRoute, pathOf, entitySourceDir, entityRoute, collectionRoute, paginate, clampPageSize } from '../routes.js';
-import { editorialArchitectureV1Manifest } from './manifest.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -182,7 +183,7 @@ export function editorialArchitectureV1(ctx: RenderContext): string {
     const col = collectionMappers[type];
     if (col) {
       const selected = selectBlockItems(col.items, {
-        limit: s.limit ?? s.block?.limit,
+        limit: resolveSectionLimit({ type, limit: s.limit ?? s.block?.limit }, editorialArchitectureV1Manifest),
         selectedItemIds: s.selectedItemIds ?? s.block?.selectedItemIds,
       });
       // Entity-navigation contract: every routable teaser carries a real
@@ -257,7 +258,8 @@ export function editorialArchitectureV1(ctx: RenderContext): string {
     const col = collectionMappers[type];
     if (col) {
       const selected = selectBlockItems(col.items, {
-        limit: b?.limit, selectedItemIds: b?.selectedItemIds,
+        limit: resolveSectionLimit({ type, limit: b?.limit }, editorialArchitectureV1Manifest),
+        selectedItemIds: b?.selectedItemIds,
       });
       out.items = selected.map((x: any) => {
         const m = col.map(x);

@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { Screen } from './types'
+import { Screen, Navigate } from './types'
 import { IconEdit, IconEye, IconMore, IconTrash, IconChevronLeft, IconPlus, IconCheck, IconUpload } from './icons'
 import { Badge, Button, SearchInput, FilterTabs, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
 import { useStudio, formatDate } from './context'
@@ -8,7 +8,7 @@ import { mediaUrlOf } from './mediaUrl'
 import { StructuredBlocksEditor } from './StructuredBlocksEditor'
 
 interface NewsListProps {
-  onNavigate: (s: Screen, id?: string) => void
+  onNavigate: Navigate
 }
 
 function useNewsFilters() {
@@ -40,7 +40,7 @@ function useNewsFilters() {
 }
 
 export function NewsList({ onNavigate }: NewsListProps) {
-  const { siteId, news, refresh } = useStudio()
+  const { siteId, news, refresh, site, canEdit } = useStudio()
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const { search, setSearch, filter, setFilter, visible, statusFilter } = useNewsFilters()
   const { show } = useToast()
@@ -55,7 +55,7 @@ export function NewsList({ onNavigate }: NewsListProps) {
     <div className="p-5 max-w-[1060px]">
       <Toolbar
         title="Новости"
-        actions={<Button variant="primary" onClick={() => onNavigate('news-editor', 'new')}><IconPlus size={12} />Добавить новость</Button>}
+        actions={canEdit ? <Button variant="primary" onClick={() => onNavigate('news-editor', 'new')}><IconPlus size={12} />Добавить новость</Button> : undefined}
         filters={<FilterTabs tabs={statusFilter} active={filter} onChange={setFilter} />}
         search={<SearchInput value={search} onChange={setSearch} placeholder="Search news…" />}
       />
@@ -63,7 +63,7 @@ export function NewsList({ onNavigate }: NewsListProps) {
       {visible.length === 0 ? (
         <div className="bg-surface border border-border rounded p-12 text-center">
           <p className="text-[13px] text-text-subtle mb-3">No news found.</p>
-          <Button variant="primary" size="sm" onClick={() => onNavigate('news-editor', 'new')}>Add news</Button>
+          {canEdit && <Button variant="primary" size="sm" onClick={() => onNavigate('news-editor', 'new')}>Add news</Button>}
         </div>
       ) : (
         <div className="bg-surface border border-border rounded overflow-hidden">
@@ -85,9 +85,9 @@ export function NewsList({ onNavigate }: NewsListProps) {
                       trigger={<span className="inline-flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"><IconMore size={13} /></span>}
                       ariaLabel="Row actions"
                       items={[
-                        { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('news-editor', n.id) },
-                        { label: 'Preview', icon: <IconEye size={12} />, onClick: () => window.open(`/showcase/${n.site?.previewToken || ''}/news/${n.slug}`, '_blank') },
-                        { label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(n.id), danger: true, divider: true },
+                        ...(canEdit ? [{ label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('news-editor', n.id) }] : []),
+                        { label: 'Preview', icon: <IconEye size={12} />, onClick: () => window.open(`/showcase/${site?.previewToken || ''}${n.previewPath || `/news/${n.slug}`}`, '_blank') },
+                        ...(canEdit ? [{ label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(n.id), danger: true, divider: true }] : []),
                       ]}
                     />
                   </td>
@@ -116,11 +116,12 @@ function SideSection({ title, children, noBorder }: { title: string; children: R
 
 interface NewsEditorProps {
   newsId?: string | null
-  onNavigate: (s: Screen) => void
+  returnTo?: Screen | null
+  onNavigate: Navigate
 }
 
-export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
-  const { siteId, news, refresh, site, media } = useStudio()
+export function NewsEditor({ newsId, returnTo, onNavigate }: NewsEditorProps) {
+  const { siteId, news, refresh, site, media, canEdit } = useStudio()
   const isNew = !newsId || newsId === 'new'
   const item = isNew ? null : news.find((n: any) => n.id === newsId)
 
@@ -160,9 +161,18 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
     setSaveState('saving')
     try {
       const payload: any = { title, slug, excerpt, blocks, coverImageId, publishedAt, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(status) }
-      if (isNew) { await api.createNews(siteId, payload); show(publish ? 'News published' : 'News saved') }
-      else { await api.updateNews(siteId, item!.id, payload); show(publish ? 'News updated' : 'News saved') }
-      await refresh(); onNavigate('news')
+      if (isNew) {
+        const { news: created } = await api.createNews(siteId, payload)
+        show(publish ? 'News published' : 'News saved')
+        await refresh()
+        // Stay in the editor — deep-link the new id so refresh/share works.
+        onNavigate('news-editor', created?.id, { returnTo: returnTo ?? undefined })
+      } else {
+        await api.updateNews(siteId, item!.id, payload)
+        show(publish ? 'News updated' : 'News saved')
+        await refresh()
+        setSaveState('saved')
+      }
     } catch (e: any) { show(e.message || 'Failed to save'); setSaveState('unsaved') }
   }
 
@@ -177,7 +187,7 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-shrink-0 bg-surface border-b border-border px-4 h-[46px] flex items-center gap-3">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <button onClick={() => onNavigate('news')} className="flex items-center gap-1 text-[12px] text-text-subtle hover:text-text transition-colors"><IconChevronLeft size={13} />News</button>
+          <button onClick={() => onNavigate(returnTo ?? 'news')} className="flex items-center gap-1 text-[12px] text-text-subtle hover:text-text transition-colors"><IconChevronLeft size={13} />{returnTo === 'dashboard' ? 'Dashboard' : 'News'}</button>
           <span className="text-text-subtle">/</span>
           <span className="text-[13px] font-medium text-text truncate">{title || 'New post'}</span>
           <span className="flex-shrink-0"><Badge variant={status} /></span>
@@ -193,8 +203,8 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
               </Button>
             )
           })()}
-          <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>
-          <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>
+          {canEdit && <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>}
+          {canEdit && <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>}
         </div>
       </div>
 
@@ -250,9 +260,9 @@ export function NewsEditor({ newsId, onNavigate }: NewsEditorProps) {
               <p className="text-[10px] text-text-subtle text-right">{seoDesc.length}/160</p>
             </div>
           </SideSection>
-          {!isNew && (
+          {!isNew && canEdit && (
             <SideSection title="Danger zone" noBorder>
-              <button onClick={async () => { try { await api.deleteNews(siteId, item!.id); await refresh(); onNavigate('news') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-text-muted hover:text-danger transition-colors py-1.5">Delete post</button>
+              <button onClick={async () => { try { await api.deleteNews(siteId, item!.id); await refresh(); onNavigate(returnTo ?? 'news') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-text-muted hover:text-danger transition-colors py-1.5">Delete post</button>
             </SideSection>
           )}
         </aside>

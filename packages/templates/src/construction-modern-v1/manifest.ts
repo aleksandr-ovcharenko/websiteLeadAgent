@@ -11,6 +11,7 @@ export const constructionModernV1Manifest: TemplateManifest = {
     'projects',
     'news',
     'vacancies',
+    'products',
     'contacts',
     'cta',
     'certificates',
@@ -46,9 +47,22 @@ export const constructionModernV1Manifest: TemplateManifest = {
     projects: 'ProjectList',
     services: 'ServiceList',
     vacancies: 'VacancyList',
+    products: 'ProductList',
     certificates: 'GenericCollection',
     partners: 'GenericCollection',
     equipment: 'GenericCollection',
+  },
+  // Homepage collection previews — each homepageSections[] entry carries its
+  // own `limit`; these are the defaults when the section leaves it empty.
+  // Defaults preserve pre-contract visuals (services/products showed 6,
+  // news/vacancies 3; projects previously showed ALL — now capped at the
+  // shared default page size).
+  collectionSections: {
+    services: { defaultLimit: 6, supportsLimit: true },
+    projects: { defaultLimit: 6, supportsLimit: true },
+    news: { defaultLimit: 3, supportsLimit: true },
+    vacancies: { defaultLimit: 3, supportsLimit: true },
+    products: { defaultLimit: 6, supportsLimit: true },
   },
   pageRenderer: 'PageView',
 };

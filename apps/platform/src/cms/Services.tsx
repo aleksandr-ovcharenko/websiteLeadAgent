@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { Screen } from './types'
+import { Screen, Navigate } from './types'
 import { IconEdit, IconTrash, IconMore, IconChevronLeft, IconPlus, IconGrip, IconCopy, IconX, IconCheck, IconUpload, IconEye } from './icons'
 import { Badge, Button, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
 import { useStudio, formatDate } from './context'
@@ -8,11 +8,11 @@ import { mediaUrlOf } from './mediaUrl'
 import { StructuredBlocksEditor } from './StructuredBlocksEditor'
 
 interface ServicesListProps {
-  onNavigate: (s: Screen, id?: string) => void
+  onNavigate: Navigate
 }
 
 export function ServicesList({ onNavigate }: ServicesListProps) {
-  const { siteId, services, refresh } = useStudio()
+  const { siteId, services, refresh, canEdit } = useStudio()
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const { show } = useToast()
 
@@ -24,7 +24,7 @@ export function ServicesList({ onNavigate }: ServicesListProps) {
 
   return (
     <div className="p-5 max-w-[760px]">
-      <Toolbar title="Услуги" actions={<Button variant="primary" onClick={() => onNavigate('service-editor', 'new')}><IconPlus size={12} />Добавить услугу</Button>} />
+      <Toolbar title="Услуги" actions={canEdit ? <Button variant="primary" onClick={() => onNavigate('service-editor', 'new')}><IconPlus size={12} />Добавить услугу</Button> : undefined} />
 
       <div className="bg-surface border border-border rounded overflow-hidden">
         <table className="w-full">
@@ -45,10 +45,10 @@ export function ServicesList({ onNavigate }: ServicesListProps) {
                   <DropdownMenu
                     trigger={<span className="inline-flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"><IconMore size={13} /></span>}
                       ariaLabel="Row actions"
-                    items={[
+                    items={canEdit ? [
                       { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('service-editor', item.id) },
                       { label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(item.id), danger: true, divider: true },
-                    ]}
+                    ] : []}
                   />
                 </td>
               </tr>
@@ -75,11 +75,12 @@ function SideSection({ title, children, noBorder }: { title: string; children: R
 
 interface ServiceEditorProps {
   serviceId?: string | null
-  onNavigate: (s: Screen) => void
+  returnTo?: Screen | null
+  onNavigate: Navigate
 }
 
-export function ServiceEditor({ serviceId, onNavigate }: ServiceEditorProps) {
-  const { siteId, services, refresh, site, media } = useStudio()
+export function ServiceEditor({ serviceId, returnTo, onNavigate }: ServiceEditorProps) {
+  const { siteId, services, refresh, site, media, canEdit } = useStudio()
   const isNew = !serviceId || serviceId === 'new'
   const item = isNew ? null : services.find((s: any) => s.id === serviceId)
 
@@ -119,9 +120,18 @@ export function ServiceEditor({ serviceId, onNavigate }: ServiceEditorProps) {
     setSaveState('saving')
     try {
       const payload: any = { title, slug, shortDescription: shortDesc, blocks, imageId, sortOrder: Number(orderNum) || 0, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(status) }
-      if (isNew) { await api.createService(siteId, payload); show(publish ? 'Service published' : 'Service saved') }
-      else { await api.updateService(siteId, item!.id, payload); show(publish ? 'Service updated' : 'Service saved') }
-      await refresh(); onNavigate('services')
+      if (isNew) {
+        const { service: created } = await api.createService(siteId, payload)
+        show(publish ? 'Service published' : 'Service saved')
+        await refresh()
+        // Stay in the editor — deep-link the new id so refresh/share works.
+        onNavigate('service-editor', created?.id, { returnTo: returnTo ?? undefined })
+      } else {
+        await api.updateService(siteId, item!.id, payload)
+        show(publish ? 'Service updated' : 'Service saved')
+        await refresh()
+        setSaveState('saved')
+      }
     } catch (e: any) { show(e.message || 'Failed to save'); setSaveState('unsaved') }
   }
 
@@ -136,7 +146,7 @@ export function ServiceEditor({ serviceId, onNavigate }: ServiceEditorProps) {
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-shrink-0 bg-surface border-b border-border px-4 h-[46px] flex items-center gap-3">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <button onClick={() => onNavigate('services')} className="flex items-center gap-1 text-[12px] text-text-subtle hover:text-text transition-colors"><IconChevronLeft size={13} />Services</button>
+          <button onClick={() => onNavigate(returnTo ?? 'services')} className="flex items-center gap-1 text-[12px] text-text-subtle hover:text-text transition-colors"><IconChevronLeft size={13} />{returnTo === 'dashboard' ? 'Dashboard' : 'Services'}</button>
           <span className="text-text-subtle">/</span>
           <span className="text-[13px] font-medium text-text truncate">{title || 'New service'}</span>
           <span className="flex-shrink-0"><Badge variant={status} /></span>
@@ -155,8 +165,8 @@ export function ServiceEditor({ serviceId, onNavigate }: ServiceEditorProps) {
               </Button>
             )
           })()}
-          <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>
-          <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>
+          {canEdit && <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>}
+          {canEdit && <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>}
         </div>
       </div>
 
@@ -209,9 +219,9 @@ export function ServiceEditor({ serviceId, onNavigate }: ServiceEditorProps) {
             <div data-cms-control="service:seoTitle"><Input label="Title" value={seoTitle} onChange={v => { setSeoTitle(v); markDirty() }} placeholder="Defaults to service title" /></div>
             <div className="flex flex-col gap-1 mt-3"><label className="text-[12px] font-medium text-text-muted">Description</label><textarea value={seoDesc} onChange={e => { setSeoDesc(e.target.value); markDirty() }} rows={3} placeholder="Brief description for search results" className="w-full border border-border rounded text-[12px] text-text placeholder-text-subtle px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent resize-none leading-relaxed" /><p className="text-[10px] text-text-subtle text-right">{seoDesc.length}/160</p></div>
           </SideSection>
-          {!isNew && (
+          {!isNew && canEdit && (
             <SideSection title="Danger zone" noBorder>
-              <button onClick={async () => { try { await api.deleteService(siteId, item!.id); await refresh(); onNavigate('services') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-text-muted hover:text-danger transition-colors py-1.5">Delete service</button>
+              <button onClick={async () => { try { await api.deleteService(siteId, item!.id); await refresh(); onNavigate(returnTo ?? 'services') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-text-muted hover:text-danger transition-colors py-1.5">Delete service</button>
             </SideSection>
           )}
         </aside>

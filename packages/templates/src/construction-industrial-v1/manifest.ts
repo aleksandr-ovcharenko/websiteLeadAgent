@@ -50,5 +50,12 @@ export const constructionIndustrialV1Manifest: TemplateManifest = {
     partners: 'GenericCollection',
     equipment: 'GenericCollection',
   },
+  // Homepage previews. Defaults preserve pre-contract visuals: projects showed
+  // 3, news showed 4, services showed everything (cap at the shared max).
+  collectionSections: {
+    services: { defaultLimit: 24, supportsLimit: true },
+    projects: { defaultLimit: 3, supportsLimit: true },
+    news: { defaultLimit: 4, supportsLimit: true },
+  },
   pageRenderer: 'PageView',
 };

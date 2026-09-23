@@ -533,22 +533,66 @@ export class RuleBasedSemanticProvider implements GenerationSemanticProvider {
       walk(d.chrome?.nav?.secondary);
       return out;
     };
+    // The detail signal is typed by the *matching collection's* local context
+    // (its own heading/typeCandidate + enclosing section heading), never by
+    // the hosting page's title — a homepage titled "Проекты" can still host a
+    // "Наши услуги" collection whose items are SERVICE_DETAIL pages.
+    const CANDIDATE_DETAIL: Record<string, PageClassification['type']> = {
+      services: 'SERVICE_DETAIL',
+      projects: 'PROJECT_DETAIL',
+      news: 'NEWS_DETAIL',
+      vacancies: 'VACANCY_DETAIL',
+      testimonials: 'REVIEW_DETAIL',
+    };
+    const detailKindFor = (text: string): { type: PageClassification['type']; kind: string }[] => {
+      const out: { type: PageClassification['type']; kind: string }[] = [];
+      if (PROJECTS_RE.test(text)) out.push({ type: 'PROJECT_DETAIL', kind: 'projects-index' });
+      if (SERVICES_RE.test(text)) out.push({ type: 'SERVICE_DETAIL', kind: 'services-index' });
+      if (NEWS_RE.test(text)) out.push({ type: 'NEWS_DETAIL', kind: 'news-index' });
+      if (PRODUCTS_RE.test(text)) out.push({ type: 'PRODUCT_DETAIL', kind: 'products-index' });
+      if (REVIEWS_RE.test(text)) out.push({ type: 'REVIEW_DETAIL', kind: 'reviews-index' });
+      return out;
+    };
     for (const other of allDocuments) {
       if (other === doc) continue;
       const navLabels = navLabelsOf(other);
       const contentCols = (other.collections || []).filter((c) => (colFreq.get(colSig(c)) || 0) < 3);
-      const viaCollection = contentCols.some((col) =>
+      const matchedCols = contentCols.filter((col) =>
         col.items.some((i) => i.url && !navLabels.has((i.title || '').trim().toLowerCase()) && sameUrl(i.url, doc.url)));
+      const viaCollection = matchedCols.length > 0;
       const viaLink = !viaCollection && (other.sections || []).some((sec) =>
         (sec.links || []).some((l) => l.href && !navLabels.has((l.text || '').trim().toLowerCase()) && sameUrl(l.href, doc.url)));
       if (!viaCollection && !viaLink) continue;
       const otherText = norm(`${other.title} ${other.h1 || ''} ${decodePath(other.url)}`);
       const ev = (kind: string) => pageEvidence(doc, 'collection-backlink', `${kind} via ${other.url}`, 0.7);
-      if (PROJECTS_RE.test(otherText)) add('PROJECT_DETAIL', 9, [ev('projects-index')]);
-      if (SERVICES_RE.test(otherText)) add('SERVICE_DETAIL', 9, [ev('services-index')]);
-      if (NEWS_RE.test(otherText)) add('NEWS_DETAIL', 9, [ev('news-index')]);
-      if (PRODUCTS_RE.test(otherText)) add('PRODUCT_DETAIL', 9, [ev('products-index')]);
-      if (REVIEWS_RE.test(otherText)) add('REVIEW_DETAIL', 9, [ev('reviews-index')]);
+      if (viaCollection) {
+        let matched = false;
+        for (const col of matchedCols) {
+          const sectionHeading = col.sectionId
+            ? (other.sections || []).find((s) => s.id === col.sectionId)?.heading || ''
+            : '';
+          // The explicit typeCandidate is the strongest local signal; the
+          // collection's own heading (and its section's) is textual evidence.
+          const candidate = (col.typeCandidate || '').toLowerCase();
+          if (CANDIDATE_DETAIL[candidate]) {
+            add(CANDIDATE_DETAIL[candidate], 10, [ev(`${candidate}-collection`)]);
+            matched = true;
+          }
+          const localText = norm(`${col.heading || ''} ${sectionHeading}`);
+          for (const d of detailKindFor(localText)) {
+            add(d.type, 9, [ev(d.kind)]);
+            matched = true;
+          }
+        }
+        // No usable local context → weak page-level fallback only.
+        if (!matched) {
+          for (const d of detailKindFor(otherText)) add(d.type, 5, [ev(`${d.kind}-page-fallback`)]);
+        }
+      } else {
+        // Bare content links are weak evidence — page-level context at a
+        // lower weight than a typed collection backlink.
+        for (const d of detailKindFor(otherText)) add(d.type, 5, [ev(`${d.kind}-link`)]);
+      }
     }
 
     // Promote detail over index when the page has a specific H1 and body text rather than a list

@@ -138,3 +138,38 @@ export function navForArea(items: ResolvedNavItem[], area: 'header' | 'footer'):
     .filter((i) => i[flag])
     .map((i) => ({ ...i, children: i.children ? i.children.filter((c) => c[flag]) : undefined }));
 }
+
+/**
+ * Header nav tree: hierarchical (never flattened), pruned of unroutable
+ * targets. An item with an empty/'#' href and no routable children is dropped;
+ * one with routable children survives as a toggle-only group (href '').
+ */
+export function headerNavTree<T extends { href?: string; showInHeader?: boolean; children?: T[]; sortOrder?: number }>(
+  items: T[] | undefined,
+): T[] {
+  const routable = (href?: string) => !!href && href !== '#';
+  const walk = (list: T[]): T[] =>
+    (list || [])
+      .filter((i) => i && i.showInHeader !== false)
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+      .map((i): T | null => {
+        const children = i.children?.length ? walk(i.children) : undefined;
+        if (!routable(i.href) && (!children || children.length === 0)) return null;
+        return { ...i, href: routable(i.href) ? i.href : '', children: children?.length ? children : undefined } as T;
+      })
+      .filter((i): i is T => !!i);
+  return walk(items || []);
+}
+
+/**
+ * Flat leaf-first projection for footers/simple lists — order is parent then
+ * its children, recursively. The header never uses this (hierarchy matters).
+ */
+export function flattenNavLeaves<T extends { children?: T[] }>(items: T[] | undefined): T[] {
+  const out: T[] = [];
+  for (const i of items || []) {
+    out.push(i);
+    if (i.children?.length) out.push(...flattenNavLeaves(i.children));
+  }
+  return out;
+}

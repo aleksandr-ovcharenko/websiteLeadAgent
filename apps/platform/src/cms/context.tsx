@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { api, type StudioUser, type PubStatus, uiStatus } from './api';
+import { canEditSite } from './studioNavigation';
 
 export type { StudioUser } from './api';
 
@@ -18,6 +19,8 @@ export interface StudioData {
   users: any[];
   user: StudioUser | null;
   role: 'SUPER_ADMIN' | 'ADMIN' | 'EDITOR';
+  /** Mirrors the server's requireSitePermission('cms.edit') — UI gates, server enforces. */
+  canEdit: boolean;
   loading: boolean;
   error: string | null;
   refresh: () => Promise<void>;
@@ -100,10 +103,11 @@ export function StudioProvider({ siteId, user, children }: { siteId: string; use
   useEffect(() => { load(); }, [load]);
 
   const role = siteRole(user, users, siteId);
+  const canEdit = canEditSite(user, users, siteId);
 
   const value: StudioData = {
     siteId, site, settings, pages, news, projects, services, products, media, menu, vacancies, users,
-    user, role, loading, error, refresh: load
+    user, role, canEdit, loading, error, refresh: load
   };
 
   return <StudioContext.Provider value={value}>{children}</StudioContext.Provider>;

@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { Screen } from './types'
+import { Screen, Navigate } from './types'
 import { IconEdit, IconEye, IconCopy, IconTrash, IconMore, IconChevronLeft, IconGrip, IconPlus, IconX, IconCheck, IconUpload } from './icons'
 import { Badge, Button, SearchInput, FilterTabs, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar, Modal } from './ui'
 import { useStudio, formatDate } from './context'
@@ -106,7 +106,7 @@ function fromApiBlock(raw: any): BlockUi {
 }
 
 interface PagesListProps {
-  onNavigate: (s: Screen, id?: string) => void
+  onNavigate: Navigate
 }
 
 function usePageFilters() {
@@ -140,7 +140,7 @@ function usePageFilters() {
 }
 
 export function PagesList({ onNavigate }: PagesListProps) {
-  const { siteId, pages, refresh, role } = useStudio()
+  const { siteId, pages, refresh, role, canEdit } = useStudio()
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const { search, setSearch, filter, setFilter, visible, statusFilter } = usePageFilters()
@@ -187,7 +187,7 @@ export function PagesList({ onNavigate }: PagesListProps) {
     <div className="p-5 max-w-[1060px]">
       <Toolbar
         title="Страницы"
-        actions={<Button variant="primary" onClick={() => onNavigate('page-editor', 'new')}><IconPlus size={12} />Добавить страницу</Button>}
+        actions={canEdit ? <Button variant="primary" onClick={() => onNavigate('page-editor', 'new')}><IconPlus size={12} />Добавить страницу</Button> : undefined}
         filters={<FilterTabs tabs={statusFilter} active={filter} onChange={setFilter} />}
         search={<SearchInput value={search} onChange={setSearch} placeholder="Search pages…" />}
       />
@@ -195,7 +195,7 @@ export function PagesList({ onNavigate }: PagesListProps) {
       {visible.length === 0 ? (
         <div className="bg-surface border border-border rounded p-12 text-center">
           <p className="text-[13px] text-text-subtle mb-3">No pages match your filter.</p>
-          <Button variant="primary" size="sm" onClick={() => onNavigate('page-editor', 'new')}><IconPlus size={12} /> Add page</Button>
+          {canEdit && <Button variant="primary" size="sm" onClick={() => onNavigate('page-editor', 'new')}><IconPlus size={12} /> Add page</Button>}
         </div>
       ) : (
         <div className="bg-surface border border-border rounded overflow-hidden">
@@ -225,10 +225,12 @@ export function PagesList({ onNavigate }: PagesListProps) {
                       ariaLabel={`Действия: ${page.title || page.slug}`}
                       trigger={<span className="inline-flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"><IconMore size={13} /></span>}
                       items={[
-                        { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('page-editor', page.id) },
+                        ...(canEdit ? [{ label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('page-editor', page.id) }] : []),
                         { label: page.isHomepage ? 'Home' : 'Preview', icon: <IconEye size={12} />, onClick: () => { const url = page.isHomepage ? `/showcase/${page.site?.previewToken || ''}` : `/showcase/${page.site?.previewToken || ''}/${page.slug}`; window.open(url, '_blank') } },
-                        { label: 'Duplicate', icon: <IconCopy size={12} />, onClick: () => duplicatePage(page), disabled: busy },
-                        { label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(page.id), danger: true, divider: true },
+                        ...(canEdit ? [
+                          { label: 'Duplicate', icon: <IconCopy size={12} />, onClick: () => duplicatePage(page), disabled: busy },
+                          { label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(page.id), danger: true, divider: true },
+                        ] : []),
                       ]}
                     />
                   </td>
@@ -374,7 +376,8 @@ function SideSection({ title, children, noBorder }: { title: string; children: R
 
 interface PageEditorProps {
   pageId?: string | null
-  onNavigate: (s: Screen) => void
+  returnTo?: Screen | null
+  onNavigate: Navigate
 }
 
 function defaultPageBlocks(): BlockUi[] {
@@ -385,8 +388,8 @@ function defaultPageBlocks(): BlockUi[] {
   ]
 }
 
-export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
-  const { siteId, site, settings, pages, news, projects, services, products, vacancies, refresh } = useStudio()
+export function PageEditor({ pageId, returnTo, onNavigate }: PageEditorProps) {
+  const { siteId, site, settings, pages, news, projects, services, products, vacancies, refresh, canEdit } = useStudio()
   const isNew = !pageId || pageId === 'new'
   const page = isNew ? null : pages.find((p: any) => p.id === pageId)
 
@@ -452,7 +455,8 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
         const { page: created } = await api.createPage(siteId, payload)
         show(publish ? 'Page published' : 'Page saved')
         await refresh()
-        onNavigate('pages')
+        // Stay in the editor — deep-link the new id so refresh/share works.
+        onNavigate('page-editor', created?.id, { returnTo: returnTo ?? undefined })
       } else {
         await api.updatePage(siteId, page!.id, payload)
         show(publish ? 'Page updated' : 'Page saved')
@@ -506,7 +510,7 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-shrink-0 bg-surface border-b border-border px-4 h-[46px] flex items-center gap-3">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <button onClick={() => onNavigate('pages')} className="flex items-center gap-1 text-[12px] text-text-subtle hover:text-text transition-colors whitespace-nowrap flex-shrink-0"><IconChevronLeft size={13} />Pages</button>
+          <button onClick={() => onNavigate(returnTo ?? 'pages')} className="flex items-center gap-1 text-[12px] text-text-subtle hover:text-text transition-colors whitespace-nowrap flex-shrink-0"><IconChevronLeft size={13} />{returnTo === 'dashboard' ? 'Dashboard' : 'Pages'}</button>
           <span className="text-text-subtle flex-shrink-0">/</span>
           <span className="text-[13px] font-medium text-text truncate">{title || 'New page'}</span>
           <span className="flex-shrink-0"><Badge variant={status} /></span>
@@ -515,8 +519,8 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
         <div className="flex items-center justify-center flex-shrink-0"><SaveIndicator state={saveState} /></div>
         <div className="flex items-center gap-2 flex-shrink-0">
           <Button variant="ghost" size="sm" onClick={() => { const token = site?.previewToken || ''; const path = (isHomepage || slug === 'index') ? '' : slug; window.open(path ? `/showcase/${token}/${path}` : `/showcase/${token}`, '_blank') }}><IconEye size={12} />Preview</Button>
-          <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>
-          <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>
+          {canEdit && <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>}
+          {canEdit && <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>}
         </div>
       </div>
 
@@ -595,14 +599,14 @@ export function PageEditor({ pageId, onNavigate }: PageEditorProps) {
                               return (
                               <>
                                 <div data-cms-control={`page:block:${block.id}:heading`}><Input label="Section heading" value={block.data.heading || ''} onChange={v => updateBlockData(block.id, { heading: v })} /></div>
-                                <Select label="Карточек на главной" value={String(block.data.limit ?? '')} onChange={v => updateBlockData(block.id, { limit: v === 'all' ? '' : Number(v) })} options={[{ value: '', label: 'All' }, { value: '3', label: '3' }, { value: '6', label: '6' }, { value: '9', label: '9' }, { value: '12', label: '12' }]} />
+                                <div data-cms-control={`page:block:${block.id}:limit`}><Input label="Карточек на главной (пусто = лимит шаблона)" type="number" value={block.data.limit === '' || block.data.limit == null ? '' : String(block.data.limit)} onChange={v => updateBlockData(block.id, { limit: v === '' ? '' : Math.max(1, Math.floor(Number(v) || 0)) })} /></div>
                                 <Select label="Карточек на странице раздела" value={String(block.data.pageSize ?? '')} onChange={v => updateBlockData(block.id, { pageSize: v === '' ? '' : Number(v) })} options={[{ value: '', label: 'Default (6)' }, { value: '3', label: '3' }, { value: '6', label: '6' }, { value: '12', label: '12' }, { value: '18', label: '18' }, { value: '24', label: '24' }]} />
                                 <div data-cms-control={`page:block:${block.id}:selectedItemIdsText`}><Textarea label="Selected item IDs (one per line, optional)" value={block.data.selectedItemIdsText || ''} onChange={v => updateBlockData(block.id, { selectedItemIdsText: v })} rows={2} /></div>
                                 <label className="flex items-center gap-2 text-[12px] text-text-muted cursor-pointer">
                                   <input type="checkbox" checked={block.data.showAllLink !== false} onChange={e => updateBlockData(block.id, { showAllLink: e.target.checked })} />
                                   Показывать ссылку «Смотреть все»
                                 </label>
-                                <p className="text-[11px] text-text-subtle">На главной будет показано {lim} из {total} элементов</p>
+                                <p className="text-[11px] text-text-subtle">На главной будет показано {block.data.limit === '' || block.data.limit == null ? 'по лимиту шаблона' : `${lim} из ${total}`}</p>
                               </>
                               )
                             })()}

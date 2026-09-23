@@ -1007,11 +1007,41 @@ export function graphToImportContent(opts: GraphToContentOptions): {
   }
 
   // ---- pages ---------------------------------------------------------------
+  // Single-owner rule: a document that owns a first-class detail entity must
+  // NOT also emit a generic Page — the entity is the canonical route/content
+  // owner. The check mirrors the entity loops' acceptance filters
+  // (classification match + non-generic title) so a doc whose only candidate
+  // entity would be dropped still gets its Page.
+  const detailOwnedDocIds = new Set<string>();
+  const detailOwnerSources: [readonly { title: string; sourceDocumentIds: string[] }[], string][] = [
+    [graph.services, 'SERVICE_DETAIL'],
+    [graph.projects, 'PROJECT_DETAIL'],
+    [graph.news, 'NEWS_DETAIL'],
+    [graph.vacancies, 'VACANCY_DETAIL'],
+    [graph.products, 'PRODUCT_DETAIL'],
+  ];
+  for (const [entities, detailType] of detailOwnerSources) {
+    for (const e of entities) {
+      const doc = docsById.get(e.sourceDocumentIds[0]);
+      if (!doc || classByDoc.get(doc.id)?.type !== detailType) continue;
+      if (isGenericTitle(e.title)) continue;
+      detailOwnedDocIds.add(doc.id);
+    }
+  }
   const pages: ExtractedContent['pages'] = [];
   for (const doc of sourceDocuments) {
     const pc = classByDoc.get(doc.id);
     const slug = doc.isHomepage ? 'index' : slugFromDocPath(doc.path);
     const title = (doc.h1 || doc.title || slug).trim();
+    if (detailOwnedDocIds.has(doc.id)) {
+      // Detail-owned document — the entity owns this sourceUrl. Recorded as
+      // DROPPED in provenance so the skip is auditable, never silent.
+      provenance.pages.push({
+        title, slug, sourceUrl: doc.url, sourceDocumentId: doc.id,
+        pageType: pc?.type, confidence: pc?.confidence ?? 0.5, status: 'DROPPED:detail-owned',
+      });
+      continue;
+    }
     const body = docBodyText(doc, pageTokens, boilerplateLines);
     const blocks: any[] = sectionsToBlocks(doc, { pageH1: title, chromeTokens: chromeTokens(doc, pageTokens), boilerplateLines, technicalDrops, internalHref });
     const suitableImgs = (doc.images || [])

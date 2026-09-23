@@ -1,4 +1,7 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { resolveRouteView } from '../routeView.js'
+import { applySectionLimit } from '../sectionLimits.js'
+import { headerNavTree, flattenNavLeaves } from '../nav.js'
 
 // ─── Logo assets ─────────────────────────────────────────────────────────────
 // Customer logo is supplied by __CMS__.company.logoUrl; no hardcoded marks below.
@@ -83,24 +86,11 @@ const IMG = (cms as any).IMG || DEFAULT_IMG;
 
 const BASE = PREVIEW_TOKEN ? `/showcase/${PREVIEW_TOKEN}` : '';
 
-const COLLECTION_ROUTES = ['news', 'projects', 'services', 'vacancies', 'products'];
-const HOME_SECTION_TYPES = (HOME_SECTIONS || [])
-  .filter((s: any) => s.enabled !== false)
-  .map((s: any) => s.type)
-  .filter((t: string) => !COLLECTION_ROUTES.includes(t));
-
-function flattenNav(items: any[]): any[] {
-  const out: any[] = [];
-  for (const item of items || []) {
-    out.push(item);
-    if (item.children?.length) {
-      out.push(...flattenNav(item.children));
-    }
-  }
-  return out;
-}
-
-const FLAT_NAV = flattenNav(NAV);
+// Header renders the CMS menu tree hierarchically (dropdowns); the footer
+// keeps the flat leaf projection. Unroutable targets are pruned by the
+// shared helpers — no '#' links ever render.
+const HEADER_NAV = headerNavTree(NAV as any[]);
+const FOOTER_NAV = flattenNavLeaves(NAV as any[]);
 
 function clampCopy(text: string | undefined, max = 180): string {
   const t = (text || '').replace(/\s+/g, ' ').trim()
@@ -230,6 +220,167 @@ function BrandMark({
   )
 }
 
+// ─── Nav dropdown (desktop) ─────────────────────────────────────────────────
+// Renders a top-level CMS menu item with children. Opens on hover, focus, or
+// Enter/Space on the trigger; Escape closes and returns focus to the trigger.
+// Grandchildren render as a nested group inside the panel (3 levels total).
+function NavDropdown({ item }: { item: any }) {
+  const [open, setOpen] = useState(false)
+  const wrapRef = useRef<HTMLDivElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const onDoc = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [open])
+
+  const linkCls = 'block whitespace-nowrap text-[12px] uppercase tracking-[0.12em] font-medium transition-colors'
+
+  const renderLeaf = (c: any, nested = false) => (
+    <a
+      key={c.id}
+      href={c.href}
+      target={c.external ? '_blank' : undefined}
+      rel={c.external ? 'noopener noreferrer' : undefined}
+      className={linkCls}
+      style={{ color: 'var(--fg)', display: 'block', padding: '8px 0', paddingLeft: nested ? 14 : 0 }}
+      onClick={() => setOpen(false)}
+    >
+      {c.label}
+    </a>
+  )
+
+  return (
+    <div
+      ref={wrapRef}
+      className="relative shrink-0"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <div className="flex items-center gap-1">
+        {item.href ? (
+          <a
+            href={item.href}
+            className={linkCls}
+            style={{ color: 'var(--fg)' }}
+            onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
+            onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}
+            onFocus={() => setOpen(true)}
+          >
+            {item.label}
+          </a>
+        ) : (
+          <span className={linkCls} style={{ color: 'var(--fg)' }}>{item.label}</span>
+        )}
+        <button
+          ref={triggerRef}
+          type="button"
+          aria-haspopup="true"
+          aria-expanded={open}
+          aria-label={`${item.label} submenu`}
+          className="p-1 transition-transform"
+          style={{ color: 'var(--fg)', transform: open ? 'rotate(180deg)' : 'none' }}
+          onClick={() => setOpen(v => !v)}
+          onKeyDown={e => {
+            if (e.key === 'Escape') { setOpen(false); triggerRef.current?.focus() }
+            if (e.key === 'ArrowDown') { e.preventDefault(); setOpen(true); wrapRef.current?.querySelector('a')?.focus() }
+          }}
+        >
+          <svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true"><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" /></svg>
+        </button>
+      </div>
+      {open ? (
+        <div
+          className="absolute left-0 top-full min-w-[220px] max-w-[320px] border py-3 px-5 max-h-[70vh] overflow-y-auto"
+          style={{ background: 'var(--bg)', borderColor: 'var(--border)', boxShadow: '0 12px 32px rgba(0,0,0,0.12)', zIndex: 60 }}
+          role="menu"
+          onKeyDown={e => { if (e.key === 'Escape') { setOpen(false); triggerRef.current?.focus() } }}
+        >
+          {(item.children || []).map((c: any) => (
+            c.children?.length ? (
+              <div key={c.id} className="py-1">
+                {c.href ? renderLeaf(c) : (
+                  <span className={linkCls} style={{ color: 'var(--muted)', display: 'block', padding: '8px 0' }}>{c.label}</span>
+                )}
+                <div>
+                  {c.children.map((g: any) => renderLeaf(g, true))}
+                </div>
+              </div>
+            ) : renderLeaf(c)
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+// ─── Mobile nav item — nested children expand inline ─────────────────────────
+function MobileNavItem({ item, index, depth = 0, onNavigate }: { item: any; index: number; depth?: number; onNavigate: () => void }) {
+  const [open, setOpen] = useState(false)
+  const hasKids = !!item.children?.length
+  const style = {
+    color: 'rgba(242,244,245,0.8)',
+    borderColor: 'rgba(255,255,255,0.08)',
+    animationDelay: `${index * 40}ms`,
+    paddingLeft: depth ? depth * 18 : 0,
+  } as React.CSSProperties
+  if (!hasKids) {
+    if (!item.href) return null
+    return (
+      <a
+        href={item.href}
+        target={item.external ? '_blank' : undefined}
+        rel={item.external ? 'noopener noreferrer' : undefined}
+        onClick={onNavigate}
+        className="py-4 text-base font-medium uppercase tracking-[0.12em] border-b block"
+        style={style}
+      >
+        {item.label}
+      </a>
+    )
+  }
+  return (
+    <div className="border-b" style={{ borderColor: 'rgba(255,255,255,0.08)' }}>
+      <div className="flex items-center justify-between" style={style}>
+        {item.href ? (
+          <a
+            href={item.href}
+            target={item.external ? '_blank' : undefined}
+            rel={item.external ? 'noopener noreferrer' : undefined}
+            onClick={onNavigate}
+            className="py-4 text-base font-medium uppercase tracking-[0.12em] flex-1"
+          >
+            {item.label}
+          </a>
+        ) : (
+          <span className="py-4 text-base font-medium uppercase tracking-[0.12em] flex-1">{item.label}</span>
+        )}
+        <button
+          type="button"
+          aria-expanded={open}
+          aria-label={`${item.label} submenu`}
+          className="p-3"
+          style={{ color: 'rgba(242,244,245,0.8)' }}
+          onClick={() => setOpen(v => !v)}
+        >
+          <svg width="12" height="8" viewBox="0 0 10 6" fill="none" aria-hidden="true" style={{ transform: open ? 'rotate(180deg)' : 'none' }}><path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" /></svg>
+        </button>
+      </div>
+      {open ? (
+        <div className="pb-2">
+          {item.children.map((c: any, i: number) => (
+            <MobileNavItem key={c.id} item={c} index={i} depth={depth + 1} onNavigate={onNavigate} />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
 // ─── Header ──────────────────────────────────────────────────────────────────
 function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v: boolean) => void }) {
   return (
@@ -257,22 +408,28 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
           </div>
         </a>
 
-        {/* Desktop nav — bounded: arbitrary item counts scroll inside the
-            header instead of forcing horizontal page overflow */}
-        <nav className="hidden lg:flex flex-1 min-w-0 items-center gap-7 overflow-x-auto">
-          {(FLAT_NAV || []).filter((n: any) => n.showInHeader).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any) => (
-            <a
-              key={n.id}
-              href={n.href}
-              target={n.external ? '_blank' : undefined}
-              rel={n.external ? 'noopener noreferrer' : undefined}
-              className="shrink-0 whitespace-nowrap text-[12px] uppercase tracking-[0.12em] font-medium transition-colors"
-              style={{ color: 'var(--fg)' }}
-              onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
-              onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}
-            >
-              {n.label}
-            </a>
+        {/* Desktop nav — hierarchical CMS menu tree. Items with children open
+            a dropdown (hover, focus, or Enter/Space); Esc closes it. Bounded:
+            arbitrary item counts scroll inside the header instead of forcing
+            horizontal page overflow. */}
+        <nav className="hidden lg:flex flex-1 min-w-0 items-center gap-7 overflow-x-auto" aria-label={t('nav.aria') || 'Main'}>
+          {(HEADER_NAV || []).map((n: any) => (
+            n.children?.length ? (
+              <NavDropdown key={n.id} item={n} />
+            ) : (
+              <a
+                key={n.id}
+                href={n.href}
+                target={n.external ? '_blank' : undefined}
+                rel={n.external ? 'noopener noreferrer' : undefined}
+                className="shrink-0 whitespace-nowrap text-[12px] uppercase tracking-[0.12em] font-medium transition-colors"
+                style={{ color: 'var(--fg)' }}
+                onMouseEnter={e => (e.currentTarget.style.color = 'var(--brass)')}
+                onMouseLeave={e => (e.currentTarget.style.color = 'var(--fg)')}
+              >
+                {n.label}
+              </a>
+            )
           ))}
         </nav>
 
@@ -342,22 +499,8 @@ function Header({ menuOpen, setMenuOpen }: { menuOpen: boolean; setMenuOpen: (v:
         }}
       >
         <nav className="flex flex-col px-6 pt-2 pb-6">
-          {(FLAT_NAV || []).filter((n: any) => n.showInHeader).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any, i: number) => (
-            <a
-              key={n.id}
-              href={n.href}
-              target={n.external ? '_blank' : undefined}
-              rel={n.external ? 'noopener noreferrer' : undefined}
-              onClick={() => setMenuOpen(false)}
-              className="py-4 text-base font-medium uppercase tracking-[0.12em] border-b"
-              style={{
-                color: 'rgba(242,244,245,0.8)',
-                borderColor: 'rgba(255,255,255,0.08)',
-                animationDelay: `${i * 40}ms`,
-              }}
-            >
-              {n.label}
-            </a>
+          {(HEADER_NAV || []).map((n: any, i: number) => (
+            <MobileNavItem key={n.id} item={n} index={i} onNavigate={() => setMenuOpen(false)} />
           ))}
           <div className="pt-7 flex flex-col gap-4">
             {COMPANY.phone ? (
@@ -681,7 +824,7 @@ function Projects() {
                     className="w-1.5 h-1.5 rounded-full shrink-0"
                     style={{ background: 'var(--brass)' }}
                   />
-                  {PROJECTS[0].status}
+                  {PROJECTS[0].projectStatus}
                 </span>
               </div>
             </div>
@@ -785,7 +928,7 @@ function Projects() {
                 <span style={{ color: 'var(--border)' }}>—</span>
                 <span className="flex items-center gap-2">
                   <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ background: 'var(--brass)' }} />
-                  {PROJECTS[1].status}
+                  {PROJECTS[1].projectStatus}
                 </span>
               </div>
             </div>
@@ -856,7 +999,7 @@ function Projects() {
                       className="text-[10px] uppercase tracking-[0.25em] font-medium mt-1"
                       style={{ color: 'var(--brass)' }}
                     >
-                      {project.status}
+                      {project.projectStatus}
                     </span>
                   </div>
                   <h3
@@ -1267,11 +1410,11 @@ function ProductCard({ p, i }: { p: any; i: number }) {
   )
 }
 
-function ProductList({ preview = false }: { preview?: boolean }) {
-  const H: any = preview ? 'h2' : 'h1' 
+function ProductList({ preview = false, section }: { preview?: boolean; section?: any }) {
+  const H: any = preview ? 'h2' : 'h1'
   if (PRODUCTS.length === 0) return null
   if (typeof document !== 'undefined' && !preview) document.title = `${t('collection.products') || ''} — ${COMPANY.name}`
-  const items = preview ? PRODUCTS.slice(0, 6) : PRODUCTS
+  const items = preview ? applySectionLimit(PRODUCTS, section || sectionConfig('products'), (cms as any).MANIFEST) : PRODUCTS
   return (
     <section id="products" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
@@ -1299,8 +1442,8 @@ function ProductList({ preview = false }: { preview?: boolean }) {
   )
 }
 
-function ProductDetail({ slug }: { slug: string }) {
-  const p = PRODUCTS.find((x: any) => x.slug === slug)
+function ProductDetail({ slug, id }: { slug?: string; id?: string }) {
+  const p = PRODUCTS.find((x: any) => (id && x.id === id) || x.slug === slug)
   const returnTo = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('returnTo') as 'home' | 'collection' | null) : null
   if (typeof document !== 'undefined' && p) document.title = `${p.title} — ${COMPANY.name}`
   if (!p) return (
@@ -1560,8 +1703,8 @@ function News() {
 }
 
 // ─── News detail ──────────────────────────────────────────────────────────────
-function NewsDetail({ slug }: { slug: string }) {
-  const item = NEWS_ITEMS.find((x: any) => x.slug === slug)
+function NewsDetail({ slug, id }: { slug?: string; id?: string }) {
+  const item = NEWS_ITEMS.find((x: any) => (id && x.id === id) || x.slug === slug)
   const returnTo = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('returnTo') as 'home' | 'collection' | null) : null
   if (typeof document !== 'undefined' && item) {
     document.title = `${item.title} — ${COMPANY.name}`
@@ -1596,11 +1739,12 @@ function NewsDetail({ slug }: { slug: string }) {
 }
 
 // ─── Project list ─────────────────────────────────────────────────────────────
-function ProjectList({ preview = false }: { preview?: boolean }) {
-  const H: any = preview ? 'h2' : 'h1' 
+function ProjectList({ preview = false, section }: { preview?: boolean; section?: any }) {
+  const H: any = preview ? 'h2' : 'h1'
   if (typeof document !== 'undefined' && !preview) document.title = `${t('collection.projects') || ''} — ${COMPANY.name}`
   const returnTo = preview ? 'home' : 'collection'
   const back = sectionHref('PROJECTS')
+  const items = preview ? applySectionLimit(PROJECTS, section || sectionConfig('projects'), (cms as any).MANIFEST) : PROJECTS
   return (
     <section id="projects" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
@@ -1623,7 +1767,7 @@ function ProjectList({ preview = false }: { preview?: boolean }) {
         ) : null}
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border-t mt-6" style={{ borderColor: 'var(--border)' }}>
-          {PROJECTS.map((p) => (
+          {items.map((p) => (
             <article
               key={p.id || p.slug || p.title}
               className="border-b md:border-r last:md:border-r-0"
@@ -1640,7 +1784,7 @@ function ProjectList({ preview = false }: { preview?: boolean }) {
                 <div className="p-6">
                   <div className="flex items-center justify-between text-[10px] uppercase tracking-[0.25em] font-medium mb-3" style={{ color: 'var(--muted)' }}>
                     <span>{p.category}</span>
-                    <span style={{ color: 'var(--brass)' }}>{p.status}</span>
+                    <span style={{ color: 'var(--brass)' }}>{p.projectStatus}</span>
                   </div>
                   <h3 className="text-xl font-bold mb-2 leading-snug" style={{ ...GEO, color: 'var(--fg)' }}>
                     {p.title}
@@ -1650,7 +1794,7 @@ function ProjectList({ preview = false }: { preview?: boolean }) {
               </a>
             </article>
           ))}
-          {preview && PROJECTS.length % 2 === 1 ? (
+          {preview && items.length % 2 === 1 ? (
             <a
               href={collectionHref('PROJECTS')}
               className="flex flex-col items-start justify-between p-6 md:p-8 min-h-[220px] group border-b"
@@ -1660,7 +1804,7 @@ function ProjectList({ preview = false }: { preview?: boolean }) {
                 {t('section.portfolio')}
               </span>
               <span className="font-black leading-none tabular-nums" style={{ ...GEO, fontSize: 'clamp(2.5rem, 5vw, 4rem)', color: 'var(--brass)' }}>
-                {String(PROJECTS.length).padStart(2, '0')}
+                {String(items.length).padStart(2, '0')}
               </span>
               <span className="text-xs uppercase tracking-[0.15em] font-medium transition-colors group-hover:text-[var(--brass)]" style={{ color: 'rgba(242,244,245,0.7)' }}>
                 {t('viewAll.projects')}
@@ -1674,8 +1818,8 @@ function ProjectList({ preview = false }: { preview?: boolean }) {
 }
 
 // ─── Project detail ───────────────────────────────────────────────────────────
-function ProjectDetail({ slug }: { slug: string }) {
-  const p = PROJECTS.find(x => x.slug === slug)
+function ProjectDetail({ slug, id }: { slug?: string; id?: string }) {
+  const p = PROJECTS.find((x: any) => (id && x.id === id) || x.slug === slug)
   const returnTo = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('returnTo') as 'home' | 'collection' | null) : null
   if (typeof document !== 'undefined' && p) {
     document.title = `${p.title} — ${COMPANY.name}`
@@ -1692,7 +1836,7 @@ function ProjectDetail({ slug }: { slug: string }) {
   const hasMedia = !!p.img || (p.gallery && p.gallery.length > 0)
   // Pipeline placeholders are not customer-facing facts — omit them.
   const PIPELINE_STATUS = /^(draft|in[-_ ]?progress|not[-_ ]?started|unknown|—|-)$/i
-  const meta = [p.category, p.location, PIPELINE_STATUS.test(String(p.status || '')) ? '' : p.status].filter(Boolean)
+  const meta = [p.category, p.location, PIPELINE_STATUS.test(String(p.projectStatus || '')) ? '' : p.projectStatus].filter(Boolean)
   const related = PROJECTS.filter((x) => x.slug !== p.slug).slice(0, 3)
 
   if (!hasMedia) {
@@ -1759,7 +1903,7 @@ function ProjectDetail({ slug }: { slug: string }) {
               <img src={p.img} alt={p.title} className="w-full h-full object-cover" />
             </div>
           ) : null}
-          <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--muted)' }}>{[p.category, p.location, p.status].filter(Boolean).join(' · ')}</p>
+          <p className="text-[11px] uppercase tracking-[0.22em] mb-3" style={{ color: 'var(--muted)' }}>{[p.category, p.location, p.projectStatus].filter(Boolean).join(' · ')}</p>
           <h1 className="text-3xl md:text-4xl font-bold leading-tight mb-5" style={{ ...GEO, color: 'var(--fg)' }}>{p.title}</h1>
           {p.excerpt ? <p className="text-lg leading-relaxed mb-8" style={{ color: 'var(--muted)' }}>{p.excerpt}</p> : null}
           <div className="text-base leading-relaxed mb-10" style={{ color: 'var(--fg)', whiteSpace: 'pre-wrap' }}>{p.content}</div>
@@ -1777,11 +1921,11 @@ function ProjectDetail({ slug }: { slug: string }) {
 }
 
 // ─── Service list ─────────────────────────────────────────────────────────────
-function ServiceList({ preview = false }: { preview?: boolean }) {
+function ServiceList({ preview = false, section }: { preview?: boolean; section?: any }) {
   if (typeof document !== 'undefined' && !preview) document.title = `${sectionHeading('services')} — ${COMPANY.name}`
-  const H: any = preview ? 'h2' : 'h1' 
+  const H: any = preview ? 'h2' : 'h1'
   const returnTo = preview ? 'home' : 'collection'
-  const items = preview ? SERVICES.slice(0, 6) : SERVICES
+  const items = preview ? applySectionLimit(SERVICES, section || sectionConfig('services'), (cms as any).MANIFEST) : SERVICES
   if (preview && SERVICES.length === 0) return null
   return (
     <section id="services" className="py-24 md:py-32 border-t" style={{ background: 'var(--dark)' }}>
@@ -1834,8 +1978,8 @@ function ServiceList({ preview = false }: { preview?: boolean }) {
 }
 
 // ─── Service detail ───────────────────────────────────────────────────────────
-function ServiceDetail({ slug }: { slug: string }) {
-  const s = SERVICES.find(x => x.slug === slug)
+function ServiceDetail({ slug, id }: { slug?: string; id?: string }) {
+  const s = SERVICES.find((x: any) => (id && x.id === id) || x.slug === slug)
   const returnTo = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('returnTo') as 'home' | 'collection' | null) : null
   if (typeof document !== 'undefined' && s) {
     document.title = `${s.title} — ${COMPANY.name}`
@@ -1870,11 +2014,11 @@ function ServiceDetail({ slug }: { slug: string }) {
 }
 
 // ─── News list ─────────────────────────────────────────────────────────────────
-function NewsList({ preview = false }: { preview?: boolean }) {
-  const H: any = preview ? 'h2' : 'h1' 
+function NewsList({ preview = false, section }: { preview?: boolean; section?: any }) {
+  const H: any = preview ? 'h2' : 'h1'
   if (typeof document !== 'undefined' && !preview) document.title = `${t('collection.news') || ''} — ${COMPANY.name}`
   const returnTo = preview ? 'home' : 'collection'
-  const items = preview ? NEWS_ITEMS.slice(0, 3) : NEWS_ITEMS
+  const items = preview ? applySectionLimit(NEWS_ITEMS, section || sectionConfig('news'), (cms as any).MANIFEST) : NEWS_ITEMS
   return (
     <section id="news" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
@@ -1956,11 +2100,11 @@ function PageView({ slug }: { slug: string }) {
 }
 
 // ─── Vacancy list ─────────────────────────────────────────────────────────────
-function VacancyList({ preview = false }: { preview?: boolean }) {
-  const H: any = preview ? 'h2' : 'h1' 
+function VacancyList({ preview = false, section }: { preview?: boolean; section?: any }) {
+  const H: any = preview ? 'h2' : 'h1'
   if (typeof document !== 'undefined' && !preview) document.title = `${t('collection.vacancies') || ''} — ${COMPANY.name}`
   const returnTo = preview ? 'home' : 'collection'
-  const items = preview ? VACANCIES.slice(0, 3) : VACANCIES
+  const items = preview ? applySectionLimit(VACANCIES, section || sectionConfig('vacancies'), (cms as any).MANIFEST) : VACANCIES
   return (
     <section id="vacancies" className="py-24 md:py-32 border-t" style={{ background: 'var(--bg)', borderColor: 'var(--border)' }}>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10">
@@ -1995,8 +2139,8 @@ function VacancyList({ preview = false }: { preview?: boolean }) {
 }
 
 // ─── Vacancy detail ───────────────────────────────────────────────────────────
-function VacancyDetail({ slug }: { slug: string }) {
-  const v = VACANCIES.find((x: any) => x.slug === slug)
+function VacancyDetail({ slug, id }: { slug?: string; id?: string }) {
+  const v = VACANCIES.find((x: any) => (id && x.id === id) || x.slug === slug)
   const returnTo = typeof window !== 'undefined' ? (new URLSearchParams(window.location.search).get('returnTo') as 'home' | 'collection' | null) : null
   if (typeof document !== 'undefined' && v) {
     document.title = `${v.title} — ${COMPANY.name}`
@@ -2275,7 +2419,7 @@ function Footer() {
           <div>
             <FooterHeading>{t('footer.navigation')}</FooterHeading>
             <nav className="flex flex-col gap-3">
-              {(FLAT_NAV || []).filter((n: any) => n.showInFooter).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any) => (
+              {(FOOTER_NAV || []).filter((n: any) => n.showInFooter).sort((a: any, b: any) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0)).map((n: any) => (
                 <FooterLink key={n.id} href={n.href} target={n.external ? '_blank' : undefined} rel={n.external ? 'noopener noreferrer' : undefined}>{n.label}</FooterLink>
               ))}
             </nav>
@@ -2378,12 +2522,12 @@ function Footer() {
 
 const SECTION_COMPONENTS: Record<string, (item?: any) => JSX.Element | null> = {
   about: () => <About />,
-  products: () => <ProductList preview />,
+  products: (item?: any) => <ProductList preview section={item} />,
   dynamic: (item?: any) => <DynSection kind={item?.sectionType || item?.title || ''} />,
-  services: () => <ServiceList preview />,
-  projects: () => <ProjectList preview />,
-  news: () => <NewsList preview />,
-  vacancies: () => <VacancyList preview />,
+  services: (item?: any) => <ServiceList preview section={item} />,
+  projects: (item?: any) => <ProjectList preview section={item} />,
+  news: (item?: any) => <NewsList preview section={item} />,
+  vacancies: (item?: any) => <VacancyList preview section={item} />,
   contacts: () => <CallToAction />,
   cta: () => <CallToAction />,
 }
@@ -2454,41 +2598,47 @@ function Home({ activeSection }: { activeSection?: string }) {
 }
 
 // ─── App ──────────────────────────────────────────────────────────────────────
+// View dispatch is driven by the server's canonical route resolution —
+// payload.ROUTE.type + ENTITY — never re-derived from raw route/subRoute.
+// A same-slug Page can therefore never shadow an entity detail route.
+const ENTITY_DETAIL_VIEWS: Record<string, (p: { slug?: string; id?: string }) => JSX.Element> = {
+  service: ServiceDetail,
+  project: ProjectDetail,
+  news: NewsDetail,
+  vacancy: VacancyDetail,
+  product: ProductDetail,
+};
+const COLLECTION_VIEWS: Record<string, () => JSX.Element | null> = {
+  news: NewsList,
+  projects: ProjectList,
+  services: ServiceList,
+  products: ProductList,
+  vacancies: VacancyList,
+};
+
 export default function App() {
   const [menuOpen, setMenuOpen] = useState(false)
-  const route = (cms as any).route || ''
-  const sub = (cms as any).subRoute || ''
-  const isHomeSection = HOME_SECTION_TYPES.includes(route) && !sub
-  const isCollection = COLLECTION_ROUTES.includes(route) && !sub
-  const isDetail = COLLECTION_ROUTES.includes(route) && !!sub
-  const matchedPage = route ? PAGES.find((p: any) => p.slug === route) : null
+  const view = resolveRouteView(cms)
+
+  let content: JSX.Element | null = null
+  if (view.view === 'home') {
+    content = <Home activeSection={view.activeSection} />
+  } else if (view.view === 'entity-detail') {
+    const Detail = ENTITY_DETAIL_VIEWS[view.entityKind]
+    content = Detail ? <Detail slug={view.slug} id={view.entityId} /> : <PageView slug={(cms as any).route || ''} />
+  } else if (view.view === 'collection') {
+    const List = COLLECTION_VIEWS[view.collection]
+    content = List ? <List /> : <PageView slug={(cms as any).route || ''} />
+  } else {
+    // 'page' and 'not-found' both resolve through PageView — it renders the
+    // honest not-found state when no page matches.
+    content = <PageView slug={view.view === 'page' ? view.slug : ((cms as any).route || '')} />
+  }
 
   return (
     <div style={{ fontFamily: 'var(--font-body)', background: 'var(--bg)', color: 'var(--fg)' }}>
       <Header menuOpen={menuOpen} setMenuOpen={setMenuOpen} />
-      <main>
-        {!route ? (
-          <Home />
-        ) : isDetail ? (
-          route === 'news' ? <NewsDetail slug={sub} /> :
-          route === 'projects' ? <ProjectDetail slug={sub} /> :
-          route === 'services' ? <ServiceDetail slug={sub} /> :
-          route === 'products' ? <ProductDetail slug={sub} /> :
-          route === 'vacancies' ? <VacancyDetail slug={sub} /> : null
-        ) : isCollection ? (
-          route === 'news' ? <NewsList /> :
-          route === 'projects' ? <ProjectList /> :
-          route === 'services' ? <ServiceList /> :
-          route === 'products' ? <ProductList /> :
-          route === 'vacancies' ? <VacancyList /> : null
-        ) : matchedPage ? (
-          <PageView slug={route} />
-        ) : isHomeSection ? (
-          <Home activeSection={route} />
-        ) : (
-          <PageView slug={route} />
-        )}
-      </main>
+      <main>{content}</main>
       <Footer />
     </div>
   )

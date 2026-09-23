@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import type { Screen } from './types'
+import type { Screen, NavigateOpts } from './types'
+import { EDITOR_SCREENS, STUDIO_SCREENS, parseStudioSearch, buildStudioSearch } from './studioNavigation'
 import { StudioProvider, useStudio, type StudioUser } from './context'
 import Sidebar from './Sidebar'
 import Dashboard from './Dashboard'
@@ -15,8 +16,6 @@ import Contacts from './Contacts'
 import SiteSettings from './SiteSettings'
 import Versions from './RevisionHistory'
 import Users from './Users'
-
-const EDITOR_SCREENS: Screen[] = ['page-editor', 'project-editor', 'news-editor', 'service-editor', 'product-editor', 'vacancy-editor']
 
 const SCREEN_LABELS: Record<Screen, string> = {
   dashboard: 'Dashboard',
@@ -50,30 +49,28 @@ function StudioInner({ screen }: { screen: Screen }) {
   return null;
 }
 
-const VALID_SCREENS = new Set<string>(Object.keys(SCREEN_LABELS));
+const VALID_SCREENS = new Set<string>(STUDIO_SCREENS);
 
-function readUrlState(): { screen: Screen; id: string | null } {
-  try {
-    const p = new URLSearchParams(window.location.search);
-    const s = p.get('screen');
-    return { screen: (s && VALID_SCREENS.has(s) ? s : 'dashboard') as Screen, id: p.get('edit') };
-  } catch {
-    return { screen: 'dashboard', id: null };
-  }
+function readUrlState() {
+  return parseStudioSearch(typeof window !== 'undefined' ? window.location.search : '')
 }
 
 export default function Studio({ siteId, user }: { siteId: string; user?: any }) {
   const [screen, setScreen] = useState<Screen>(() => readUrlState().screen)
   const [editingId, setEditingId] = useState<string | null>(() => readUrlState().id)
+  const [returnTo, setReturnTo] = useState<Screen | null>(() => readUrlState().returnTo)
 
-  // Deep-link support: ?screen=…&edit=… survives reload and is shareable.
-  const navigate = (s: Screen, id?: string) => {
+  // Deep-link support: ?screen=…&edit=…&returnTo=… survives reload and is shareable.
+  const navigate = (s: Screen, id?: string, opts?: NavigateOpts) => {
     setScreen(s)
     setEditingId(id ?? null)
+    setReturnTo(opts?.returnTo ?? null)
     try {
       const u = new URL(window.location.href)
-      u.searchParams.set('screen', s)
-      if (id) u.searchParams.set('edit', id); else u.searchParams.delete('edit')
+      // Merge: preserve unrelated params (e.g. embed flags), own screen/edit/returnTo.
+      const next = new URLSearchParams(buildStudioSearch({ screen: s, id: id ?? null, returnTo: opts?.returnTo ?? null }))
+      u.searchParams.forEach((v, k) => { if (!['screen', 'edit', 'returnTo'].includes(k)) next.set(k, v) })
+      u.search = next.toString()
       window.history.pushState({}, '', u)
     } catch { /* non-browser env */ }
     const el = document.getElementById('cms-main')
@@ -85,6 +82,7 @@ export default function Studio({ siteId, user }: { siteId: string; user?: any })
       const st = readUrlState()
       setScreen(st.screen)
       setEditingId(st.id)
+      setReturnTo(st.returnTo)
     }
     window.addEventListener('popstate', onPop)
     return () => window.removeEventListener('popstate', onPop)
@@ -107,21 +105,21 @@ export default function Studio({ siteId, user }: { siteId: string; user?: any })
             {screen === 'dashboard' && <Dashboard onNavigate={navigate} />}
 
             {screen === 'pages' && <PagesList onNavigate={navigate} />}
-            {screen === 'page-editor' && <PageEditor pageId={editingId} onNavigate={navigate} />}
+            {screen === 'page-editor' && <PageEditor pageId={editingId} returnTo={returnTo} onNavigate={navigate} />}
 
             {screen === 'projects' && <ProjectsList onNavigate={navigate} />}
-            {screen === 'project-editor' && <ProjectEditor projectId={editingId} onNavigate={navigate} />}
+            {screen === 'project-editor' && <ProjectEditor projectId={editingId} returnTo={returnTo} onNavigate={navigate} />}
 
             {screen === 'news' && <NewsList onNavigate={navigate} />}
-            {screen === 'news-editor' && <NewsEditor newsId={editingId} onNavigate={navigate} />}
+            {screen === 'news-editor' && <NewsEditor newsId={editingId} returnTo={returnTo} onNavigate={navigate} />}
 
             {screen === 'services' && <ServicesList onNavigate={navigate} />}
             {screen === 'products' && <ProductsList onNavigate={navigate} />}
-            {screen === 'product-editor' && <ProductEditor productId={editingId} onNavigate={navigate} />}
-            {screen === 'service-editor' && <ServiceEditor serviceId={editingId} onNavigate={navigate} />}
+            {screen === 'product-editor' && <ProductEditor productId={editingId} returnTo={returnTo} onNavigate={navigate} />}
+            {screen === 'service-editor' && <ServiceEditor serviceId={editingId} returnTo={returnTo} onNavigate={navigate} />}
 
             {screen === 'vacancies' && <VacanciesList onNavigate={navigate} />}
-            {screen === 'vacancy-editor' && <VacancyEditor vacancyId={editingId} onNavigate={navigate} />}
+            {screen === 'vacancy-editor' && <VacancyEditor vacancyId={editingId} returnTo={returnTo} onNavigate={navigate} />}
 
             {screen === 'media' && <Media onNavigate={navigate} />}
             {screen === 'navigation' && <NavEditor onNavigate={navigate} />}

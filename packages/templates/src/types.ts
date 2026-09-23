@@ -44,6 +44,13 @@ export interface TemplateManifest {
   sectionRendererMap: Record<string, string>;
   collectionRendererMap: Record<string, string>;
   pageRenderer?: string;
+  /**
+   * Collection-capable homepage section types and their default display
+   * limits. A template that renders a collection preview section MUST declare
+   * it here — the registry contract test fails otherwise. `section.limit` on
+   * the individual homepageSections[] entry overrides the default.
+   */
+  collectionSections?: Record<string, { defaultLimit: number; supportsLimit: boolean }>;
 }
 
 export interface RenderContext {

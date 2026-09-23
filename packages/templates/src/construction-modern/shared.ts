@@ -1,5 +1,7 @@
 import type { RenderContext } from '../types.js';
 import { escapeHtml } from './layout.js';
+import { applySectionLimit } from '../sectionLimits.js';
+import { constructionModernManifest } from './manifest.js';
 
 export function mediaUrl(ctx: RenderContext, mediaId: string): string {
   const m = ctx.mediaMap.get(mediaId);
@@ -53,11 +55,11 @@ export function renderBlocks(ctx: RenderContext, blocks: any[]): string {
           <p>${escapeHtml(ctx.settings?.address || '')}</p>
         </div></section>`;
       case 'services':
-        return renderServicesBlock(ctx, b.limit);
+        return renderServicesBlock(ctx, b);
       case 'projects':
-        return renderProjectsBlock(ctx, b.limit);
+        return renderProjectsBlock(ctx, b);
       case 'news':
-        return renderNewsBlock(ctx, b.limit);
+        return renderNewsBlock(ctx, b);
       case 'reviews':
         return `<section class="section"><div class="container"><h2>Отзывы</h2><div class="grid">${(b.reviews || []).map((r: any) => `<div class="card"><p>"${escapeHtml(r.text)}"</p><p class="muted">— ${escapeHtml(r.author || '')}</p></div>`).join('')}</div></div></section>`;
       default:
@@ -66,8 +68,8 @@ export function renderBlocks(ctx: RenderContext, blocks: any[]): string {
   }).join('');
 }
 
-function renderServicesBlock(ctx: RenderContext, limit?: number) {
-  const items = ctx.services.slice(0, limit ?? 4);
+function renderServicesBlock(ctx: RenderContext, section: { type?: string; limit?: number | null; selectedItemIds?: string[] }) {
+  const items = applySectionLimit(ctx.services, { ...section, type: 'services' }, constructionModernManifest);
   if (items.length === 0) return '';
   return `<section class="section section--alt"><div class="container">
     <h2 class="section__title">Услуги</h2>
@@ -81,8 +83,8 @@ function renderServicesBlock(ctx: RenderContext, limit?: number) {
   </div></section>`;
 }
 
-function renderProjectsBlock(ctx: RenderContext, limit?: number) {
-  const items = ctx.projects.slice(0, limit ?? 3);
+function renderProjectsBlock(ctx: RenderContext, section: { type?: string; limit?: number | null; selectedItemIds?: string[] }) {
+  const items = applySectionLimit(ctx.projects, { ...section, type: 'projects' }, constructionModernManifest);
   if (items.length === 0) return '';
   return `<section class="section"><div class="container">
     <h2 class="section__title">Реализованные объекты</h2>
@@ -98,8 +100,8 @@ function renderProjectsBlock(ctx: RenderContext, limit?: number) {
   </div></section>`;
 }
 
-function renderNewsBlock(ctx: RenderContext, limit?: number) {
-  const items = ctx.news.slice(0, limit ?? 6);
+function renderNewsBlock(ctx: RenderContext, section: { type?: string; limit?: number | null; selectedItemIds?: string[] }) {
+  const items = applySectionLimit(ctx.news, { ...section, type: 'news' }, constructionModernManifest);
   if (items.length === 0) return '';
   return `<section class="section section-alt"><div class="container"><h2>Новости</h2><div class="grid">
     ${items.map((n: any) => `<a class="card" href="/news/${escapeHtml(n.slug)}">

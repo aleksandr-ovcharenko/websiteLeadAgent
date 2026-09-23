@@ -1,16 +1,16 @@
 import { useState, useEffect, useRef } from 'react'
-import { Screen } from './types'
+import { Screen, Navigate } from './types'
 import { IconEdit, IconTrash, IconMore, IconChevronLeft, IconPlus, IconGrip, IconCheck, IconUpload, IconEye, IconX } from './icons'
 import { Badge, Button, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
 import { useStudio, formatDate } from './context'
 import { api, uiStatus, apiStatus } from './api'
 
 interface ProductsListProps {
-  onNavigate: (s: Screen, id?: string) => void
+  onNavigate: Navigate
 }
 
 export function ProductsList({ onNavigate }: ProductsListProps) {
-  const { siteId, products, refresh } = useStudio()
+  const { siteId, products, refresh, site, canEdit } = useStudio()
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const { show } = useToast()
 
@@ -22,7 +22,7 @@ export function ProductsList({ onNavigate }: ProductsListProps) {
 
   return (
     <div className="p-5 max-w-[760px]">
-      <Toolbar title="Товары" actions={<Button variant="primary" onClick={() => onNavigate('product-editor', 'new')}><IconPlus size={12} />Добавить товар</Button>} />
+      <Toolbar title="Товары" actions={canEdit ? <Button variant="primary" onClick={() => onNavigate('product-editor', 'new')}><IconPlus size={12} />Добавить товар</Button> : undefined} />
 
       <div className="bg-white border border-gray-200 rounded overflow-hidden">
         <table className="w-full">
@@ -45,8 +45,9 @@ export function ProductsList({ onNavigate }: ProductsListProps) {
                     trigger={<span className="inline-flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"><IconMore size={13} /></span>}
                       ariaLabel="Row actions"
                     items={[
-                      { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('product-editor', item.id) },
-                      { label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(item.id), danger: true, divider: true },
+                      ...(canEdit ? [{ label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('product-editor', item.id) }] : []),
+                      { label: item.previewPath ? 'Preview' : 'Detail preview unavailable', icon: <IconEye size={12} />, disabled: !item.previewPath, onClick: () => { if (item.previewPath) window.open(`/showcase/${site?.previewToken || ''}${item.previewPath}`, '_blank') } },
+                      ...(canEdit ? [{ label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(item.id), danger: true, divider: true }] : []),
                     ]}
                   />
                 </td>
@@ -84,14 +85,15 @@ const textToAttrs = (t: string) => {
 
 interface ProductEditorProps {
   productId?: string | null
-  onNavigate: (s: Screen) => void
+  returnTo?: Screen | null
+  onNavigate: Navigate
 }
 
 import { mediaUrlOf } from './mediaUrl'
 import { StructuredBlocksEditor } from './StructuredBlocksEditor'
 
-export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
-  const { siteId, products, refresh, site, media } = useStudio()
+export function ProductEditor({ productId, returnTo, onNavigate }: ProductEditorProps) {
+  const { siteId, products, refresh, site, media, canEdit } = useStudio()
   const isNew = !productId || productId === 'new'
   const item = isNew ? null : products.find((p: any) => p.id === productId)
 
@@ -136,9 +138,18 @@ export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
     setSaveState('saving')
     try {
       const payload: any = { title, slug, summary, category, price, attributes: textToAttrs(attrs), blocks, coverImageId: imageId || null, gallery: galleryIds, sortOrder: Number(orderNum) || 0, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(status) }
-      if (isNew) { await api.createProduct(siteId, payload); show(publish ? 'Product published' : 'Product saved') }
-      else { await api.updateProduct(siteId, item!.id, payload); show(publish ? 'Product updated' : 'Product saved') }
-      await refresh(); onNavigate('products')
+      if (isNew) {
+        const { product: created } = await api.createProduct(siteId, payload)
+        show(publish ? 'Product published' : 'Product saved')
+        await refresh()
+        // Stay in the editor — deep-link the new id so refresh/share works.
+        onNavigate('product-editor', created?.id, { returnTo: returnTo ?? undefined })
+      } else {
+        await api.updateProduct(siteId, item!.id, payload)
+        show(publish ? 'Product updated' : 'Product saved')
+        await refresh()
+        setSaveState('saved')
+      }
     } catch (e: any) { show(e.message || 'Failed to save'); setSaveState('unsaved') }
   }
 
@@ -161,7 +172,7 @@ export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-shrink-0 bg-white border-b border-gray-200 px-4 h-[46px] flex items-center gap-3">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <button onClick={() => onNavigate('products')} className="flex items-center gap-1 text-[12px] text-gray-400 hover:text-gray-700 transition-colors"><IconChevronLeft size={13} />Products</button>
+          <button onClick={() => onNavigate(returnTo ?? 'products')} className="flex items-center gap-1 text-[12px] text-gray-400 hover:text-gray-700 transition-colors"><IconChevronLeft size={13} />{returnTo === 'dashboard' ? 'Dashboard' : 'Products'}</button>
           <span className="text-gray-200">/</span>
           <span className="text-[13px] font-medium text-gray-800 truncate">{title || 'New product'}</span>
           <span className="flex-shrink-0"><Badge variant={status} /></span>
@@ -177,8 +188,8 @@ export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
               </Button>
             )
           })()}
-          <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>
-          <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>
+          {canEdit && <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>}
+          {canEdit && <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{status === 'published' ? 'Update' : 'Publish'}</Button>}
         </div>
       </div>
 
@@ -263,9 +274,9 @@ export function ProductEditor({ productId, onNavigate }: ProductEditorProps) {
             <Input label="Title" value={seoTitle} onChange={v => { setSeoTitle(v); markDirty() }} placeholder="Defaults to product title" />
             <div className="flex flex-col gap-1 mt-3"><label className="text-[12px] font-medium text-gray-600">Description</label><textarea value={seoDesc} onChange={e => { setSeoDesc(e.target.value); markDirty() }} rows={3} placeholder="Brief description for search results" className="w-full border border-gray-300 rounded text-[12px] text-gray-900 placeholder-gray-400 px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-[#16a34a] focus:border-[#16a34a] resize-none leading-relaxed" /><p className="text-[10px] text-gray-400 text-right">{seoDesc.length}/160</p></div>
           </SideSection>
-          {!isNew && (
+          {!isNew && canEdit && (
             <SideSection title="Danger zone" noBorder>
-              <button onClick={async () => { try { await api.deleteProduct(siteId, item!.id); await refresh(); onNavigate('products') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-gray-500 hover:text-red-600 transition-colors py-1.5">Delete product</button>
+              <button onClick={async () => { try { await api.deleteProduct(siteId, item!.id); await refresh(); onNavigate(returnTo ?? 'products') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-gray-500 hover:text-red-600 transition-colors py-1.5">Delete product</button>
             </SideSection>
           )}
         </aside>

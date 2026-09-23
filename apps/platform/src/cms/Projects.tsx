@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
-import { Screen } from './types'
+import { Screen, Navigate } from './types'
 import { IconEdit, IconTrash, IconMore, IconChevronLeft, IconPlus, IconEye, IconX, IconCheck, IconUpload } from './icons'
 import { Badge, Button, SearchInput, FilterTabs, DropdownMenu, ConfirmDelete, Input, Textarea, Select, useToast, Toast, Toolbar } from './ui'
 import { useStudio, formatDate } from './context'
@@ -8,7 +8,7 @@ import { mediaUrlOf } from './mediaUrl'
 import { StructuredBlocksEditor } from './StructuredBlocksEditor'
 
 interface ProjectsListProps {
-  onNavigate: (s: Screen, id?: string) => void
+  onNavigate: Navigate
 }
 
 function useProjectFilters() {
@@ -34,7 +34,7 @@ function useProjectFilters() {
 }
 
 export function ProjectsList({ onNavigate }: ProjectsListProps) {
-  const { siteId, projects, refresh, site, media } = useStudio()
+  const { siteId, projects, refresh, site, media, canEdit } = useStudio()
   const [deleteId, setDeleteId] = useState<string | null>(null)
   const { search, setSearch, filter, setFilter, visible, tabs } = useProjectFilters()
   const { show } = useToast()
@@ -49,7 +49,7 @@ export function ProjectsList({ onNavigate }: ProjectsListProps) {
     <div className="p-5 max-w-[1060px]">
       <Toolbar
         title="Объекты"
-        actions={<Button variant="primary" onClick={() => onNavigate('project-editor', 'new')}><IconPlus size={12} />Добавить объект</Button>}
+        actions={canEdit ? <Button variant="primary" onClick={() => onNavigate('project-editor', 'new')}><IconPlus size={12} />Добавить объект</Button> : undefined}
         filters={<FilterTabs tabs={tabs} active={filter} onChange={setFilter} />}
         search={<SearchInput value={search} onChange={setSearch} placeholder="Search projects…" />}
       />
@@ -81,9 +81,9 @@ export function ProjectsList({ onNavigate }: ProjectsListProps) {
                     trigger={<span className="inline-flex opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity"><IconMore size={13} /></span>}
                       ariaLabel="Row actions"
                     items={[
-                      { label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('project-editor', project.id) },
-                      { label: 'Preview', icon: <IconEye size={12} />, onClick: () => window.open(`/showcase/${site?.previewToken || ''}/projects/${project.slug}`, '_blank') },
-                      { label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(project.id), danger: true, divider: true },
+                      ...(canEdit ? [{ label: 'Edit', icon: <IconEdit size={12} />, onClick: () => onNavigate('project-editor', project.id) }] : []),
+                      { label: 'Preview', icon: <IconEye size={12} />, onClick: () => window.open(`/showcase/${site?.previewToken || ''}${project.previewPath || `/projects/${project.slug}`}`, '_blank') },
+                      ...(canEdit ? [{ label: 'Delete', icon: <IconTrash size={12} />, onClick: () => setDeleteId(project.id), danger: true, divider: true }] : []),
                     ]}
                   />
                 </td>
@@ -111,11 +111,12 @@ function SideSection({ title, children, noBorder }: { title: string; children: R
 
 interface ProjectEditorProps {
   projectId?: string | null
-  onNavigate: (s: Screen) => void
+  returnTo?: Screen | null
+  onNavigate: Navigate
 }
 
-export function ProjectEditor({ projectId, onNavigate }: ProjectEditorProps) {
-  const { siteId, projects, refresh, site, media } = useStudio()
+export function ProjectEditor({ projectId, returnTo, onNavigate }: ProjectEditorProps) {
+  const { siteId, projects, refresh, site, media, canEdit } = useStudio()
   const isNew = !projectId || projectId === 'new'
   const project = isNew ? null : projects.find((p: any) => p.id === projectId)
 
@@ -163,9 +164,18 @@ export function ProjectEditor({ projectId, onNavigate }: ProjectEditorProps) {
     setSaveState('saving')
     try {
       const payload: any = { title, slug, excerpt, category, location, completionDate, blocks, projectStatus, coverImageId, galleryImageIds, seoTitle, seoDescription: seoDesc, status: publish ? 'PUBLISHED' : apiStatus(pubStatus) }
-      if (isNew) { await api.createProject(siteId, payload); show(publish ? 'Project published' : 'Project saved') }
-      else { await api.updateProject(siteId, project!.id, payload); show(publish ? 'Project updated' : 'Project saved') }
-      await refresh(); onNavigate('projects')
+      if (isNew) {
+        const { project: created } = await api.createProject(siteId, payload)
+        show(publish ? 'Project published' : 'Project saved')
+        await refresh()
+        // Stay in the editor — deep-link the new id so refresh/share works.
+        onNavigate('project-editor', created?.id, { returnTo: returnTo ?? undefined })
+      } else {
+        await api.updateProject(siteId, project!.id, payload)
+        show(publish ? 'Project updated' : 'Project saved')
+        await refresh()
+        setSaveState('saved')
+      }
     } catch (e: any) { show(e.message || 'Failed to save'); setSaveState('unsaved') }
   }
 
@@ -187,7 +197,7 @@ export function ProjectEditor({ projectId, onNavigate }: ProjectEditorProps) {
     <div className="flex flex-col h-full overflow-hidden">
       <div className="flex-shrink-0 bg-surface border-b border-border px-4 h-[46px] flex items-center gap-3">
         <div className="flex items-center gap-2 min-w-0 flex-1">
-          <button onClick={() => onNavigate('projects')} className="flex items-center gap-1 text-[12px] text-text-subtle hover:text-text transition-colors"><IconChevronLeft size={13} />Projects</button>
+          <button onClick={() => onNavigate(returnTo ?? 'projects')} className="flex items-center gap-1 text-[12px] text-text-subtle hover:text-text transition-colors"><IconChevronLeft size={13} />{returnTo === 'dashboard' ? 'Dashboard' : 'Projects'}</button>
           <span className="text-text-subtle">/</span>
           <span className="text-[13px] font-medium text-text truncate">{title || 'New project'}</span>
           <span className="flex-shrink-0"><Badge variant={pubStatus} /></span>
@@ -203,8 +213,8 @@ export function ProjectEditor({ projectId, onNavigate }: ProjectEditorProps) {
               </Button>
             )
           })()}
-          <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>
-          <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{pubStatus === 'published' ? 'Update' : 'Publish'}</Button>
+          {canEdit && <Button variant="secondary" size="sm" onClick={() => handleSave(false)}>Save draft</Button>}
+          {canEdit && <Button variant="primary" size="sm" onClick={() => handleSave(true)}>{pubStatus === 'published' ? 'Update' : 'Publish'}</Button>}
         </div>
       </div>
 
@@ -281,9 +291,9 @@ export function ProjectEditor({ projectId, onNavigate }: ProjectEditorProps) {
             <Input label="Title" value={seoTitle} onChange={v => { setSeoTitle(v); markDirty() }} placeholder="Defaults to project title" />
             <div className="flex flex-col gap-1 mt-3"><label className="text-[12px] font-medium text-text-muted">Description</label><textarea value={seoDesc} onChange={e => { setSeoDesc(e.target.value); markDirty() }} rows={3} placeholder="Brief description for search results" className="w-full border border-border rounded text-[12px] text-text placeholder-text-subtle px-2.5 py-1.5 focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent resize-none leading-relaxed" /><p className="text-[10px] text-text-subtle text-right">{seoDesc.length}/160</p></div>
           </SideSection>
-          {!isNew && (
+          {!isNew && canEdit && (
             <SideSection title="Danger zone" noBorder>
-              <button onClick={async () => { try { await api.deleteProject(siteId, project!.id); await refresh(); onNavigate('projects') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-text-muted hover:text-danger transition-colors py-1.5">Delete project</button>
+              <button onClick={async () => { try { await api.deleteProject(siteId, project!.id); await refresh(); onNavigate(returnTo ?? 'projects') } catch (e: any) { show(e.message) } }} className="text-left text-[12px] text-text-muted hover:text-danger transition-colors py-1.5">Delete project</button>
             </SideSection>
           )}
         </aside>
