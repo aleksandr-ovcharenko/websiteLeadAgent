@@ -1118,9 +1118,53 @@ export function graphToImportContent(opts: GraphToContentOptions): {
     });
   }
 
+  // A detail document backs exactly one entity per collection — extra
+  // entities minted from the same page (related-items / cross-sell rails on
+  // a product card, teaser sections) are not the page's own subject. They
+  // would import the same slug and sourceUrl under -N suffixes and trip the
+  // duplicate-entity gate. Keep the entity whose title best matches the
+  // document's h1/slug (then confidence, then first); drop the rest.
+  const detailLosers = new Set<object>();
+  const markDetailWinners = <T extends { title: string; confidence?: number; sourceDocumentIds: string[] }>(
+    entities: T[], detailType: string, kind: string,
+  ) => {
+    const byDoc = new Map<string, T[]>();
+    for (const e of entities) {
+      const doc = docsById.get(e.sourceDocumentIds[0]);
+      if (!doc || classByDoc.get(doc.id)?.type !== detailType) continue;
+      const arr = byDoc.get(doc.id);
+      if (arr) arr.push(e); else byDoc.set(doc.id, [e]);
+    }
+    for (const [docId, arr] of byDoc) {
+      if (arr.length === 1) continue;
+      const doc = docsById.get(docId)!;
+      const h1n = normTxt(doc.h1).toLowerCase();
+      const docSlug = slugFromDocPath(doc.path || '');
+      const match = (e: T) => {
+        const tn = normTxt(e.title).toLowerCase();
+        if (tn && tn === h1n) return 3;
+        if (toSlug(e.title) === docSlug) return 2;
+        if (h1n && tn && (tn.includes(h1n) || h1n.includes(tn))) return 1;
+        return 0;
+      };
+      const winner = [...arr].sort((a, b) => match(b) - match(a) || (b.confidence ?? 0) - (a.confidence ?? 0))[0];
+      for (const e of arr) {
+        if (e === winner) continue;
+        detailLosers.add(e);
+        dropped.push({ title: e.title, reason: `duplicate-${kind}-detail-document`, sourceDocumentId: docId });
+      }
+    }
+  };
+  markDetailWinners(graph.services, 'SERVICE_DETAIL', 'service');
+  markDetailWinners(graph.projects, 'PROJECT_DETAIL', 'project');
+  markDetailWinners(graph.news, 'NEWS_DETAIL', 'news');
+  markDetailWinners(graph.vacancies, 'VACANCY_DETAIL', 'vacancy');
+  markDetailWinners(graph.products, 'PRODUCT_DETAIL', 'product');
+
   // ---- services -------------------------------------------------------------
   const services: ExtractedContent['services'] = [];
   for (const e of graph.services) {
+    if (detailLosers.has(e)) continue;
     const doc = docsById.get(e.sourceDocumentIds[0]);
     const pc = doc ? classByDoc.get(doc.id) : undefined;
     if (pc?.type !== 'SERVICE_DETAIL') {
@@ -1157,6 +1201,7 @@ export function graphToImportContent(opts: GraphToContentOptions): {
   // ---- projects -------------------------------------------------------------
   const projects: ExtractedContent['projects'] = [];
   for (const e of graph.projects) {
+    if (detailLosers.has(e)) continue;
     const doc = docsById.get(e.sourceDocumentIds[0]);
     const pc = doc ? classByDoc.get(doc.id) : undefined;
     if (pc?.type !== 'PROJECT_DETAIL') {
@@ -1202,6 +1247,7 @@ export function graphToImportContent(opts: GraphToContentOptions): {
   // ---- news / vacancies ------------------------------------------------------
   const news: ExtractedContent['news'] = [];
   for (const e of graph.news) {
+    if (detailLosers.has(e)) continue;
     const doc = docsById.get(e.sourceDocumentIds[0]);
     const pc = doc ? classByDoc.get(doc.id) : undefined;
     if (pc?.type !== 'NEWS_DETAIL' || isGenericTitle(e.title)) continue;
@@ -1222,6 +1268,7 @@ export function graphToImportContent(opts: GraphToContentOptions): {
   }
   const vacancies: ExtractedContent['vacancies'] = [];
   for (const e of graph.vacancies) {
+    if (detailLosers.has(e)) continue;
     const doc = docsById.get(e.sourceDocumentIds[0]);
     const pc = doc ? classByDoc.get(doc.id) : undefined;
     if (pc?.type !== 'VACANCY_DETAIL' || isGenericTitle(e.title)) continue;
@@ -1244,6 +1291,7 @@ export function graphToImportContent(opts: GraphToContentOptions): {
   const products: ExtractedContent['products'] = [];
   const usedProductSlugs = new Set<string>();
   for (const e of graph.products) {
+    if (detailLosers.has(e)) continue;
     const doc = docsById.get(e.sourceDocumentIds[0]);
     const pc = doc ? classByDoc.get(doc.id) : undefined;
     const fromDetail = pc?.type === 'PRODUCT_DETAIL';

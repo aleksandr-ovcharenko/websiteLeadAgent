@@ -126,7 +126,7 @@ export function auditEntityDuplicates(entity: { summary?: string; shortDescripti
 
 export interface RepairRecord {
   blockId?: string;
-  kind: 'deduped-lines' | 'deduped-items' | 'deduped-sentences' | 'joined-fragments' | 'dropped-duplicate-summary' | 'unglued' | 'rebuilt-summary';
+  kind: 'deduped-lines' | 'deduped-items' | 'deduped-sentences' | 'joined-fragments' | 'dropped-duplicate-summary' | 'unglued' | 'rebuilt-summary' | 'stripped-divider';
   detail: string;
   removed?: string[];
 }
@@ -194,6 +194,11 @@ export function joinFragmentedLines(content: string): { text: string; joined: st
   return { text: out.join('\n'), joined };
 }
 
+/** A line of pure divider punctuation (`______`, `—————`, `=====`, `* * *`)
+ *  is a serialized <hr>/decorative artifact — never content, and an
+ *  unbreakable ultra-wide token that overflows narrow viewports. */
+export const isDividerLine = (l: string): boolean => /^[ _\-–—=~*•·.]{4,}$/.test(l.trim());
+
 /** Remove duplicate lines/sequences inside one content string, keeping first
  *  occurrence order. Handles the 5× responsive-copy pattern. */
 export function dedupeLines(content: string): { text: string; removed: string[] } {
@@ -219,22 +224,40 @@ export function dedupeLines(content: string): { text: string; removed: string[] 
 export function dedupeSentences(content: string): { text: string; removed: string[] } {
   const removed: string[] = [];
   const lines = content.split('\n');
+  const lineSents = lines.map((l) => sentSplit(l));
   const counts = new Map<string, number>();
-  for (const line of lines) {
-    for (const s of sentSplit(line)) {
+  for (const ss of lineSents) {
+    for (const s of ss) {
       const k = s.toLowerCase();
       counts.set(k, (counts.get(k) || 0) + 1);
     }
   }
+  // Flat stream — runs may span line boundaries (audit splits the whole field).
+  const flat: string[] = [];
+  lineSents.forEach((ss) => ss.forEach((s) => flat.push(s.toLowerCase())));
+  const dropIdx = new Set<number>();
+  for (const runLen of [3, 2]) {
+    const runsSeen = new Map<string, number[]>();
+    for (let i = 0; i + runLen <= flat.length; i++) {
+      const key = flat.slice(i, i + runLen).join('|');
+      const arr = runsSeen.get(key) ?? [];
+      arr.push(i);
+      runsSeen.set(key, arr);
+    }
+    for (const starts of runsSeen.values()) {
+      if (starts.length > 1) for (const st of starts.slice(1)) for (let j = 0; j < runLen; j++) dropIdx.add(st + j);
+    }
+  }
   const seen = new Set<string>();
-  const out = lines.map((line) => {
-    const sentences = sentSplit(line);
-    if (!sentences.length) return line;
+  let gi = 0;
+  const out = lineSents.map((sentences, li) => {
+    if (!sentences.length) return lines[li];
     const keep: string[] = [];
     for (const s of sentences) {
+      const idx = gi++;
       const k = s.toLowerCase();
       const total = counts.get(k) || 0;
-      if (seen.has(k) && (s.length >= 20 || total >= 3)) { removed.push(s); continue; }
+      if (dropIdx.has(idx) || (seen.has(k) && (s.length >= 20 || total >= 3))) { removed.push(s); continue; }
       seen.add(k);
       keep.push(s);
     }
@@ -390,6 +413,11 @@ export function normalizeEntityContent(entity: { title?: string; summary?: strin
     }
     for (const field of ['heading', 'description']) {
       if (typeof b[field] === 'string' && b[field]) {
+        if (isDividerLine(b[field])) {
+          repairs.push({ blockId: b.id, kind: 'stripped-divider', detail: `${field} is a decorative divider line`, removed: [b[field].trim().slice(0, 40)] });
+          delete b[field];
+          continue;
+        }
         const u = unglueText(b[field]);
         if (u.fixed.length) { repairs.push({ blockId: b.id, kind: 'unglued', detail: `${field}: ${u.fixed.length} glued fragments`, removed: u.fixed.slice(0, 10) }); b[field] = u.text; }
         const s = dedupeSentences(b[field]);
@@ -397,6 +425,13 @@ export function normalizeEntityContent(entity: { title?: string; summary?: strin
       }
     }
     if (typeof b.content === 'string' && b.content) {
+      // 0. drop decorative divider lines (serialized <hr> artifacts)
+      const divLines: string[] = b.content.split('\n');
+      if (divLines.some(isDividerLine)) {
+        const dropped = divLines.filter(isDividerLine);
+        b.content = divLines.filter((l: string) => !isDividerLine(l)).join('\n');
+        repairs.push({ blockId: b.id, kind: 'stripped-divider', detail: `${dropped.length} decorative divider line(s) removed`, removed: dropped.map((l: string) => l.trim().slice(0, 40)) });
+      }
       // 1. unglue (sentence breaks in prose), 2. join fragments, 3. dedupe lines, 4. dedupe repeated sentences
       const u = unglueText(b.content, { sentenceBreaks: true });
       if (u.fixed.length >= 2) repairs.push({ blockId: b.id, kind: 'unglued', detail: `${u.fixed.length} glued fragments`, removed: u.fixed.slice(0, 10) });
@@ -413,6 +448,10 @@ export function normalizeEntityContent(entity: { title?: string; summary?: strin
         if (typeof it === 'string') { const u = unglueText(it); if (u.fixed.length) { repairs.push({ blockId: b.id, kind: 'unglued', detail: `item: ${u.fixed.length} glued fragments`, removed: u.fixed.slice(0, 10) }); return u.text; } return it; }
         if (it && typeof it.title === 'string') { const u = unglueText(it.title); if (u.fixed.length) { repairs.push({ blockId: b.id, kind: 'unglued', detail: `item title: ${u.fixed.length} glued fragments`, removed: u.fixed.slice(0, 10) }); return { ...it, title: u.text }; } }
         return it;
+      }).filter((it: any) => {
+        const t = typeof it === 'string' ? it : it?.title || it?.content || '';
+        if (t && isDividerLine(t)) { repairs.push({ blockId: b.id, kind: 'stripped-divider', detail: 'divider item removed', removed: [t.trim().slice(0, 40)] }); return false; }
+        return true;
       });
       const d = dedupeItems(b.items);
       if (d.removed.length) repairs.push({ blockId: b.id, kind: 'deduped-items', detail: `${d.removed.length} duplicate items removed`, removed: d.removed.map((x: any) => String(x?.title || x).slice(0, 60)) });

@@ -98,3 +98,47 @@ describe('sentence-level dedupe — repeated paragraph inside one line', () => {
     expect(String(out.blocks[0].content).match(/Позвоните нам/g)).toHaveLength(2);
   });
 });
+
+describe('sentence-run dedupe — repeated boilerplate sequences', () => {
+  it('drops the later copy of a repeated two-sentence run', () => {
+    const run = 'минск, ул. примерная, 1. Режим работы сменный.';
+    const entity = {
+      summary: 'Вакансии компании.',
+      blocks: [
+        { type: 'richText', content: `Первая вакансия описание. ${run} Уникальные требования первой. Вторая вакансия описание. ${run} Уникальные требования второй.` },
+      ],
+    };
+    const { entity: out, repairs } = normalizeEntityContent(entity);
+    expect(repairs.some((r) => r.kind === 'deduped-sentences')).toBe(true);
+    expect(auditEntityDuplicates(out)).toEqual([]);
+  });
+});
+
+describe('decorative divider lines', () => {
+  it('strips serialized <hr> artifacts from block content', () => {
+    const entity = {
+      summary: 'Условия кредита в магазине.',
+      blocks: [
+        { type: 'richText', content: `${'_'.repeat(129)}\nХотите обновить интерьер прямо сейчас? Оформляйте счёт-фактуру в любом магазине.` },
+      ],
+    };
+    const { entity: out, repairs } = normalizeEntityContent(entity);
+    expect(repairs.some((r) => r.kind === 'stripped-divider')).toBe(true);
+    expect(String(out.blocks[0].content)).not.toMatch(/_{4,}/);
+    expect(String(out.blocks[0].content)).toContain('Хотите обновить интерьер');
+  });
+
+  it('drops divider-only heading and divider items', () => {
+    const entity = {
+      summary: 'Разное описание страницы для теста.',
+      blocks: [
+        { type: 'richText', heading: '———————', content: 'Нормальный текст блока без разделителей.' },
+        { type: 'features', items: ['Первый пункт достаточно длинный', '_____', 'Второй пункт достаточно длинный'] },
+      ],
+    };
+    const { entity: out, repairs } = normalizeEntityContent(entity);
+    expect(repairs.filter((r) => r.kind === 'stripped-divider').length).toBeGreaterThanOrEqual(2);
+    expect(out.blocks[0].heading).toBeUndefined();
+    expect(out.blocks[1].items).toHaveLength(2);
+  });
+});

@@ -144,4 +144,23 @@ describe('graphToImportContent products mapping', () => {
     assert.equal(content.products.length, 0);
     assert.ok(provenance.droppedEntities.some((d) => d.reason.startsWith('not-from-product-page')));
   });
+
+  it('imports only the page-subject entity when one PRODUCT_DETAIL doc mints several', () => {
+    // A product card's related-items rail mints extra entities sharing the
+    // same detail doc — only the entity matching the document subject may be
+    // imported; the rest are dropped with provenance, not suffixed dupes.
+    const detail = { ...detailDoc, url: 'https://example.com/catalog/stol-ruben', path: 'catalog/stol-ruben', h1: 'Стол Рубен' };
+    const graph = baseGraph([
+      ent({ title: 'Стол Рубен' }),
+      ent({ title: 'Стол Адажио 115' }),
+      ent({ title: 'Стол DT-2010' }),
+    ]);
+    graph.pages = [{ sourceDocumentId: 'sd-1', classification: { type: 'PRODUCT_DETAIL', confidence: 0.9 }, sections: [], collections: [], quality: {} }];
+    const { content, provenance } = graphToImportContent({ graph, sourceDocuments: [detail], baseUrl: 'https://example.com' });
+    assert.equal(content.products.length, 1, 'one entity per detail document');
+    assert.equal(content.products[0].slug, 'stol-ruben');
+    assert.equal(provenance.droppedEntities.filter((d) => d.reason === 'duplicate-product-detail-document').length, 2);
+    const srcs = content.products.map((p) => p.sourceUrl);
+    assert.equal(new Set(srcs).size, srcs.length, 'no sourceUrl collisions');
+  });
 });
