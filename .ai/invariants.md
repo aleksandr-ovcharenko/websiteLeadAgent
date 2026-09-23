@@ -896,3 +896,35 @@ Every future DiscoveryRun can truthfully list the Leads/websites it created.
 ### CHEAP CHECKS PRECEDE EXPENSIVE AI
 
 Deterministic relevance/dedupe evidence is used before semantic classification.
+
+## REPOSITORY COMMIT POLICY
+
+### NO COMMITS WITHOUT EXPLICIT HUMAN GO
+
+An AI agent must NEVER run `git commit`, `git push`, or stage-for-commit
+actions unless the human has explicitly approved that specific commit in the
+current conversation. Passing tests, finished tasks, or approval of an earlier
+commit do NOT imply approval of the next one.
+
+### PRODUCTION CODE ONLY
+
+Commits contain production code and its tests. Nothing else.
+
+Never commit:
+
+- reports, audits, evidence packs, acceptance packs, milestone verification
+  documents or run artifacts (`REPORT.md`, `*-report*.md`, `docs/**`,
+  `docs/evidence/**`, generated-content/route-integrity/QA JSON dumps);
+- proof-of-concept, experiment, one-off or per-site scripts
+  (`archive/`, `scripts/<site>-*`, `scripts/v<NN>-*`, `*-qa` one-offs);
+- site-specific repair/validation artifacts, crawl output, screenshots,
+  Playwright traces;
+- `.gitignore` or `.gitattributes` overrides that re-include any of the above
+  (no `!` un-ignore lines for reports/evidence).
+
+If a file is needed to prove correctness, keep it local (gitignored) and cite
+real command output in the conversation. Documentation is written deliberately
+at release time, never as run byproducts.
+
+Violations of this policy are treated as regressions: untrack the file
+(`git rm --cached`, keep it on disk) and report it, do not silently re-add it.

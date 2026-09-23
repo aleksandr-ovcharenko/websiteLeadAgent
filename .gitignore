@@ -70,10 +70,16 @@ playwright-report/
 /apps/platform/screenshots/
 /design-reference/screenshots/
 /docs/**
-# Acceptance evidence packs are intentionally tracked (V3.7.6.1).
-!/docs/evidence
-!/docs/evidence/**
 /apps/dashboard/docs/screenshots/
 /apps/platform/e2e/screenshots/
 packages/redesign-engine/test/data/
+
+# Reports, audits, evidence packs and POCs are local artifacts — never commit.
+# Project documentation is written deliberately at release time, not from runs.
 V*-*-REPORT.md
+*REPORT*.md
+*report*.md
+*AUDIT*.md
+*audit*.md
+/REPORT.md
+/archive/
