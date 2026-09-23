@@ -1,0 +1,176 @@
+{
+  "capturedAt": "2026-09-23T11:30:29.417Z",
+  "note": "FIRST RESULT — preserved before any resume. RENDER_VALIDATED failed on transient network checks (image HEAD fetch failed on a URL that returns 200 now; ERR_NAME_NOT_RESOLVED console errors clean on reprobe). Resumed via --run-id on UNCHANGED frozen code.",
+  "stage": "QA_FAILED",
+  "errorMessage": "Gate RENDER_VALIDATED failed: [https://proekt-m.by/%D0%92%D0%B5%D0%BB%D0%B8%D0%BA%D0%B8%D0%B9%20%D0%BA%D0%B0%D0] image resolves: fetch failed",
+  "stageResults": [
+    {
+      "stage": "CRAWLED",
+      "errors": [],
+      "status": "PASS",
+      "metrics": {
+        "pages": 3,
+        "resumed": false,
+        "warnings": 0
+      },
+      "warnings": [],
+      "startedAt": "2026-09-23T11:26:23.328Z",
+      "durationMs": 0,
+      "finishedAt": "2026-09-23T11:26:23.328Z",
+      "artifactPaths": [
+        "data/redesign/cmtnjmlps003s99lgh57leiqr/runs/cmudteyoe0001fyc5le1ia7zz/crawl.json"
+      ],
+      "retryFromStage": "EXTRACTED"
+    },
+    {
+      "stage": "EXTRACTED",
+      "errors": [],
+      "status": "PASS",
+      "metrics": {
+        "documents": 3,
+        "technicalPayloadsRemoved": 7
+      },
+      "warnings": [],
+      "startedAt": "2026-09-23T11:26:23.332Z",
+      "durationMs": 244,
+      "finishedAt": "2026-09-23T11:26:23.576Z",
+      "artifactPaths": [
+        "data/redesign/cmtnjmlps003s99lgh57leiqr/runs/cmudteyoe0001fyc5le1ia7zz/source-documents.json"
+      ],
+      "retryFromStage": "CONTENT_VALIDATED"
+    },
+    {
+      "stage": "CONTENT_VALIDATED",
+      "errors": [],
+      "status": "PASS",
+      "metrics": {
+        "documents": 3
+      },
+      "warnings": [],
+      "startedAt": "2026-09-23T11:26:23.589Z",
+      "durationMs": 0,
+      "finishedAt": "2026-09-23T11:26:23.589Z",
+      "artifactPaths": [],
+      "retryFromStage": "GRAPH_BUILT"
+    },
+    {
+      "stage": "GRAPH_BUILT",
+      "errors": [],
+      "status": "PASS",
+      "metrics": {
+        "news": 1,
+        "pages": 3,
+        "projects": 7,
+        "services": 0,
+        "graphWarnings": 0
+      },
+      "warnings": [],
+      "startedAt": "2026-09-23T11:26:23.595Z",
+      "durationMs": 119,
+      "finishedAt": "2026-09-23T11:26:23.714Z",
+      "artifactPaths": [
+        "data/redesign/cmtnjmlps003s99lgh57leiqr/runs/cmudteyoe0001fyc5le1ia7zz/source-content-graph.json"
+      ],
+      "retryFromStage": "CMS_IMPORT_READY"
+    },
+    {
+      "stage": "CMS_IMPORT_READY",
+      "errors": [],
+      "status": "PASS_WITH_WARNINGS",
+      "metrics": {
+        "routes": 3,
+        "findings": 19,
+        "qaErrors": 0,
+        "mediaSlots": 4,
+        "qaWarnings": 14,
+        "routeErrors": 0,
+        "textOnlyHero": false
+      },
+      "warnings": [
+        "glued-description: Possible glued section-label text in block.richText.content (4 missing sentence boundaries in one paragraph)",
+        "glued-description: Possible glued section-label text in block.richText.content (4 missing sentence boundaries in one paragraph)",
+        "oversized-content: block.richText.content exceeds 3000 chars (3702)",
+        "oversized-content: block.richText.content exceeds 3000 chars (3631)",
+        "oversized-content: block.richText.content exceeds 3000 chars (3702)",
+        "oversized-content: block.richText.content exceeds 3000 chars (3631)",
+        "glued-description: Possible glued section-label text in news.summary (4 missing sentence boundaries in one paragraph)",
+        "glued-description: Possible glued section-label text in block.richText.content (4 missing sentence boundaries in one paragraph)",
+        "glued-description: Possible glued section-label text in block.richText.content (4 missing sentence boundaries in one paragraph)",
+        "dropped-entity: Source entity dropped: duplicate-project-detail-document",
+        "dropped-entity: Source entity dropped: duplicate-project-detail-document",
+        "dropped-entity: Source entity dropped: duplicate-project-detail-document",
+        "dropped-entity: Source entity dropped: duplicate-project-detail-document",
+        "dropped-entity: Source entity dropped: duplicate-project-detail-document"
+      ],
+      "startedAt": "2026-09-23T11:26:23.718Z",
+      "durationMs": 26,
+      "finishedAt": "2026-09-23T11:26:23.744Z",
+      "artifactPaths": [
+        "data/redesign/cmtnjmlps003s99lgh57leiqr/runs/cmudteyoe0001fyc5le1ia7zz/generated-content-qa.json",
+        "data/redesign/cmtnjmlps003s99lgh57leiqr/runs/cmudteyoe0001fyc5le1ia7zz/route-integrity.json"
+      ],
+      "retryFromStage": "CMS_IMPORTED"
+    },
+    {
+      "stage": "CMS_IMPORTED",
+      "errors": [],
+      "status": "PASS",
+      "metrics": {
+        "pages": 3,
+        "siteId": "cmue0p89e0003fyc5ko3irt8t",
+        "demoVariantId": "cmue0p89r0005fyc5lzlhwxyq"
+      },
+      "warnings": [],
+      "startedAt": "2026-09-23T11:26:23.755Z",
+      "durationMs": 267,
+      "finishedAt": "2026-09-23T11:26:24.022Z",
+      "artifactPaths": [],
+      "retryFromStage": "RENDERED"
+    },
+    {
+      "stage": "RENDERED",
+      "errors": [],
+      "status": "PASS",
+      "metrics": {
+        "siteId": "cmue0p89e0003fyc5ko3irt8t",
+        "siteBuildId": "cmue0p8i90013fyc535k7z7un"
+      },
+      "warnings": [],
+      "startedAt": "2026-09-23T11:26:24.077Z",
+      "durationMs": 18,
+      "finishedAt": "2026-09-23T11:26:24.095Z",
+      "artifactPaths": [],
+      "retryFromStage": "RENDER_VALIDATED"
+    },
+    {
+      "stage": "RENDER_VALIDATED",
+      "errors": [
+        "[https://proekt-m.by/%D0%92%D0%B5%D0%BB%D0%B8%D0%BA%D0%B8%D0%B9%20%D0%BA%D0%B0%D0] image resolves: fetch failed",
+        "[/] no console errors: Failed to load resource: net::ERR_NAME_NOT_RESOLVED | Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+        "[/projects] no console errors: Failed to load resource: net::ERR_NAME_NOT_RESOLVED | Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+        "[/proekty/zdaniya-obshhestvennogo-naznacheniya/proektirovanie-tehnicheskoj-modernizacii/proekt-rekonstrukczii-kinoteatra.html] no console errors: Failed to load resource: net::ERR_NAME_NOT_RESOLVED | Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+        "[/proekty/zdaniya-obshhestvennogo-naznacheniya/uchebnye-zdaniya] no console errors: Failed to load resource: net::ERR_NAME_NOT_RESOLVED | Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+        "[/news] no console errors: Failed to load resource: net::ERR_NAME_NOT_RESOLVED | Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+        "[/novosti/v-lozanne-postroena-shtab-kvartira-olimpijskogo-komiteta.html] no console errors: Failed to load resource: net::ERR_NAME_NOT_RESOLVED | Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+        "[/proekt-rekonstrukczii-kinoteatra.html] no console errors: Failed to load resource: net::ERR_NAME_NOT_RESOLVED | Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+        "[/uchebnye-zdaniya] no console errors: Failed to load resource: net::ERR_NAME_NOT_RESOLVED | Failed to load resource: net::ERR_NAME_NOT_RESOLVED",
+        "[/v-lozanne-postroena-shtab-kvartira-olimpijskogo-komiteta.html] no console errors: Failed to load resource: net::ERR_NAME_NOT_RESOLVED | Failed to load resource: net::ERR_NAME_NOT_RESOLVED"
+      ],
+      "status": "FAIL",
+      "metrics": {
+        "browserTier": "ran",
+        "renderChecks": 112,
+        "validationOk": true,
+        "routesChecked": 10
+      },
+      "warnings": [],
+      "startedAt": "2026-09-23T11:26:24.107Z",
+      "durationMs": 14492,
+      "finishedAt": "2026-09-23T11:26:38.599Z",
+      "artifactPaths": [
+        "data/redesign/cmtnjmlps003s99lgh57leiqr/runs/cmudteyoe0001fyc5le1ia7zz/post-render-qa.json"
+      ],
+      "retryFromStage": "RENDER_VALIDATED"
+    }
+  ]
+}

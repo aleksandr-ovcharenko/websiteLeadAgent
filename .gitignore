@@ -70,6 +70,9 @@ playwright-report/
 /apps/platform/screenshots/
 /design-reference/screenshots/
 /docs/**
+# Acceptance evidence packs are intentionally tracked (V3.7.6.1).
+!/docs/evidence
+!/docs/evidence/**
 /apps/dashboard/docs/screenshots/
 /apps/platform/e2e/screenshots/
 packages/redesign-engine/test/data/

@@ -1,0 +1,14 @@
+# V3.7.6.1 verification — exact commands (frozen tree 1bfc28d)
+
+npm test                                                # vitest suite
+npm run test:node                                       # node --test suite
+npm run build --workspace=packages/redesign-engine
+npm run build --workspace=packages/templates
+npm run build --workspace=apps/platform
+npx prisma validate
+git diff --check
+
+# holdout qualification + generation (frozen code 1bfc28d)
+npm run generate -- --url=https://minsk-kirpich.by       # 1st call: exit 2 LEAD_REVIEW_REQUIRED
+POST /api/leads/cmud4141z000slh16z99d7t2j/review        # {"status":"GOOD"} early:false
+npm run generate -- --url=https://minsk-kirpich.by       # 2nd call: exit 0, all 11 gates PASS

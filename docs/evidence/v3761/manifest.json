@@ -1,0 +1,69 @@
+{
+  "acceptance": "V3.7.6.1",
+  "status": "UNIVERSAL_PIPELINE_INDEPENDENT_HOLDOUT_READY",
+  "frozenCommit": "1bfc28d",
+  "holdout": {
+    "domain": "minsk-kirpich.by",
+    "sourceUrl": "https://minsk-kirpich.by",
+    "command": "npm run generate -- --url=https://minsk-kirpich.by",
+    "exitCode": 0,
+    "independent": true,
+    "codeChangedAfterSelection": false,
+    "selectionCriteria": {
+      "neverProcessed": true,
+      "noPriorRuns": true,
+      "noPriorSites": true,
+      "noStructuralInspectionBeforeSelection": true,
+      "livenessCheck": "HEAD https://minsk-kirpich.by -> 200"
+    },
+    "qualification": {
+      "leadId": "cmud4141z000slh16z99d7t2j",
+      "leadCreatedBy": "discovery (pre-existing UNREVIEWED lead, canonical-domain reuse — no duplicate created)",
+      "initialStatus": "UNREVIEWED",
+      "workflow": "audit(SUCCESS) -> lighthouse(SUCCESS 75/60/97/70) -> visual(SUCCESS) -> scoring(SUCCESS 25) -> ready_for_review",
+      "review": {
+        "endpoint": "POST /api/leads/cmud4141z000slh16z99d7t2j/review",
+        "decision": "GOOD",
+        "early": false,
+        "allSignalsSuccess": true
+      },
+      "cliGateEvidence": "first --url invocation exited 2 with LEAD_REVIEW_REQUIRED; after legal GOOD review the same command proceeded to generation"
+    },
+    "run": {
+      "runId": "cmue1qxk30001xu0gdlk2m39s",
+      "siteId": "cmue1uafy0003xu0gk7cstu40",
+      "demoVariantId": "cmue1uag70005xu0gsvp2xadp",
+      "revisionId": "cmue1uia200ebxu0gqdzwt8ta",
+      "revisionStatus": "REVIEW_READY",
+      "siteStatus": "ACTIVE",
+      "canonicalDomain": "minsk-kirpich.by",
+      "singlePass": true,
+      "resumed": false,
+      "startedAt": "2026-09-23T11:56:57Z",
+      "completedAt": "2026-09-23T12:04:12Z"
+    }
+  },
+  "disqualifiedPriorCandidates": [
+    { "domain": "antei.by", "reason": "code changed from its result (glued-heading detector fix, d6da514)" },
+    { "domain": "savit.by", "reason": "code changed from its result (sentence dedupe + date parsing, 3b55c3a)" },
+    { "domain": "svisloch.by", "reason": "code changed from its result (detail-document dedupe + divider strip, 6269fe3)" },
+    { "domain": "proekt-m.by", "reason": "code changed from its result (hero layout + crawl homepage fix, 1bfc28d); also failed VISUAL_VALIDATED before the fix" }
+  ],
+  "entityCounts": { "pages": 40, "services": 0, "projects": 0, "news": 3, "products": 33, "vacancies": 0 },
+  "qaCounts": {
+    "contentQa": { "checksRun": 19, "scannedEntities": 76, "scannedBlocks": 416, "errors": 0, "warnings": 249, "info": 36 },
+    "postRenderQa": { "checks": 989, "failed": 0, "routesChecked": 79 },
+    "visualQa": { "pass": true, "findings": 872, "errors": 0, "warnings": 0, "screenshots": 156, "repairsApplied": 0, "missingCopyKeys": 0 },
+    "importProvenance": { "droppedEntities": 77 }
+  },
+  "forgePreview": {
+    "url": "http://localhost:3000/site-screenshots/cmue1uafy0003xu0gk7cstu40/preview.png",
+    "httpStatus": 200,
+    "contentType": "image/png",
+    "bytes": 504110,
+    "sha256": "2cc5e1fe6ee902b8b8c63a5b996e29abf49b0208b3de8015047870d33f709dbc",
+    "source": "revision"
+  },
+  "artifactDir": "data/redesign/cmud4141z000slh16z99d7t2j/runs/cmue1qxk30001xu0gdlk2m39s/",
+  "screenshotCount": { "dbRevisionScreenshots": 156, "pngArtifacts": 93 }
+}

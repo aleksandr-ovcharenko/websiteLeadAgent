@@ -1,0 +1,19 @@
+{
+  "run": "cmue1qxk30001xu0gdlk2m39s",
+  "algorithm": "sha256",
+  "base": "data/redesign/cmud4141z000slh16z99d7t2j/runs/cmue1qxk30001xu0gdlk2m39s/",
+  "artifacts": {
+    "crawl.json": "7f875d0e1405e6de4c42e74c4db385a7ba3b9242e5bc947f44b8d17bd7b712a4",
+    "content.json": "6b076cd1315258456e71a2f6c0ca20afad4d607cb9883b6ebf14d66975b35e23",
+    "source-content-graph.json": "05fe3c8d8c302ac6f1488b5a9ec0801d085019b51c72ac5c4b48f338f8447478",
+    "source-documents.json": "469251f694b8e21107d160f7d6f60243e02ffd96014d2781cfcc7bb4afbd1b2a",
+    "generated-content-qa.json": "851f6644f8b5858f13c0397d2b79d9139ebf226c472c79a6292a2ef969f6bcd7",
+    "post-render-qa.json": "57f5cafd313bea4f974fdc1df6d10a3892a37ed04f771b18850a6496a6f0300c",
+    "visual-qa-p1.json": "65bd34ad92b336680da9482dd5f4d36ffa58c56b56a50e7b2110fb146193d828",
+    "route-integrity.json": "40c43bbfe92057d291e93013d82955cf22111af6f7a6c180d433e0f88414b4ba",
+    "duplicate-content.json": "b9a5c2605694f5518d60fbc282fff5f479171385075ac2c575d86ec22c19f9d9",
+    "repair-log.json": "91ca7985d8d0ec0a1bc53568a6edc6b32db3bc41c64e2f86350934904114ac97",
+    "graph-import-provenance.json": "01e9c6a5a296f3b5707151a99ca9bb066e354b4a6a44771a81ee8aaa407ac78a",
+    "forge-preview.png": "2cc5e1fe6ee902b8b8c63a5b996e29abf49b0208b3de8015047870d33f709dbc"
+  }
+}

@@ -1,0 +1,160 @@
+{
+  "runId": "cmue1qxk30001xu0gdlk2m39s",
+  "leadId": "cmud4141z000slh16z99d7t2j",
+  "siteId": "cmue1uafy0003xu0gk7cstu40",
+  "stage": "HUMAN_REVIEW_READY",
+  "createdAt": "2026-09-23T11:55:42.819Z",
+  "updatedAt": "2026-09-23T12:04:27.058Z",
+  "crawlJsonPath": "data/redesign/cmud4141z000slh16z99d7t2j/runs/cmue1qxk30001xu0gdlk2m39s/crawl.json",
+  "contentJsonPath": "data/redesign/cmud4141z000slh16z99d7t2j/runs/cmue1qxk30001xu0gdlk2m39s/content.json",
+  "stageResults": [
+    {
+      "stage": "CRAWLED",
+      "status": "PASS",
+      "errors": [],
+      "warnings": 0,
+      "metrics": {
+        "pages": 40,
+        "resumed": false,
+        "warnings": 0
+      },
+      "startedAt": "2026-09-23T11:57:28.151Z",
+      "finishedAt": "2026-09-23T11:57:28.151Z"
+    },
+    {
+      "stage": "EXTRACTED",
+      "status": "PASS",
+      "errors": [],
+      "warnings": 0,
+      "metrics": {
+        "documents": 40,
+        "technicalPayloadsRemoved": 40
+      },
+      "startedAt": "2026-09-23T11:57:28.155Z",
+      "finishedAt": "2026-09-23T11:57:29.339Z"
+    },
+    {
+      "stage": "CONTENT_VALIDATED",
+      "status": "PASS",
+      "errors": [],
+      "warnings": 0,
+      "metrics": {
+        "documents": 40
+      },
+      "startedAt": "2026-09-23T11:57:29.344Z",
+      "finishedAt": "2026-09-23T11:57:29.344Z"
+    },
+    {
+      "stage": "GRAPH_BUILT",
+      "status": "PASS",
+      "errors": [],
+      "warnings": 0,
+      "metrics": {
+        "news": 3,
+        "pages": 40,
+        "projects": 0,
+        "services": 0,
+        "graphWarnings": 0
+      },
+      "startedAt": "2026-09-23T11:57:29.348Z",
+      "finishedAt": "2026-09-23T11:58:19.319Z"
+    },
+    {
+      "stage": "CMS_IMPORT_READY",
+      "status": "PASS_WITH_WARNINGS",
+      "errors": [],
+      "warnings": 249,
+      "metrics": {
+        "routes": 36,
+        "findings": 285,
+        "qaErrors": 0,
+        "mediaSlots": 37,
+        "qaWarnings": 249,
+        "routeErrors": 0,
+        "textOnlyHero": false
+      },
+      "startedAt": "2026-09-23T11:58:19.325Z",
+      "finishedAt": "2026-09-23T11:58:19.458Z"
+    },
+    {
+      "stage": "CMS_IMPORTED",
+      "status": "PASS",
+      "errors": [],
+      "warnings": 0,
+      "metrics": {
+        "pages": 40,
+        "siteId": "cmue1uafy0003xu0gk7cstu40",
+        "demoVariantId": "cmue1uag70005xu0gsvp2xadp"
+      },
+      "startedAt": "2026-09-23T11:58:19.477Z",
+      "finishedAt": "2026-09-23T11:58:29.631Z"
+    },
+    {
+      "stage": "RENDERED",
+      "status": "PASS",
+      "errors": [],
+      "warnings": 0,
+      "metrics": {
+        "siteId": "cmue1uafy0003xu0gk7cstu40",
+        "siteBuildId": "cmue1uieg00edxu0gzlotpvaf"
+      },
+      "startedAt": "2026-09-23T11:58:29.795Z",
+      "finishedAt": "2026-09-23T11:58:29.811Z"
+    },
+    {
+      "stage": "RENDER_VALIDATED",
+      "status": "PASS",
+      "errors": [],
+      "warnings": 0,
+      "metrics": {
+        "browserTier": "ran",
+        "renderChecks": 989,
+        "validationOk": true,
+        "routesChecked": 79
+      },
+      "startedAt": "2026-09-23T11:58:29.822Z",
+      "finishedAt": "2026-09-23T12:00:30.959Z"
+    },
+    {
+      "stage": "VISUAL_VALIDATED",
+      "status": "PASS",
+      "errors": [],
+      "warnings": 0,
+      "metrics": {
+        "passes": 1,
+        "findings": 872,
+        "screenshots": 156,
+        "repairsApplied": 0,
+        "missingCopyKeys": 0
+      },
+      "startedAt": "2026-09-23T12:00:30.999Z",
+      "finishedAt": "2026-09-23T12:04:26.791Z"
+    },
+    {
+      "stage": "PREVIEW_PUBLISHED",
+      "status": "PASS",
+      "errors": [],
+      "warnings": 0,
+      "metrics": {
+        "variantId": "cmue1uag70005xu0gsvp2xadp",
+        "previewUrl": "http://localhost:3000/site-screenshots/cmue1uafy0003xu0gk7cstu40/preview.png",
+        "previewSource": "revision"
+      },
+      "startedAt": "2026-09-23T12:04:26.820Z",
+      "finishedAt": "2026-09-23T12:04:26.963Z"
+    },
+    {
+      "stage": "HUMAN_REVIEW_READY",
+      "status": "PASS",
+      "errors": [],
+      "warnings": 0,
+      "metrics": {
+        "siteId": "cmue1uafy0003xu0gk7cstu40",
+        "revisionId": "cmue1uia200ebxu0gqdzwt8ta",
+        "previewSlug": "bx28scok"
+      },
+      "startedAt": "2026-09-23T12:04:26.820Z",
+      "finishedAt": "2026-09-23T12:04:27.039Z"
+    }
+  ]
+}
